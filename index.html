@@ -6,6 +6,59 @@
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <link rel="stylesheet" href="history.css">
+    <style>
+        .draw-things-button {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 5px;
+            color: var(--text-color);
+            opacity: 0.7;
+            transition: opacity 0.3s;
+        }
+
+        .draw-things-button:hover {
+            opacity: 1;
+        }
+
+        .input-buttons {
+            position: absolute;
+            right: 10px;
+            top: 50%;
+            transform: translateY(-50%);
+            display: flex;
+            gap: 5px;
+        }
+
+        .input-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 5px;
+            color: var(--text-color);
+            opacity: 0.7;
+            transition: opacity 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .input-btn:hover {
+            opacity: 1;
+        }
+
+        .draw-things-btn {
+            color: #4CAF50; /* zielony kolor dla odróżnienia */
+        }
+
+        .draw-things-btn:hover {
+            color: #45a049;
+        }
+    </style>
 </head>
 <body>
     <div class="titlebar">
@@ -37,6 +90,10 @@
                     rows="3"
                 ></textarea>
                 <div class="input-buttons">
+                    <button class="input-btn draw-things-btn" id="draw-things-btn" style="display: none;">
+                        <i class="fas fa-arrow-right"></i>
+                        <div class="tooltip">Send to Draw Things</div>
+                    </button>
                     <button class="input-btn" id="copy-prompt">
                         <i class="fas fa-copy"></i>
                         <div class="tooltip">Copy</div>
@@ -86,6 +143,7 @@
         
         let debounceTimeout;
         let isGenerating = false;
+        let drawThingsCheckInterval;
 
         // Obsługa statusu połączenia
         ipcRenderer.on('ollama-status', (event, status) => {
@@ -449,10 +507,50 @@
             addCardEventListeners();
         }
 
-        // Dodaj inicjalizację przy starcie
+        // Dodaj funkcję inicjalizacji Draw Things
+        async function initializeDrawThings() {
+            const drawThingsBtn = document.getElementById('draw-things-btn');
+            
+            async function checkDrawThingsStatus() {
+                try {
+                    const isRunning = await ipcRenderer.invoke('check-draw-things');
+                    drawThingsBtn.style.display = isRunning ? 'block' : 'none';
+                } catch (error) {
+                    console.error('Error checking Draw Things status:', error);
+                }
+            }
+
+            drawThingsBtn.addEventListener('click', async () => {
+                const promptInput = document.querySelector('.prompt-input');
+                const prompt = promptInput.value;
+                if (prompt) {
+                    try {
+                        await ipcRenderer.invoke('send-to-draw-things', prompt);
+                        showToast('Prompt sent to Draw Things');
+                    } catch (error) {
+                        console.error('Error sending to Draw Things:', error);
+                        showToast('Error sending prompt to Draw Things');
+                    }
+                }
+            });
+
+            // Rozpocznij sprawdzanie statusu Draw Things
+            await checkDrawThingsStatus();
+            drawThingsCheckInterval = setInterval(checkDrawThingsStatus, 5000);
+        }
+
+        // Dodaj wywołanie inicjalizacji w istniejącym event listenerze DOMContentLoaded
         document.addEventListener('DOMContentLoaded', async () => {
             await updateStyleSelector();
             await loadStyles();
+            await initializeDrawThings(); // Dodaj tę linię
+        });
+
+        // Dodaj czyszczenie interwału przy zamykaniu okna
+        window.addEventListener('beforeunload', () => {
+            if (drawThingsCheckInterval) {
+                clearInterval(drawThingsCheckInterval);
+            }
         });
 
         // Dodaj obsługę aktualizacji ustawień

@@ -12,6 +12,46 @@ import {
 } from '@heroicons/react/24/outline';
 import './styles.css';
 
+let drawThingsButton = null;
+
+async function checkDrawThingsStatus() {
+    try {
+        const isRunning = await window.ipcRenderer.invoke('check-draw-things');
+        if (drawThingsButton) {
+            drawThingsButton.style.display = isRunning ? 'block' : 'none';
+        }
+    } catch (error) {
+        console.error('Error checking Draw Things status:', error);
+    }
+}
+
+function initializeDrawThings() {
+    const promptInput = document.querySelector('#prompt-input');
+    const inputWrapper = promptInput.parentElement;
+    
+    drawThingsButton = document.createElement('button');
+    drawThingsButton.className = 'draw-things-button';
+    drawThingsButton.innerHTML = '<i class="fas fa-paint-brush"></i>';
+    drawThingsButton.title = 'Send to Draw Things';
+    drawThingsButton.style.display = 'none';
+    
+    drawThingsButton.addEventListener('click', async () => {
+        const prompt = promptInput.value;
+        if (prompt) {
+            try {
+                await window.ipcRenderer.invoke('send-to-draw-things', prompt);
+            } catch (error) {
+                console.error('Error sending to Draw Things:', error);
+            }
+        }
+    });
+    
+    inputWrapper.appendChild(drawThingsButton);
+    
+    checkDrawThingsStatus();
+    setInterval(checkDrawThingsStatus, 5000);
+}
+
 const App = () => {
     // ... (poprzedni kod stanu) ...
 
