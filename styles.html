@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Style Manager</title>
+    <link rel="stylesheet" href="styles-manager.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="styles-container">
+        <div class="styles-header">
+            <h2>Style Manager</h2>
+            <button class="close-btn"><i class="fas fa-times"></i></button>
+        </div>
+        
+        <div class="styles-content">
+            <button class="add-style-btn">
+                <i class="fas fa-plus"></i>
+                Add New Style
+            </button>
+            <div class="styles-list">
+                <!-- Style będą dodawane tutaj dynamicznie -->
+            </div>
+        </div>
+
+        <div class="style-editor hidden">
+            <div class="style-editor-content">
+                <h3>Edit Style</h3>
+                <form id="style-form">
+                    <div class="form-group">
+                        <label>Name</label>
+                        <input type="text" name="name" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Icon</label>
+                        <div class="icon-selector">
+                            <!-- Ikony będą dodane dynamicznie -->
+                        </div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Description</label>
+                        <textarea name="description" required></textarea>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label>Fixed Tags (comma separated)</label>
+                        <textarea name="fixedTags" placeholder="tag1, tag2, tag3"></textarea>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="button" class="cancel-btn">Cancel</button>
+                        <button type="submit" class="save-btn">Save Style</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+    <script src="styles-renderer.js"></script>
+</body>
+</html> 

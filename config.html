@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Ollama Configuration</title>
+    <link rel="stylesheet" href="config.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="config-container">
+        <h2>Ollama Configuration</h2>
+        
+        <div class="status-section">
+            <div class="status-indicator">
+                <i class="fas fa-plug"></i>
+                <span id="connection-status">Checking connection...</span>
+            </div>
+        </div>
+
+        <div class="model-section">
+            <h3>Select Model</h3>
+            <select id="model-select" disabled>
+                <option value="">Checking available models...</option>
+            </select>
+        </div>
+
+        <div class="actions">
+            <button id="refresh-btn" class="action-btn">
+                <i class="fas fa-sync-alt"></i>
+                Refresh Connection
+            </button>
+            <button id="save-btn" class="action-btn">
+                <i class="fas fa-save"></i>
+                Save Configuration
+            </button>
+        </div>
+    </div>
+
+    <script src="config-renderer.js"></script>
+</body>
+</html> 

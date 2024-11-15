@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Prompt Editor</title>
+    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="history.css">
+</head>
+<body>
+    <div class="titlebar">
+        <div class="titlebar-logo">
+            PROMPTR
+            <span class="titlebar-version">v0.1</span>
+        </div>
+        <div class="titlebar-items">
+            <div class="titlebar-item connection-status" id="connection-btn">
+                <i class="fas fa-plug"></i>
+                <div class="tooltip">Disconnected</div>
+            </div>
+            <div class="titlebar-item history" id="history-btn">
+                <i class="fas fa-clock-rotate-left"></i>
+                <div class="tooltip">History</div>
+            </div>
+            <div class="titlebar-item settings" id="settings-btn">
+                <i class="fas fa-gear"></i>
+                <div class="tooltip">Settings</div>
+            </div>
+        </div>
+    </div>
+    <div class="app-container">
+        <div class="input-section">
+            <div class="input-wrapper">
+                <textarea 
+                    class="prompt-input" 
+                    placeholder="Enter your prompt here..."
+                    rows="3"
+                ></textarea>
+                <div class="input-buttons">
+                    <button class="input-btn" id="copy-prompt">
+                        <i class="fas fa-copy"></i>
+                        <div class="tooltip">Copy</div>
+                    </button>
+                    <button class="input-btn" id="clear-prompt">
+                        <i class="fas fa-times"></i>
+                        <div class="tooltip">Clear</div>
+                    </button>
+                </div>
+            </div>
+            <div class="tags-container">
+                <!-- Tagi będą dodawane tutaj dynamicznie -->
+            </div>
+        </div>
+        
+        <div class="style-selector">
+            <div class="style-selector-header">Active Styles</div>
+            <div class="style-tags">
+                <!-- Style będą dodawane dynamicznie -->
+            </div>
+        </div>
+        
+        <div class="styles-header">
+            <button class="manage-styles-btn" id="manage-styles-btn">
+                <i class="fas fa-paint-brush"></i>
+                Manage Styles
+            </button>
+        </div>
+        
+        <div class="options-grid">
+            <!-- Kafelki będą dodawane tutaj dynamicznie -->
+        </div>
+    </div>
+    <div class="history-panel">
+        <div class="history-header">
+            <h2>Prompt History</h2>
+            <button class="history-close">
+                <i class="fas fa-times"></i>
+            </button>
+        </div>
+        <div class="history-content">
+            <!-- Historia będzie dodawana tutaj dynamicznie -->
+        </div>
+    </div>
+    <script>
+        const { ipcRenderer } = require('electron');
+        
+        let debounceTimeout;
+        let isGenerating = false;
+
+        // Obsługa statusu połączenia
+        ipcRenderer.on('ollama-status', (event, status) => {
+            const connectionBtn = document.getElementById('connection-btn');
+            const tooltip = connectionBtn.querySelector('.tooltip');
+            
+            if (status.isConnected) {
+                connectionBtn.classList.add('connected');
+                connectionBtn.classList.remove('disconnected');
+                tooltip.textContent = `Connected (${status.currentModel || 'No model selected'})`;
+            } else {
+                connectionBtn.classList.add('disconnected');
+                connectionBtn.classList.remove('connected');
+                tooltip.textContent = 'Disconnected';
+            }
+        });
+
+        // Obsługa wprowadzania tekstu
+        const promptInput = document.querySelector('.prompt-input');
+        promptInput.addEventListener('input', () => {
+            clearTimeout(debounceTimeout);
+            const prompt = promptInput.value.trim();
+            
+            if (prompt.length > 0) {
+                debounceTimeout = setTimeout(() => {
+                    if (!isGenerating) {
+                        generateAllPrompts(prompt);
+                    }
+                }, 1000); // 1 sekunda opóźnienia
+            }
+        });
+
+        // Generowanie promptów
+        async function generateAllPrompts(basePrompt) {
+            isGenerating = true;
+            const cards = document.querySelectorAll('.option-card');
+            
+            cards.forEach(card => {
+                const suggestionArea = card.querySelector('.suggestion-area');
+                suggestionArea.innerHTML = '<p class="loading">Generating...</p>';
+            });
+
+            try {
+                const promises = Array.from(cards).map(card => {
+                    const styleId = card.dataset.styleId;
+                    return ipcRenderer.invoke('generate-prompt', basePrompt, styleId)
+                        .then(improvedPrompt => {
+                            const suggestionArea = card.querySelector('.suggestion-area');
+                            suggestionArea.textContent = improvedPrompt;
+                            
+                            const applyBtn = card.querySelector('.apply-btn');
+                            applyBtn.disabled = false;
+                        })
+                        .catch(error => {
+                            const suggestionArea = card.querySelector('.suggestion-area');
+                            suggestionArea.innerHTML = `<p class="error">Error: ${error.message}</p>`;
+                        });
+                });
+
+                await Promise.all(promises);
+            } catch (error) {
+                console.error('Error generating prompts:', error);
+            } finally {
+                isGenerating = false;
+            }
+        }
+
+        // Obsługa przycisków Apply
+        document.querySelectorAll('.option-card').forEach(card => {
+            const applyBtn = card.querySelector('.apply-btn');
+            applyBtn.addEventListener('click', () => {
+                const suggestionArea = card.querySelector('.suggestion-area');
+                const improvedPrompt = suggestionArea.textContent;
+                if (improvedPrompt && !improvedPrompt.includes('Generating...')) {
+                    promptInput.value = improvedPrompt;
+                    addToHistory(improvedPrompt, card.querySelector('h2').textContent.trim());
+                }
+            });
+        });
+
+        // Otwieranie okna konfiguracji
+        document.getElementById('connection-btn').addEventListener('click', () => {
+            ipcRenderer.send('open-config');
+        });
+
+        document.getElementById('settings-btn').addEventListener('click', () => {
+            ipcRenderer.send('open-settings');
+        });
+
+        // Obsługa historii
+        const historyPanel = document.querySelector('.history-panel');
+        const historyContent = document.querySelector('.history-content');
+        const historyCloseBtn = document.querySelector('.history-close');
+        let promptHistory = JSON.parse(localStorage.getItem('promptHistory') || '[]');
+
+        // Funkcja do dodawania promptu do historii
+        function addToHistory(prompt, style) {
+            const historyItem = {
+                prompt,
+                style,
+                timestamp: new Date().toISOString()
+            };
+            
+            promptHistory.unshift(historyItem); // Dodaj na początek tablicy
+            if (promptHistory.length > 50) { // Limit historii
+                promptHistory.pop();
+            }
+            
+            localStorage.setItem('promptHistory', JSON.stringify(promptHistory));
+            updateHistoryDisplay();
+        }
+
+        // Funkcja do aktualizacji wyświetlania historii
+        function updateHistoryDisplay() {
+            if (promptHistory.length === 0) {
+                historyContent.innerHTML = '<div class="history-empty">No history yet</div>';
+                return;
+            }
+
+            historyContent.innerHTML = promptHistory.map((item, index) => `
+                <div class="history-item" data-index="${index}">
+                    <div class="history-item-header">
+                        <span class="history-item-style">${item.style}</span>
+                        <span class="history-item-date">${new Date(item.timestamp).toLocaleString()}</span>
+                    </div>
+                    <div class="history-item-prompt">${item.prompt}</div>
+                    <div class="history-item-actions">
+                        <button class="history-action-btn copy-btn" title="Copy prompt">
+                            <i class="fas fa-copy"></i>
+                        </button>
+                        <button class="history-action-btn delete-btn" title="Delete from history">
+                            <i class="fas fa-trash"></i>
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+
+            // Dodaj obsługę przycisków historii
+            document.querySelectorAll('.history-item').forEach(item => {
+                const index = item.dataset.index;
+                const copyBtn = item.querySelector('.copy-btn');
+                const deleteBtn = item.querySelector('.delete-btn');
+                
+                copyBtn.addEventListener('click', (e) => {
+                    e.stopPropagation(); // Zapobiega kliknięciu w cały element historii
+                    const prompt = promptHistory[index].prompt;
+                    navigator.clipboard.writeText(prompt);
+                    showToast('Prompt copied to clipboard');
+                });
+                
+                deleteBtn.addEventListener('click', (e) => {
+                    e.stopPropagation(); // Zapobiega kliknięciu w cały element historii
+                    promptHistory.splice(index, 1);
+                    localStorage.setItem('promptHistory', JSON.stringify(promptHistory));
+                    updateHistoryDisplay();
+                    showToast('Prompt removed from history');
+                });
+            });
+        }
+
+        // Obsługa przycisku historii
+        document.getElementById('history-btn').addEventListener('click', () => {
+            historyPanel.classList.toggle('open');
+            updateHistoryDisplay();
+        });
+
+        // Zamykanie panelu historii
+        historyCloseBtn.addEventListener('click', () => {
+            historyPanel.classList.remove('open');
+        });
+
+        // Modyfikacja obsługi przycisków Apply
+        document.querySelectorAll('.option-card').forEach(card => {
+            const applyBtn = card.querySelector('.apply-btn');
+            applyBtn.addEventListener('click', () => {
+                const suggestionArea = card.querySelector('.suggestion-area');
+                const improvedPrompt = suggestionArea.textContent;
+                if (improvedPrompt && !improvedPrompt.includes('Generating...')) {
+                    promptInput.value = improvedPrompt;
+                    addToHistory(improvedPrompt, card.querySelector('h2').textContent.trim());
+                }
+            });
+        });
+
+        // Obsługa efektu hover dla kafelków
+        document.querySelectorAll('.option-card').forEach(card => {
+            card.addEventListener('mousemove', (e) => {
+                const rect = card.getBoundingClientRect();
+                const x = ((e.clientX - rect.left) / card.offsetWidth) * 100;
+                const y = ((e.clientY - rect.top) / card.offsetHeight) * 100;
+                card.style.setProperty('--mouse-x', `${x}%`);
+                card.style.setProperty('--mouse-y', `${y}%`);
+            });
+        });
+
+        // Obsługa tagów
+        const tagsContainer = document.querySelector('.tags-container');
+        let currentTags = new Set();
+        let suggestedTags = new Set();
+
+        // Funkcja do generowania tagów na podstawie tekstu
+        async function generateTags(text) {
+            try {
+                const response = await ipcRenderer.invoke('generate-tags', text);
+                suggestedTags = new Set(response);
+                updateTagsDisplay();
+            } catch (error) {
+                console.error('Error generating tags:', error);
+            }
+        }
+
+        // Funkcja do aktualizacji wyświetlania tagów
+        function updateTagsDisplay() {
+            tagsContainer.innerHTML = '';
+            suggestedTags.forEach(tag => {
+                if (!currentTags.has(tag)) {
+                    const tagElement = document.createElement('div');
+                    tagElement.className = 'tag';
+                    tagElement.textContent = tag;
+                    tagElement.addEventListener('click', () => addTagToPrompt(tag));
+                    tagsContainer.appendChild(tagElement);
+                }
+            });
+        }
+
+        // Funkcja do dodawania taga do promptu
+        function addTagToPrompt(tag) {
+            const promptInput = document.querySelector('.prompt-input');
+            const currentValue = promptInput.value.trim();
+            
+            if (currentValue) {
+                if (!currentValue.endsWith(',')) {
+                    promptInput.value = currentValue + ', ';
+                }
+                promptInput.value += tag;
+                currentTags.add(tag);
+                updateTagsDisplay();
+                
+                // Trigger generowania nowych promptów
+                clearTimeout(debounceTimeout);
+                debounceTimeout = setTimeout(() => {
+                    if (!isGenerating) {
+                        generateAllPrompts(promptInput.value.trim());
+                    }
+                }, 1000);
+            }
+        }
+
+        // Modyfikacja obsługi wprowadzania tekstu
+        promptInput.addEventListener('input', () => {
+            clearTimeout(debounceTimeout);
+            const prompt = promptInput.value.trim();
+            
+            if (prompt.length > 0) {
+                debounceTimeout = setTimeout(() => {
+                    if (!isGenerating) {
+                        generateAllPrompts(prompt);
+                        generateTags(prompt); // Dodane generowanie tagów
+                    }
+                }, 1000);
+            } else {
+                suggestedTags.clear();
+                updateTagsDisplay();
+            }
+            
+            // Aktualizacja currentTags na podstawie aktualnego promptu
+            currentTags = new Set(
+                prompt.split(',')
+                    .map(tag => tag.trim())
+                    .filter(tag => tag.length > 0)
+            );
+        });
+
+        // Dodaj obsługę przycisków input
+        document.getElementById('copy-prompt').addEventListener('click', () => {
+            const promptText = promptInput.value.trim();
+            if (promptText) {
+                navigator.clipboard.writeText(promptText);
+                showToast('Prompt copied to clipboard');
+            }
+        });
+
+        document.getElementById('clear-prompt').addEventListener('click', () => {
+            promptInput.value = '';
+            suggestedTags.clear();
+            updateTagsDisplay();
+        });
+
+        // Funkcja do wyświetlania powiadomień
+        function showToast(message) {
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            
+            setTimeout(() => {
+                toast.classList.add('show');
+                setTimeout(() => {
+                    toast.classList.remove('show');
+                    setTimeout(() => toast.remove(), 300);
+                }, 2000);
+            }, 100);
+        }
+
+        document.getElementById('manage-styles-btn').addEventListener('click', () => {
+            ipcRenderer.send('open-styles');
+        });
+
+        ipcRenderer.on('refresh-styles', () => {
+            loadStyles();
+            if (promptInput.value.trim()) {
+                generateAllPrompts(promptInput.value.trim());
+            }
+        });
+
+        let activeStyles = new Set(['realistic', 'cinematic', 'fantasy', 'artistic', 'conceptart', 'anime']);
+
+        async function updateStyleSelector() {
+            const styles = await ipcRenderer.invoke('get-available-styles');
+            const styleSelector = document.querySelector('.style-tags');
+            
+            styleSelector.innerHTML = Object.entries(styles).map(([id, style]) => `
+                <div class="style-tag ${activeStyles.has(id) ? 'active' : ''}" data-style-id="${id}">
+                    <i class="fas fa-${style.icon}"></i>
+                    ${style.name}
+                </div>
+            `).join('');
+
+            // Dodaj obsługę kliknięć
+            document.querySelectorAll('.style-tag').forEach(tag => {
+                tag.addEventListener('click', () => {
+                    const styleId = tag.dataset.styleId;
+                    if (activeStyles.has(styleId)) {
+                        activeStyles.delete(styleId);
+                        tag.classList.remove('active');
+                    } else {
+                        activeStyles.add(styleId);
+                        tag.classList.add('active');
+                    }
+                    loadStyles(); // Odśwież kafelki
+                });
+            });
+        }
+
+        async function loadStyles() {
+            const styles = await ipcRenderer.invoke('get-available-styles');
+            const optionsGrid = document.querySelector('.options-grid');
+            
+            optionsGrid.innerHTML = Object.entries(styles)
+                .filter(([id]) => activeStyles.has(id))
+                .map(([id, style]) => `
+                    <div class="option-card" data-style-id="${id}">
+                        <h2><i class="fas fa-${style.icon}"></i> ${style.name}</h2>
+                        <p>${style.description}</p>
+                        <div class="suggestion-area"></div>
+                        <button class="apply-btn" disabled>Apply</button>
+                    </div>
+                `).join('');
+
+            // Dodaj event listenery
+            addCardEventListeners();
+        }
+
+        // Dodaj inicjalizację przy starcie
+        document.addEventListener('DOMContentLoaded', async () => {
+            await updateStyleSelector();
+            await loadStyles();
+        });
+
+        // Dodaj obsługę aktualizacji ustawień
+        ipcRenderer.on('settings-updated', (event, settings) => {
+            // Włącz/wyłącz animacje
+            document.body.classList.toggle('no-animations', !settings.animations);
+            
+            // Zastosuj inne ustawienia
+            // ... (będziemy dodawać więcej obsługi ustawień)
+        });
+
+        // W sekcji script, dodaj funkcję:
+        function addCardEventListeners() {
+            document.querySelectorAll('.option-card').forEach(card => {
+                const applyBtn = card.querySelector('.apply-btn');
+                applyBtn.addEventListener('click', () => {
+                    const suggestionArea = card.querySelector('.suggestion-area');
+                    const improvedPrompt = suggestionArea.textContent;
+                    if (improvedPrompt && !improvedPrompt.includes('Generating...')) {
+                        promptInput.value = improvedPrompt;
+                        addToHistory(improvedPrompt, card.querySelector('h2').textContent.trim());
+                    }
+                });
+
+                // Dodaj efekt hover
+                card.addEventListener('mousemove', (e) => {
+                    const rect = card.getBoundingClientRect();
+                    const x = ((e.clientX - rect.left) / card.offsetWidth) * 100;
+                    const y = ((e.clientY - rect.top) / card.offsetHeight) * 100;
+                    card.style.setProperty('--mouse-x', `${x}%`);
+                    card.style.setProperty('--mouse-y', `${y}%`);
+                });
+            });
+        }
+
+        ipcRenderer.on('app-version', (event, version) => {
+            document.querySelector('.titlebar-version').textContent = version;
+        });
+    </script>
+</body>
+</html> 

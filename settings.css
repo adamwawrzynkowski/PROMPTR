@@ -1,0 +1,239 @@
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    -webkit-font-smoothing: antialiased;
+}
+
+body {
+    background: transparent;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    color: #ffffff;
+    height: 100vh;
+    overflow: hidden;
+}
+
+.settings-container {
+    position: relative;
+    background: rgb(30, 27, 46);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    border-radius: 10px;
+    overflow: hidden;
+    isolation: isolate;
+}
+
+/* Animowane tło */
+.settings-container::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    background: 
+        radial-gradient(
+            circle at 0% 0%,
+            rgba(76, 0, 255, 0.15) 0%,
+            transparent 60%
+        ),
+        radial-gradient(
+            circle at 100% 0%,
+            rgba(255, 0, 128, 0.15) 0%,
+            transparent 60%
+        ),
+        radial-gradient(
+            circle at 100% 100%,
+            rgba(0, 255, 255, 0.15) 0%,
+            transparent 60%
+        ),
+        radial-gradient(
+            circle at 0% 100%,
+            rgba(255, 255, 0, 0.15) 0%,
+            transparent 60%
+        );
+    filter: blur(40px);
+    opacity: 0.9;
+    animation: moveBg 30s linear infinite;
+}
+
+.settings-header {
+    padding: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    -webkit-app-region: drag;
+}
+
+.settings-header h2 {
+    font-size: 20px;
+    font-weight: 500;
+}
+
+.close-btn {
+    background: none;
+    border: none;
+    color: rgba(255, 255, 255, 0.6);
+    padding: 8px;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    -webkit-app-region: no-drag;
+}
+
+.settings-content {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+}
+
+.settings-section {
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 10px;
+    padding: 20px;
+    margin-bottom: 20px;
+}
+
+.settings-section h3 {
+    font-size: 16px;
+    font-weight: 500;
+    margin-bottom: 15px;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.setting-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+}
+
+.setting-item label {
+    color: rgba(255, 255, 255, 0.8);
+}
+
+.theme-selector {
+    display: flex;
+    gap: 10px;
+}
+
+.theme-btn {
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+}
+
+.theme-btn.selected {
+    background: rgba(76, 175, 80, 0.2);
+    border: 1px solid rgba(76, 175, 80, 0.4);
+}
+
+.theme-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+/* Switch style */
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 50px;
+    height: 24px;
+}
+
+.switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(255, 255, 255, 0.1);
+    transition: .4s;
+    border-radius: 24px;
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 16px;
+    width: 16px;
+    left: 4px;
+    bottom: 4px;
+    background-color: white;
+    transition: .4s;
+    border-radius: 50%;
+}
+
+input:checked + .slider {
+    background-color: rgba(76, 175, 80, 0.6);
+}
+
+input:checked + .slider:before {
+    transform: translateX(26px);
+}
+
+/* Number input style */
+input[type="number"] {
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 6px;
+    padding: 8px;
+    color: white;
+    width: 100px;
+    text-align: center;
+}
+
+.config-btn {
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    padding: 12px;
+    border-radius: 8px;
+    color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    width: 100%;
+    transition: all 0.2s ease;
+}
+
+.config-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: translateY(-1px);
+}
+
+.settings-footer {
+    padding: 20px;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+    display: flex;
+    justify-content: flex-end;
+}
+
+.save-btn {
+    background: rgba(76, 175, 80, 0.2);
+    color: rgb(76, 175, 80);
+    border: none;
+    padding: 10px 20px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.save-btn:hover {
+    background: rgba(76, 175, 80, 0.3);
+    transform: translateY(-1px);
+} 
