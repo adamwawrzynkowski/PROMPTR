@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Image Analysis</title>
+    <link rel="stylesheet" href="vision.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="title-bar">
+        <div class="title">Image Analysis</div>
+        <div class="close-button">×</div>
+    </div>
+    
+    <div class="container">
+        <div id="drop-zone" class="drop-zone">
+            <i class="fas fa-cloud-upload-alt" style="font-size: 24px; color: var(--text-secondary);"></i>
+            <p>Drag and drop an image here or</p>
+            <button id="select-image">
+                <i class="fas fa-folder-open"></i>
+                Select Image
+            </button>
+        </div>
+        <img id="preview" class="preview-image" style="display: none;">
+        <div class="buttons">
+            <button id="analyze" class="analyze-button" disabled>
+                <i class="fas fa-magic"></i>
+                Analyze Image
+            </button>
+        </div>
+    </div>
+    <script src="vision-renderer.js"></script>
+</body>
+</html> 

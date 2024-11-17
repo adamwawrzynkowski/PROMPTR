@@ -4,32 +4,24 @@ const path = require('path');
 let window = null;
 
 function create() {
-    if (window) {
-        window.focus();
-        return window;
-    }
-
     window = new BrowserWindow({
-        width: 500,
-        height: 400,
+        width: 400,
+        height: 200,
         webPreferences: {
             nodeIntegration: true,
             contextIsolation: false
         },
         frame: false,
         resizable: false,
+        center: true,
         show: false,
-        backgroundColor: '#1e1b2e'
+        transparent: true
     });
 
-    window.loadFile('config.html');
+    window.loadFile('startup.html');
 
     window.once('ready-to-show', () => {
         window.show();
-    });
-
-    window.on('closed', () => {
-        window = null;
     });
 
     return window;

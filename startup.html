@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Starting PROMPTR</title>
+    <link rel="stylesheet" href="startup.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="container">
+        <button class="close-button" id="close-btn">×</button>
+        <div class="logo">
+            <span class="logo-text">PROMPTR</span>
+            <span class="version">v0.1</span>
+        </div>
+        
+        <div class="status-container">
+            <div class="status-icon">
+                <i class="fas fa-plug"></i>
+            </div>
+            <div class="status-text">Connecting to Ollama...</div>
+            <div class="progress-bar">
+                <div class="progress" id="progress"></div>
+            </div>
+        </div>
+    </div>
+    <script src="startup-renderer.js"></script>
+</body>
+</html> 

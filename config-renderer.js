@@ -1,58 +1,105 @@
 const { ipcRenderer } = require('electron');
 
-document.addEventListener('DOMContentLoaded', () => {
-    const statusIndicator = document.querySelector('.status-indicator');
-    const statusText = document.getElementById('connection-status');
-    const modelSelect = document.getElementById('model-select');
-    const refreshBtn = document.getElementById('refresh-btn');
-    const saveBtn = document.getElementById('save-btn');
+const modelSelect = document.getElementById('model-select');
+const visionModelSelect = document.getElementById('vision-model-select');
+const saveBtn = document.getElementById('save-btn');
+const refreshBtn = document.getElementById('refresh-btn');
+const statusText = document.getElementById('status-text');
+const statusIcon = document.querySelector('.status-indicator i');
+const closeBtn = document.getElementById('close-btn');
 
-    // Natychmiast sprawdź status
-    ipcRenderer.send('refresh-connection');
+const VISION_MODELS = ['llava'];
 
-    ipcRenderer.on('connection-status', (event, status) => {
+async function updateStatus() {
+    try {
+        console.log('Refreshing Ollama status...');
+        const status = await ipcRenderer.invoke('refresh-ollama-status');
+        console.log('Received status:', status);
+
+        const statusIndicator = document.querySelector('.status-indicator');
+        
         if (status.isConnected) {
             statusIndicator.classList.add('connected');
-            statusIndicator.classList.remove('disconnected');
+            statusIndicator.classList.remove('error');
             statusText.textContent = 'Connected to Ollama';
+            statusIcon.className = 'fas fa-plug';
             
-            // Aktualizuj listę modeli
-            if (status.availableModels && status.availableModels.length > 0) {
-                modelSelect.innerHTML = status.availableModels
-                    .map(model => `<option value="${model.name}" ${status.currentModel === model.name ? 'selected' : ''}>${model.name}</option>`)
-                    .join('');
-                modelSelect.disabled = false;
-            } else {
-                modelSelect.innerHTML = '<option value="">No models available</option>';
-                modelSelect.disabled = true;
-            }
+            // Update models lists
+            const models = status.availableModels || [];
+            
+            // Filter models
+            const textModels = models.filter(model => 
+                !VISION_MODELS.some(vm => model.name.toLowerCase().includes(vm.toLowerCase()))
+            );
+            const visionModels = models.filter(model => 
+                VISION_MODELS.some(vm => model.name.toLowerCase().includes(vm.toLowerCase()))
+            );
+            
+            // Update text models select
+            modelSelect.innerHTML = '<option value="">Select a model</option>' +
+                textModels.map(model => 
+                    `<option value="${model.name}" ${status.currentModel === model.name ? 'selected' : ''}>
+                        ${model.name}
+                    </option>`
+                ).join('');
+            
+            // Update vision models select
+            visionModelSelect.innerHTML = '<option value="">Select a vision model</option>' +
+                visionModels.map(model => 
+                    `<option value="${model.name}" ${status.visionModel === model.name ? 'selected' : ''}>
+                        ${model.name}
+                    </option>`
+                ).join('');
+            
+            modelSelect.disabled = false;
+            visionModelSelect.disabled = false;
+            saveBtn.disabled = false;
         } else {
-            statusIndicator.classList.add('disconnected');
             statusIndicator.classList.remove('connected');
-            statusText.textContent = status.error || 'Disconnected from Ollama';
-            modelSelect.innerHTML = '<option value="">Connection required</option>';
+            statusIndicator.classList.add('error');
+            statusText.textContent = status.error || 'Not connected to Ollama';
+            statusIcon.className = 'fas fa-exclamation-triangle';
+            
             modelSelect.disabled = true;
+            visionModelSelect.disabled = true;
+            saveBtn.disabled = true;
         }
-    });
+    } catch (error) {
+        console.error('Error updating status:', error);
+        const statusIndicator = document.querySelector('.status-indicator');
+        statusIndicator.classList.remove('connected');
+        statusIndicator.classList.add('error');
+        statusText.textContent = `Error: ${error.message}`;
+        statusIcon.className = 'fas fa-exclamation-triangle';
+    }
+}
 
-    refreshBtn.addEventListener('click', () => {
-        statusText.textContent = 'Checking connection...';
-        modelSelect.disabled = true;
-        ipcRenderer.send('refresh-connection');
-    });
+saveBtn.addEventListener('click', async () => {
+    try {
+        saveBtn.disabled = true;
+        const config = {
+            model: modelSelect.value,
+            visionModel: visionModelSelect.value
+        };
+        
+        console.log('Saving configuration:', config);
+        await ipcRenderer.invoke('save-config', config);
+        window.close();
+    } catch (error) {
+        console.error('Error saving configuration:', error);
+        alert('Error saving configuration: ' + error.message);
+        saveBtn.disabled = false;
+    }
+});
 
-    saveBtn.addEventListener('click', () => {
-        const selectedModel = modelSelect.value;
-        if (selectedModel) {
-            ipcRenderer.send('save-config', { model: selectedModel });
-            window.close();
-        }
-    });
+refreshBtn.addEventListener('click', () => {
+    statusIcon.className = 'fas fa-sync-alt fa-spin';
+    updateStatus();
+});
 
-    // Dodana obsługa klawisza Escape
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') {
-            window.close();
-        }
-    });
-}); 
+closeBtn.addEventListener('click', () => {
+    window.close();
+});
+
+// Initial status check
+updateStatus(); 

@@ -115,3 +115,13 @@ const App = () => {
 const container = document.getElementById('root');
 const root = createRoot(container);
 root.render(<App />); 
+
+// Dodaj obsługę przycisku vision
+document.getElementById('vision-button').addEventListener('click', () => {
+    ipcRenderer.send('open-vision');
+});
+
+// Dodaj obsługę otrzymanego promptu
+ipcRenderer.on('set-prompt', (event, prompt) => {
+    document.getElementById('prompt-input').value = prompt;
+}); 

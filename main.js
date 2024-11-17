@@ -10,6 +10,10 @@ const settingsWindow = require('./settings-window');
 const themeManager = require('./theme-manager');
 const { exec } = require('child_process');
 const net = require('net');
+const visionWindow = require('./vision-window');
+const modelInstallWindow = require('./model-install-window');
+const startupWindow = require('./startup-window');
+const configManager = require('./config-manager');
 
 // Dodaj stałą z wersją aplikacji
 const APP_VERSION = 'v0.1';
@@ -104,6 +108,10 @@ async function checkOllamaConnection() {
 }
 
 async function createWindow() {
+    // Najpierw pokaż okno startowe
+    const startup = startupWindow.create();
+    
+    // Utwórz główne okno, ale nie pokazuj go jeszcze
     mainWindow = new BrowserWindow({
         width: 1200,
         height: 800,
@@ -121,42 +129,93 @@ async function createWindow() {
 
     mainWindow.loadFile('index.html');
 
-    mainWindow.webContents.on('did-finish-load', async () => {
-        try {
-            // Dodaj wysłanie wersji aplikacji do renderera
-            mainWindow.webContents.send('app-version', APP_VERSION);
-            
-            const currentSettings = settingsManager.getSettings();
-            await themeManager.applyTheme(currentSettings.theme, mainWindow);
+    try {
+        // Rozpocznij proces inicjalizacji
+        startup.webContents.send('startup-progress', { step: 0 });
+        
+        // Spróbuj połączyć się z Ollama kilka razy
+        let connectionAttempts = 0;
+        const maxAttempts = 3;
+        let status = null;
 
-            const status = await ollamaManager.checkConnection();
-            if (!status.isConnected || !status.currentModel) {
-                await ollamaManager.startServer();
-                const newStatus = await ollamaManager.checkConnection();
-                if (!newStatus.isConnected || !newStatus.currentModel) {
-                    configWindowInstance = configWindow.create();
-                    configWindowInstance.on('closed', () => {
-                        configWindowInstance = null;
-                    });
-                }
+        while (connectionAttempts < maxAttempts) {
+            startup.webContents.send('startup-progress', { 
+                step: 0,
+                status: `Connecting to Ollama (attempt ${connectionAttempts + 1}/${maxAttempts})...`
+            });
+
+            status = await ollamaManager.checkConnection();
+            console.log('Connection status:', status);
+            
+            if (status && status.isConnected) {
+                break;
             }
 
-            mainWindow.show();
-        } catch (error) {
-            console.error('Error during window initialization:', error);
-            mainWindow.show();
+            connectionAttempts++;
+            if (connectionAttempts < maxAttempts) {
+                await new Promise(resolve => setTimeout(resolve, 2000));
+            }
         }
-    });
 
-    connectionCheckInterval = setInterval(checkOllamaConnection, 5000);
+        if (!status || !status.isConnected) {
+            console.error('Failed to connect to Ollama:', status);
+            startup.webContents.send('startup-error', 'Could not connect to Ollama. Please make sure Ollama is running and try again.');
+            return;
+        }
 
-    if (process.env.NODE_ENV === 'development') {
-        mainWindow.webContents.openDevTools();
+        // Kontynuuj inicjalizację jeśli połączenie się powiodło
+        startup.webContents.send('startup-progress', { 
+            step: 1, 
+            status: 'Checking Ollama configuration...' 
+        });
+
+        // Sprawdź konfigurację
+        const currentStatus = ollamaManager.getStatus();
+        startup.webContents.send('startup-progress', { 
+            step: 2, 
+            status: 'Starting application...' 
+        });
+
+        // Poczekaj na załadowanie głównego okna
+        await new Promise(resolve => {
+            mainWindow.webContents.on('did-finish-load', async () => {
+                mainWindow.webContents.send('app-version', APP_VERSION);
+                const currentSettings = settingsManager.getSettings();
+                await themeManager.applyTheme(currentSettings.theme, mainWindow);
+                resolve();
+            });
+        });
+
+        // Sprawdź czy zapisane modele są dostępne
+        const savedConfig = configManager.getConfig();
+        if (savedConfig.currentModel) {
+            const isModelAvailable = await ollamaManager.checkModelAvailability(savedConfig.currentModel);
+            if (!isModelAvailable) {
+                configWindowInstance = configWindow.create();
+                configWindowInstance.on('closed', () => {
+                    configWindowInstance = null;
+                });
+            }
+        } else {
+            // Jeśli nie ma zapisanego modelu, pokaż okno konfiguracji
+            configWindowInstance = configWindow.create();
+            configWindowInstance.on('closed', () => {
+                configWindowInstance = null;
+            });
+        }
+
+        // Zamknij okno startowe i pokaż główne okno
+        startup.close();
+        mainWindow.show();
+
+        // Rozpocznij sprawdzanie połączenia
+        connectionCheckInterval = setInterval(checkOllamaConnection, 5000);
+
+    } catch (error) {
+        console.error('Error during startup:', error);
+        startup.webContents.send('startup-error', error.message);
+        // Nie zamykaj aplikacji automatycznie
     }
-
-    mainWindow.on('closed', () => {
-        mainWindow = null;
-    });
 }
 
 // Event handlers
@@ -167,6 +226,7 @@ ipcMain.on('refresh-connection', async () => {
 
 ipcMain.on('save-config', async (event, config) => {
     await ollamaManager.setModel(config.model);
+    await ollamaManager.setVisionModel(config.visionModel);
     if (configWindowInstance) {
         configWindowInstance.close();
         configWindowInstance = null;
@@ -177,7 +237,15 @@ ipcMain.on('save-config', async (event, config) => {
 });
 
 ipcMain.on('open-config', () => {
-    configWindow.create();
+    configWindowInstance = configWindow.create();
+    // Wyślij aktualny status do nowego okna konfiguracji
+    const status = ollamaManager.getStatus();
+    configWindowInstance.webContents.on('did-finish-load', () => {
+        configWindowInstance.webContents.send('ollama-status', status);
+    });
+    configWindowInstance.on('closed', () => {
+        configWindowInstance = null;
+    });
 });
 
 ipcMain.on('toggle-history', () => {
@@ -371,6 +439,131 @@ ipcMain.handle('send-to-draw-things', async (event, prompt) => {
         req.write(data);
         req.end();
     });
+});
+
+ipcMain.handle('analyze-image', async (event, imageData) => {
+    try {
+        console.log('Checking Ollama status...');
+        const status = ollamaManager.getStatus();
+        console.log('Ollama status:', status);
+        
+        if (!status.isConnected) {
+            throw new Error('Ollama is not connected');
+        }
+
+        // Sprawdź czy model vision jest dostępny
+        const isModelAvailable = await ollamaManager.checkModelAvailability(status.visionModel);
+        if (!isModelAvailable) {
+            modelInstallWindow.create(status.visionModel);
+            throw new Error('Vision model needs to be installed first');
+        }
+        
+        console.log('Starting image analysis...');
+        const result = await ollamaManager.analyzeImage(imageData);
+        console.log('Analysis completed:', result);
+        return result;
+    } catch (error) {
+        console.error('Error analyzing image:', error);
+        throw error;
+    }
+});
+
+ipcMain.on('open-vision', () => {
+    visionWindow.create();
+});
+
+ipcMain.handle('set-prompt', async (event, prompt) => {
+    try {
+        console.log('Setting prompt in main:', prompt);
+        mainWindow.webContents.send('set-prompt', prompt);
+        console.log('Prompt sent to renderer');
+        return true;
+    } catch (error) {
+        console.error('Error setting prompt:', error);
+        throw error;
+    }
+});
+
+// Dodaj te handlery przed app.whenReady()
+
+// Handler do sprawdzania statusu Ollamy
+ipcMain.handle('check-ollama-status', async () => {
+    try {
+        // Zamiast sprawdzać połączenie ponownie, użyj aktualnego statusu
+        const status = ollamaManager.getStatus();
+        console.log('Returning current Ollama status:', status);
+        return status;
+    } catch (error) {
+        console.error('Error checking Ollama status:', error);
+        return {
+            isConnected: false,
+            error: error.message
+        };
+    }
+});
+
+// Handler do pobierania dostępnych modeli
+ipcMain.handle('get-available-models', async () => {
+    try {
+        return await ollamaManager.listModels();
+    } catch (error) {
+        console.error('Error getting available models:', error);
+        return [];
+    }
+});
+
+// Zmień istniejący handler save-config na handle
+ipcMain.handle('save-config', async (event, config) => {
+    try {
+        await ollamaManager.setModel(config.model);
+        await ollamaManager.setVisionModel(config.visionModel);
+        BrowserWindow.getAllWindows().forEach(window => {
+            window.webContents.send('ollama-status', ollamaManager.getStatus());
+        });
+        return true;
+    } catch (error) {
+        console.error('Error saving config:', error);
+        throw error;
+    }
+});
+
+// Dodaj nowe handlery
+ipcMain.handle('install-model', async (event, modelName) => {
+    try {
+        await ollamaManager.installModel(modelName);
+        return true;
+    } catch (error) {
+        console.error('Error installing model:', error);
+        throw error;
+    }
+});
+
+ipcMain.handle('check-model-availability', async (event, modelName) => {
+    return await ollamaManager.checkModelAvailability(modelName);
+});
+
+// Dodaj nowy handler przed app.whenReady()
+ipcMain.on('quit-app', () => {
+    app.quit();
+});
+
+// Dodaj nowy handler do odświeżania statusu
+ipcMain.handle('refresh-ollama-status', async () => {
+    try {
+        await ollamaManager.checkConnection();
+        const status = ollamaManager.getStatus();
+        // Wyślij zaktualizowany status do wszystkich okien
+        BrowserWindow.getAllWindows().forEach(window => {
+            window.webContents.send('ollama-status', status);
+        });
+        return status;
+    } catch (error) {
+        console.error('Error refreshing Ollama status:', error);
+        return {
+            isConnected: false,
+            error: error.message
+        };
+    }
 });
 
 app.whenReady().then(createWindow);

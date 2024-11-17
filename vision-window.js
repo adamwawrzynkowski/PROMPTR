@@ -10,23 +10,17 @@ function create() {
     }
 
     window = new BrowserWindow({
-        width: 500,
+        width: 600,
         height: 400,
         webPreferences: {
             nodeIntegration: true,
             contextIsolation: false
         },
         frame: false,
-        resizable: false,
-        show: false,
-        backgroundColor: '#1e1b2e'
+        resizable: false
     });
 
-    window.loadFile('config.html');
-
-    window.once('ready-to-show', () => {
-        window.show();
-    });
+    window.loadFile('vision.html');
 
     window.on('closed', () => {
         window = null;

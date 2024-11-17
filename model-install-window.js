@@ -3,29 +3,27 @@ const path = require('path');
 
 let window = null;
 
-function create() {
+function create(modelName) {
     if (window) {
         window.focus();
         return window;
     }
 
     window = new BrowserWindow({
-        width: 500,
-        height: 400,
+        width: 400,
+        height: 200,
         webPreferences: {
             nodeIntegration: true,
             contextIsolation: false
         },
         frame: false,
-        resizable: false,
-        show: false,
-        backgroundColor: '#1e1b2e'
+        resizable: false
     });
 
-    window.loadFile('config.html');
+    window.loadFile('model-install.html');
 
-    window.once('ready-to-show', () => {
-        window.show();
+    window.webContents.on('did-finish-load', () => {
+        window.webContents.send('model-info', modelName);
     });
 
     window.on('closed', () => {
