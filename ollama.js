@@ -365,16 +365,18 @@ Rules:
                 method: 'POST',
                 body: JSON.stringify({
                     model: this.currentModel,
-                    prompt: `Given this text, extract key descriptive words and phrases that could be used as tags for image generation. Format the response as a simple comma-separated list without any additional text or explanations.
+                    prompt: `Generate additional descriptive tags for image generation that are NOT already present in the input text. Return only new, unique tags as a comma-separated list.
 
-Text: "${text}"
+Input text: "${text}"
 
 Rules:
-1. Return ONLY the tags, no other text
+1. Return ONLY new tags that are NOT in the input text
 2. Separate tags with commas
-3. Keep tags short and descriptive
-4. Focus on visual elements and style
-5. Include important details and attributes`,
+3. Include style descriptors, artistic techniques, lighting, mood, and composition
+4. Focus on enhancing the visual description
+5. Return at least 10-15 relevant tags
+6. Do not repeat words from the input
+7. Do not include explanations or metadata`,
                     stream: false,
                     options: {
                         temperature: 0.7,
@@ -394,6 +396,9 @@ Rules:
                 throw new Error('Empty response from API');
             }
 
+            // Pobierz słowa z oryginalnego tekstu
+            const inputWords = new Set(text.toLowerCase().split(/[,\s]+/).map(word => word.trim()));
+
             // Czyść i przetwórz odpowiedź
             const tags = data.response
                 .trim()
@@ -401,7 +406,9 @@ Rules:
                 .split(',')
                 .map(tag => tag.trim())
                 .filter(tag => tag.length > 0 && tag.length < 50)
-                .filter(Boolean); // usuwa puste stringi
+                .filter(tag => !inputWords.has(tag.toLowerCase())) // Usuń tagi które są w oryginalnym tekście
+                .filter(Boolean) // usuwa puste stringi
+                .filter((tag, index, self) => self.indexOf(tag) === index); // usuń duplikaty
 
             console.log('Processed tags:', tags);
             return tags;

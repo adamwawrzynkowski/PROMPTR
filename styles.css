@@ -597,37 +597,88 @@ input, button, textarea, [role="button"] {
 
 /* Style dla kontenera tagów */
 .tags-container {
-    margin-top: 10px;
+    margin: 10px 0;
     display: flex;
-    flex-wrap: wrap;
-    gap: 5px;
+    gap: 6px;
+    height: 32px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    padding: 0 5px;
+    position: relative;
+    z-index: 1;
+    white-space: nowrap;
+    -webkit-mask-image: linear-gradient(to right, 
+        transparent, 
+        black 20px, 
+        black calc(100% - 20px), 
+        transparent
+    );
 }
 
 /* Style dla pojedynczego taga */
 .tag {
-    background-color: var(--tag-bg-color, #2a2a2a);
-    color: var(--tag-text-color, #ffffff);
-    padding: 4px 8px;
-    border-radius: 4px;
-    font-size: 0.9em;
-    display: inline-block;
+    background: var(--button-background);
+    padding: 0 12px;
+    border-radius: 6px;
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    user-select: none;
+    font-size: 13px;
+    height: 28px;
+    display: inline-flex;
+    align-items: center;
+    white-space: nowrap;
+    flex-shrink: 0;
 }
 
-.tag .remove-tag {
+.tag:hover {
+    background: var(--button-hover);
+    transform: translateY(-1px);
+}
+
+/* Ukryj scrollbar ale zachowaj funkcjonalność */
+.tags-container::-webkit-scrollbar {
+    display: none;
+}
+
+.tags-container {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+}
+
+.style-tag {
+    background: var(--button-background);
+    padding: 8px 16px;
+    border-radius: 20px;
+    color: var(--text);
     cursor: pointer;
-    opacity: 0.7;
-    transition: opacity 0.2s ease;
+    transition: all 0.2s ease;
     display: flex;
     align-items: center;
-    padding: 2px;
+    gap: 8px;
+    user-select: none;
 }
 
-.tag .remove-tag:hover {
-    opacity: 1;
+.style-tag i {
+    font-size: 14px;
+    opacity: 0.8;
 }
 
-.tag .remove-tag i {
-    font-size: 10px;
+.style-tag:hover {
+    background: var(--button-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.style-tag.active {
+    background: rgba(76, 175, 80, 0.2);
+    border: 1px solid rgba(76, 175, 80, 0.3);
+    color: #4CAF50;
+}
+
+.style-tag.active i {
+    color: #4CAF50;
 }
 
 /* Style dla przycisków input */
@@ -807,20 +858,23 @@ input, button, textarea, [role="button"] {
 
 /* Style dla selektora stylów */
 .style-selector {
-    margin: 10px 0 20px 0;
-    padding: 0 10px;
+    margin-top: 10px;
+    position: relative;
+    z-index: 2;
 }
 
 .style-selector-header {
     font-size: 14px;
     color: var(--text-secondary);
     margin-bottom: 8px;
+    padding: 0 10px;
 }
 
 .style-tags {
     display: flex;
     flex-wrap: wrap;
     gap: 8px;
+    padding: 0 10px;
 }
 
 .style-tag {
