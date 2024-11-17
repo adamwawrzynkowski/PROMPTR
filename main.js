@@ -56,26 +56,29 @@ function checkPort(port) {
 
 // Zmodyfikuj funkcję sprawdzania statusu Draw Things
 async function checkDrawThingsStatus() {
+    console.log('Checking Draw Things status...');
     return new Promise(async (resolve) => {
         // Najpierw sprawdź czy Draw Things jest uruchomione
         exec('pgrep -f "Draw Things"', async (error, stdout, stderr) => {
             if (error || !stdout.trim()) {
-                console.log('Draw Things is not running');
+                console.log('Draw Things process is not running');
                 resolve(false);
                 return;
             }
 
+            console.log('Draw Things process found, checking port...');
+
             // Sprawdź czy port jest używany przez Draw Things
             exec(`lsof -i :${DRAW_THINGS_PORT}`, (error, stdout, stderr) => {
-                console.log(`Port ${DRAW_THINGS_PORT} status:`, stdout);
+                console.log(`Port ${DRAW_THINGS_PORT} check result:`, stdout);
                 
                 if (error || !stdout.trim()) {
-                    console.log('Port is not in use');
+                    console.log(`Port ${DRAW_THINGS_PORT} is not in use`);
                     resolve(false);
                     return;
                 }
 
-                // Jeśli port jest używany, uznajemy że Draw Things jest dostępne
+                console.log(`Port ${DRAW_THINGS_PORT} is active, Draw Things is available`);
                 resolve(true);
             });
         });
@@ -378,7 +381,10 @@ ipcMain.on('open-settings', () => {
 
 // Dodaj nowy handler IPC przed app.whenReady()
 ipcMain.handle('check-draw-things', async () => {
-    return await checkDrawThingsStatus();
+    console.log('Received check-draw-things request');
+    const status = await checkDrawThingsStatus();
+    console.log('Draw Things status check result:', status);
+    return status;
 });
 
 // Zmodyfikuj handler do wysyłania promptu
@@ -449,7 +455,7 @@ ipcMain.handle('send-to-draw-things', async (event, prompt) => {
     });
 });
 
-ipcMain.handle('analyze-image', async (event, imageData) => {
+ipcMain.handle('analyze-image', async (event, imageData, analysisType = 'content') => {
     try {
         console.log('Checking Ollama status...');
         const status = ollamaManager.getStatus();
@@ -459,20 +465,20 @@ ipcMain.handle('analyze-image', async (event, imageData) => {
             throw new Error('Ollama is not connected');
         }
 
-        // Sprawdź czy model vision jest wybrany
         if (!status.visionModel) {
             throw new Error('No vision model selected. Please configure a vision model in Ollama Configuration first.');
         }
 
-        // Sprawdź czy model vision jest dostępny
         const isModelAvailable = await ollamaManager.checkModelAvailability(status.visionModel);
         if (!isModelAvailable) {
             modelInstallWindow.create(status.visionModel);
             throw new Error(`Vision model ${status.visionModel} needs to be installed first`);
         }
         
-        console.log('Starting image analysis...');
-        const result = await ollamaManager.analyzeImage(imageData);
+        console.log('Starting image analysis...', 'Type:', analysisType);
+        
+        // Przekaż typ analizy bezpośrednio do metody analyzeImage
+        const result = await ollamaManager.analyzeImage(imageData, null, analysisType);
         console.log('Analysis completed:', result);
         return result;
     } catch (error) {
@@ -732,16 +738,26 @@ ipcMain.handle('export-styles', async (event, styles) => {
 });
 
 // Dodaj handler dla przekazywania wyniku analizy do okna edycji stylu
-ipcMain.on('vision-analysis-complete', (event, description, source = 'prompt') => {
-    // Przekaż wynik do wszystkich okien wraz z informacją o źródle
+ipcMain.on('vision-analysis-complete', (event, description, source = 'prompt', analysisType = 'content') => {
     BrowserWindow.getAllWindows().forEach(window => {
-        window.webContents.send('vision-result', description, source);
+        window.webContents.send('vision-result', description, source, analysisType);
     });
 });
 
 // Dodaj nowy handler dla analizy obrazu dla stylu
 ipcMain.on('open-vision-for-style', () => {
     const visionWindowInstance = visionWindow.create('style');
+});
+
+// Dodaj nowy handler
+ipcMain.handle('detect-and-translate', async (event, text) => {
+    try {
+        const result = await ollamaManager.detectAndTranslateText(text);
+        return result;
+    } catch (error) {
+        console.error('Error in detect-and-translate:', error);
+        throw error;
+    }
 });
 
 app.whenReady().then(createWindow);

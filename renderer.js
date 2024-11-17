@@ -1,12 +1,85 @@
 const { ipcRenderer } = require('electron');
 
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
     const promptInput = document.getElementById('prompt-input');
     const tagsContainer = document.getElementById('tags-container');
     let tagGenerationTimeout;
-    let drawThingsButton = null;
     let isGenerating = false;
     let activeStyles = new Set(['realistic', 'cinematic', 'vintage', 'artistic', 'abstract', 'poetic', 'anime', 'cartoon', 'cute', 'scifi']);
+
+    // Funkcja do aktualizacji widoczności przycisku Draw Things
+    async function updateDrawThingsButton() {
+        try {
+            const settings = await ipcRenderer.invoke('get-settings');
+            console.log('Draw Things settings:', settings.drawThingsIntegration);
+            
+            const drawThingsBtn = document.getElementById('draw-things-btn');
+            if (!drawThingsBtn) {
+                console.error('Draw Things button not found');
+                return;
+            }
+
+            // Domyślnie ukryj przycisk
+            drawThingsBtn.style.display = 'none';
+
+            // Sprawdź czy integracja jest włączona
+            if (!settings.drawThingsIntegration.enabled) {
+                console.log('Draw Things integration disabled');
+                return;
+            }
+
+            // Sprawdź dostępność Draw Things
+            const isAvailable = await ipcRenderer.invoke('check-draw-things');
+            console.log('Draw Things availability check result:', isAvailable);
+
+            // Pokaż przycisk tylko jeśli Draw Things jest dostępne
+            drawThingsBtn.style.display = isAvailable ? 'flex' : 'none';
+            console.log('Draw Things button visibility set to:', drawThingsBtn.style.display);
+        } catch (error) {
+            console.error('Error updating Draw Things button:', error);
+            const drawThingsBtn = document.getElementById('draw-things-btn');
+            if (drawThingsBtn) {
+                drawThingsBtn.style.display = 'none';
+            }
+        }
+    }
+
+    // Natychmiastowe sprawdzenie statusu Draw Things
+    console.log('Initial Draw Things status check...');
+    await updateDrawThingsButton();
+
+    // Sprawdzaj status Draw Things co 5 sekund
+    const drawThingsInterval = setInterval(updateDrawThingsButton, 5000);
+
+    // Czyszczenie interwału przy zamknięciu okna
+    window.addEventListener('beforeunload', () => {
+        clearInterval(drawThingsInterval);
+    });
+
+    // Dodaj event listener dla przycisku Draw Things
+    const drawThingsBtn = document.getElementById('draw-things-btn');
+    if (drawThingsBtn) {
+        drawThingsBtn.onclick = async () => {
+            console.log('Draw Things button clicked');
+            const promptText = promptInput.value.trim();
+            
+            if (!promptText) {
+                console.log('Empty prompt, showing toast');
+                showToast('Please enter a prompt first');
+                return;
+            }
+
+            try {
+                console.log('Sending prompt to Draw Things:', promptText);
+                const result = await ipcRenderer.invoke('send-to-draw-things', promptText);
+                console.log('Draw Things response:', result);
+                showToast('Prompt sent to Draw Things');
+            } catch (error) {
+                console.error('Error sending to Draw Things:', error);
+                showToast(error.message);
+            }
+        };
+    }
 
     // Funkcja do wyświetlania tagów
     function displayTags(tags) {
@@ -34,43 +107,60 @@ document.addEventListener('DOMContentLoaded', () => {
     // Event listener do generowania tagów i promptów
     if (promptInput) {
         let promptGenerationTimeout;
+        let translationTimeout;
+        let lastTranslationCheck = 0;
+        const TYPING_DELAY = 1000; // Czekaj 1 sekundę po zakończeniu pisania
+        const TRANSLATION_DELAY = 1500; // Opóźnienie między sprawdzeniami tłumaczenia
 
-        promptInput.addEventListener('input', (e) => {
+        promptInput.addEventListener('input', async (e) => {
+            const settings = await ipcRenderer.invoke('get-settings');
+            clearTimeout(promptGenerationTimeout);
+            clearTimeout(translationTimeout);
             clearTimeout(tagGenerationTimeout);
-            clearTimeout(promptGenerationTimeout); // Dodane czyszczenie timeoutu dla promptów
+            
             const text = e.target.value.trim();
             
             if (text.length > 0) {
-                // Pokaż "Generating tags..."
-                tagsContainer.innerHTML = '<span class="tag loading">Generating tags...</span>';
-                
-                // Pokaż "Generating..." w kafelkach
+                if (settings.tagGeneration) {
+                    tagsContainer.innerHTML = '<span class="tag loading">Waiting for input...</span>';
+                } else {
+                    tagsContainer.innerHTML = '';
+                }
+
                 document.querySelectorAll('.suggestion-area').forEach(area => {
                     area.innerHTML = '<p class="loading">Waiting for input...</p>';
                 });
-                
-                // Generuj tagi z opóźnieniem
-                tagGenerationTimeout = setTimeout(async () => {
-                    try {
-                        console.log('Requesting tags for:', text);
-                        const tags = await ipcRenderer.invoke('generate-tags', text);
-                        console.log('Received tags:', tags);
-                        displayTags(tags);
-                    } catch (error) {
-                        console.error('Error generating tags:', error);
-                        tagsContainer.innerHTML = '<span class="tag error">Error generating tags</span>';
-                    }
-                }, 800);
 
-                // Generuj prompty z większym opóźnieniem
-                promptGenerationTimeout = setTimeout(async () => {
-                    if (!isGenerating) {
-                        generateAllPrompts(text);
+                translationTimeout = setTimeout(async () => {
+                    try {
+                        let processedText = text;
+                        if (settings.promptTranslation) {
+                            processedText = await handlePromptTranslation(text);
+                        }
+                        
+                        if (processedText) {
+                            if (settings.tagGeneration) {
+                                try {
+                                    const tags = await ipcRenderer.invoke('generate-tags', processedText);
+                                    displayTags(tags);
+                                } catch (error) {
+                                    console.error('Error generating tags:', error);
+                                    tagsContainer.innerHTML = '<span class="tag error">Error generating tags</span>';
+                                }
+                            }
+
+                            if (!isGenerating) {
+                                generateAllPrompts(processedText);
+                            }
+                        }
+                    } catch (error) {
+                        console.error('Error:', error);
+                        showToast('Error: ' + error.message);
                     }
-                }, 1500); // Większe opóźnienie dla generowania promptów
+                }, TYPING_DELAY);
             } else {
+                // Wyczyść wszystko jeśli pole jest puste
                 tagsContainer.innerHTML = '';
-                // Wyczyść sugestie w kafelkach
                 document.querySelectorAll('.suggestion-area').forEach(area => {
                     area.innerHTML = '';
                 });
@@ -87,6 +177,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
         isGenerating = true;
         const cards = document.querySelectorAll('.option-card');
+        const settings = await ipcRenderer.invoke('get-settings');
         
         cards.forEach(card => {
             const suggestionArea = card.querySelector('.suggestion-area');
@@ -94,22 +185,24 @@ document.addEventListener('DOMContentLoaded', () => {
         });
 
         try {
-            const promises = Array.from(cards).map(card => {
+            for (const card of Array.from(cards)) {
                 const styleId = card.dataset.styleId;
-                return ipcRenderer.invoke('generate-prompt', basePrompt, styleId)
-                    .then(improvedPrompt => {
-                        const suggestionArea = card.querySelector('.suggestion-area');
-                        suggestionArea.textContent = improvedPrompt;
-                        const applyBtn = card.querySelector('.apply-btn');
-                        applyBtn.disabled = false;
-                    })
-                    .catch(error => {
-                        const suggestionArea = card.querySelector('.suggestion-area');
-                        suggestionArea.innerHTML = `<p class="error">Error: ${error.message}</p>`;
-                    });
-            });
+                const suggestionArea = card.querySelector('.suggestion-area');
+                
+                try {
+                    const improvedPrompt = await ipcRenderer.invoke('generate-prompt', basePrompt, styleId);
+                    suggestionArea.textContent = improvedPrompt;
+                    const applyBtn = card.querySelector('.apply-btn');
+                    applyBtn.disabled = false;
 
-            await Promise.all(promises);
+                    // Jeśli włączony jest slow mode, dodaj opóźnienie przed następnym promptem
+                    if (settings.slowMode) {
+                        await new Promise(resolve => setTimeout(resolve, settings.slowModeDelay));
+                    }
+                } catch (error) {
+                    suggestionArea.innerHTML = `<p class="error">Error: ${error.message}</p>`;
+                }
+            }
         } catch (error) {
             console.error('Error generating prompts:', error);
         } finally {
@@ -151,9 +244,6 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (improvedPrompt && !improvedPrompt.includes('Generating...')) {
                     promptInput.value = improvedPrompt;
                     addToHistory(improvedPrompt, card.querySelector('h2').textContent.trim());
-                    
-                    // Wyczyść obecne tagi i pokaż "Generating tags..."
-                    tagsContainer.innerHTML = '<span class="tag loading">Generating tags...</span>';
                     
                     // Generuj nowe tagi dla nowego promptu
                     try {
@@ -225,30 +315,6 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('clear-prompt')?.addEventListener('click', () => {
         promptInput.value = '';
         tagsContainer.innerHTML = '';
-    });
-
-    // Inicjalizacja
-    updateStyleSelector();
-    loadStyles();
-
-    // Nasłuchuj na wygenerowane tagi
-    ipcRenderer.on('tags-generated', (event, tags) => {
-        console.log('Received tags from main process:', tags);
-        displayTags(tags);
-    });
-
-    // Nasłuchuj na błędy generowania tagów
-    ipcRenderer.on('tags-generated-error', (event, error) => {
-        console.error('Tag generation error:', error);
-        tagsContainer.innerHTML = `<span class="tag error">${error}</span>`;
-    });
-
-    // Nasłuchuj na ustawienie promptu
-    ipcRenderer.on('set-prompt', (event, prompt) => {
-        if (promptInput && prompt) {
-            promptInput.value = prompt;
-            promptInput.dispatchEvent(new Event('input'));
-        }
     });
 
     // Event listeners dla przycisków w titlebar
@@ -362,7 +428,73 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 100);
     }
 
-    // Nasłuchuj na status Ollamy
+    // Funkcja do obsługi tłumaczenia
+    async function handlePromptTranslation(promptText) {
+        const translationOverlay = document.getElementById('translation-overlay');
+        const statusText = document.getElementById('translation-status-text');
+        const progressFill = document.querySelector('.translation-progress .progress-fill');
+        
+        try {
+            // Wykryj język i przetłumacz jeśli potrzeba
+            const result = await ipcRenderer.invoke('detect-and-translate', promptText);
+            
+            if (result.isTranslated) {
+                // Pokaż overlay tylko dla tłumaczenia
+                translationOverlay.style.display = 'flex';
+                progressFill.style.width = '30%';
+                statusText.textContent = `Translating from ${result.originalLanguage.toUpperCase()}...`;
+                
+                await new Promise(resolve => setTimeout(resolve, 300));
+                progressFill.style.width = '60%';
+                
+                // Aktualizuj pole promptu
+                document.getElementById('prompt-input').value = result.translatedText;
+                
+                await new Promise(resolve => setTimeout(resolve, 300));
+                progressFill.style.width = '100%';
+                statusText.textContent = 'Translation complete!';
+                
+                await new Promise(resolve => setTimeout(resolve, 500));
+                
+                showToast(`Translated from ${result.originalLanguage.toUpperCase()} to English`);
+                
+                // Ukryj overlay
+                setTimeout(() => {
+                    translationOverlay.style.display = 'none';
+                    progressFill.style.width = '0%';
+                }, 300);
+            }
+            
+            return result.translatedText;
+        } catch (error) {
+            console.error('Translation error:', error);
+            showToast('Translation failed: ' + error.message);
+            return null;
+        }
+    }
+
+    // Inicjalizacja
+    updateStyleSelector();
+    loadStyles();
+
+    // Nasłuchiwanie na wydarzenia
+    ipcRenderer.on('tags-generated', (event, tags) => {
+        console.log('Received tags from main process:', tags);
+        displayTags(tags);
+    });
+
+    ipcRenderer.on('tags-generated-error', (event, error) => {
+        console.error('Tag generation error:', error);
+        tagsContainer.innerHTML = `<span class="tag error">${error}</span>`;
+    });
+
+    ipcRenderer.on('set-prompt', (event, prompt) => {
+        if (promptInput && prompt) {
+            promptInput.value = prompt;
+            promptInput.dispatchEvent(new Event('input'));
+        }
+    });
+
     ipcRenderer.on('ollama-status', (event, status) => {
         const connectionBtn = document.getElementById('connection-btn');
         const tooltip = connectionBtn?.querySelector('.tooltip');
@@ -417,5 +549,39 @@ document.addEventListener('DOMContentLoaded', () => {
             promptInput.value = description;
             promptInput.dispatchEvent(new Event('input'));
         }
+    });
+
+    // Zaktualizuj obsługę przycisku Generate
+    document.getElementById('generate-btn').addEventListener('click', async () => {
+        const promptInput = document.getElementById('prompt-input');
+        const styleSelect = document.getElementById('style-select');
+        
+        try {
+            const promptText = promptInput.value.trim();
+            if (!promptText) {
+                showNotification('Please enter a prompt', 'warning');
+                return;
+            }
+            
+            // Najpierw przetłumacz tekst jeśli potrzeba
+            const translatedText = await handlePromptTranslation(promptText);
+            
+            // Kontynuuj z przetłumaczonym tekstem
+            const styleId = styleSelect.value;
+            const improvedPrompt = await ipcRenderer.invoke('generate-prompt', translatedText, styleId);
+            promptInput.value = improvedPrompt;
+            
+            // Generuj tagi
+            await generateTags(improvedPrompt);
+        } catch (error) {
+            console.error('Error:', error);
+            showNotification(error.message, 'error');
+        }
+    });
+
+    // Nasłuchuj na zmiany ustawień
+    ipcRenderer.on('settings-updated', async () => {
+        console.log('Settings updated, updating Draw Things button'); // Debug log
+        await updateDrawThingsButton();
     });
 });

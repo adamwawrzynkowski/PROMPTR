@@ -431,99 +431,72 @@ Rules:
         }
     }
 
-    async analyzeImage(imageData, detailed = false) {
-        if (!this.isConnected) {
-            throw new Error('Not connected to Ollama');
-        }
-
-        if (!this.visionModel) {
-            throw new Error('No vision model selected. Please configure a vision model first.');
-        }
-
+    async analyzeImage(imageData, systemPrompt, analysisType = 'content') {
         try {
-            console.log('Starting image analysis with model:', this.visionModel);
-            
-            const prompt = detailed ? 
-                `Provide a comprehensive and detailed description of this image that could be used as a prompt for image generation.
+            if (!this.isConnected || !this.visionModel) {
+                throw new Error('Not connected or no vision model selected');
+            }
 
-Rules:
-1. Write a detailed description in 5-7 sentences
-2. Include extensive details about:
-   - Main subject and composition
-   - Lighting conditions and atmosphere
-   - Colors and color palette
-   - Textures and materials
-   - Style and artistic techniques
-   - Background and environment
-   - Mood and emotional qualities
-3. Use rich, descriptive language and artistic terminology
-4. Focus on visual elements that would be important for recreation
-5. Keep the description flowing and natural
-6. Do not use bullet points or lists
-7. Do not include phrases like "the image shows" or "I can see"
-8. Minimum 5 sentences required` 
-                : 
-                `Provide a concise description of this image that captures its key visual elements.
+            let base64Image = imageData;
+            if (imageData.startsWith('data:')) {
+                base64Image = imageData.split(',')[1];
+            }
 
-Rules:
-1. Keep it brief (2-3 sentences maximum)
-2. Include only the most important visual elements:
-   - Main subject
-   - Key style elements
-   - Dominant mood or atmosphere
-3. Use clear and direct language
-4. Focus on the most striking visual aspects
-5. Do not use phrases like "the image shows" or "I can see"
-6. Maximum 3 sentences allowed`;
+            // Dostosuj prompt i parametry w zależności od typu analizy
+            let prompt, numPredict;
+            if (analysisType === 'style') {
+                prompt = `Focus ONLY on the artistic style of this image. Describe:
+- Art style (realistic, cartoon, anime, etc.)
+- Color palette and mood
+- Lighting and composition
+- Artistic techniques used
+Keep it brief and concise. Do not describe the content or subjects in the image.`;
+                numPredict = 300; // Krótsza odpowiedź dla stylu
+            } else if (analysisType === 'detailed') {
+                prompt = systemPrompt || "Provide a detailed description of everything you see in this image.";
+                numPredict = 1000; // Dłuższa odpowiedź dla szczegółowego opisu
+            } else {
+                prompt = "Briefly describe what you see in this image. Focus on the main elements and overall composition.";
+                numPredict = 300; // Krótsza odpowiedź dla standardowej analizy
+            }
 
-            const response = await this.makeRequest(`${this.baseUrl}/api/generate`, {
+            const response = await fetch('http://localhost:11434/api/generate', {
                 method: 'POST',
-                body: {
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
                     model: this.visionModel,
                     prompt: prompt,
-                    images: [imageData.split(',')[1]],
+                    images: [base64Image],
                     stream: false,
                     options: {
-                        temperature: detailed ? 0.8 : 0.7 // Nieco wyższa temperatura dla szczegółowego opisu
+                        temperature: 0.7,
+                        num_predict: numPredict,
                     }
-                }
+                })
             });
 
             if (!response.ok) {
-                throw new Error(`Failed to analyze image: ${response.status}`);
+                const errorText = await response.text();
+                console.error('Ollama API error response:', errorText);
+                throw new Error(`HTTP error! status: ${response.status}, details: ${errorText}`);
             }
 
             const data = await response.json();
-            console.log('Raw API response:', data);
-
-            if (typeof data === 'string') {
-                try {
-                    const parsedData = JSON.parse(data);
-                    return parsedData.response || data;
-                } catch {
-                    return data;
-                }
-            } else if (data.response) {
-                // Czyść odpowiedź z niepotrzebnych elementów
-                let cleanedResponse = data.response
-                    .replace(/^(a photo of|an image of|this image shows|i can see|in this image|the image depicts)/gi, '')
-                    .replace(/\n+/g, ' ')
-                    .replace(/\s+/g, ' ')
-                    .replace(/,\s*,/g, ',')
-                    .replace(/^\s*,\s*/, '')
-                    .replace(/\s*,\s*$/, '')
-                    .trim();
-
-                return cleanedResponse;
-            } else {
-                throw new Error('Invalid response format from API');
+            if (!data.response) {
+                throw new Error('Empty response from Ollama API');
             }
+
+            // Wyczyść i sformatuj odpowiedź
+            let cleanedResponse = data.response
+                .trim()
+                .replace(/^(Here's|I see|In this image|The image shows)/i, '')
+                .trim();
+
+            return cleanedResponse;
         } catch (error) {
             console.error('Error in analyzeImage:', error);
-            if (error.message.includes('JSON')) {
-                console.error('Raw response causing JSON error:', error);
-                throw new Error('Error parsing API response');
-            }
             throw error;
         }
     }
@@ -616,6 +589,151 @@ Rules:
         } catch (error) {
             console.error('Error checking model availability:', error);
             return false;
+        }
+    }
+
+    async detectAndTranslateText(text) {
+        try {
+            // Najpierw sprawdź czy tekst wygląda na angielski
+            const englishWordPattern = /^[a-zA-Z\s,\.!?\-'"]+$/;
+            if (englishWordPattern.test(text)) {
+                console.log('Text appears to be English, skipping translation');
+                return {
+                    isTranslated: false,
+                    originalText: text,
+                    translatedText: text,
+                    originalLanguage: 'en'
+                };
+            }
+
+            // Użyj Google Translate API tylko dla tekstów, które nie wyglądają na angielskie
+            const response = await fetch('https://translation.googleapis.com/language/translate/v2/detect', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                },
+                body: JSON.stringify({
+                    q: text,
+                    key: 'AIzaSyBOti4mM-6x9WDnZIjIeyEU21OpBXqWBgw'
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error('Language detection failed');
+            }
+
+            const detectionResult = await response.json();
+            const detectedLanguage = detectionResult.data.detections[0][0].language;
+            console.log('Detected language:', detectedLanguage);
+
+            // Jeśli wykryto angielski, nie tłumacz
+            if (detectedLanguage === 'en') {
+                return {
+                    isTranslated: false,
+                    originalText: text,
+                    translatedText: text,
+                    originalLanguage: 'en'
+                };
+            }
+
+            // Tłumacz tylko jeśli to na pewno nie jest angielski
+            const translateResponse = await fetch('https://translation.googleapis.com/language/translate/v2', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json',
+                },
+                body: JSON.stringify({
+                    q: text,
+                    source: detectedLanguage,
+                    target: 'en',
+                    key: 'AIzaSyBOti4mM-6x9WDnZIjIeyEU21OpBXqWBgw'
+                })
+            });
+
+            if (!translateResponse.ok) {
+                throw new Error('Translation failed');
+            }
+
+            const translationResult = await translateResponse.json();
+            return {
+                isTranslated: true,
+                originalText: text,
+                translatedText: translationResult.data.translations[0].translatedText,
+                originalLanguage: detectedLanguage
+            };
+        } catch (error) {
+            console.error('Error in detectAndTranslateText:', error);
+            
+            // Fallback do Ollama tylko jeśli tekst nie wygląda na angielski
+            try {
+                const englishWordPattern = /^[a-zA-Z\s,\.!?\-'"]+$/;
+                if (englishWordPattern.test(text)) {
+                    return {
+                        isTranslated: false,
+                        originalText: text,
+                        translatedText: text,
+                        originalLanguage: 'en'
+                    };
+                }
+
+                if (!this.isConnected || !this.currentModel) {
+                    throw new Error('Ollama is not connected');
+                }
+
+                // Najpierw wykryj język
+                const languageResponse = await this.makeRequest(`${this.baseUrl}/api/generate`, {
+                    method: 'POST',
+                    body: JSON.stringify({
+                        model: this.currentModel,
+                        prompt: `Detect the language of this text and respond ONLY with language code (en, pl, de, etc): "${text}"`,
+                        stream: false,
+                        options: {
+                            temperature: 0.1,
+                            stop: ["\n", "Language", "The", "Code"]
+                        }
+                    })
+                });
+
+                const languageData = await languageResponse.json();
+                const detectedLanguage = languageData.response.trim().toLowerCase();
+
+                // Jeśli to nie angielski, przetłumacz
+                if (detectedLanguage !== 'en') {
+                    const translationResponse = await this.makeRequest(`${this.baseUrl}/api/generate`, {
+                        method: 'POST',
+                        body: JSON.stringify({
+                            model: this.currentModel,
+                            prompt: `Translate this text to English. Return ONLY the translation without any additional text:
+"${text}"`,
+                            stream: false,
+                            options: {
+                                temperature: 0.3,
+                                stop: ["\n", "Translation", "Here"]
+                            }
+                        })
+                    });
+
+                    const translationData = await translationResponse.json();
+                    return {
+                        isTranslated: true,
+                        originalText: text,
+                        translatedText: translationData.response.trim(),
+                        originalLanguage: detectedLanguage
+                    };
+                }
+
+                return {
+                    isTranslated: false,
+                    originalText: text,
+                    translatedText: text,
+                    originalLanguage: 'en'
+                };
+            } catch (fallbackError) {
+                console.error('Fallback translation error:', fallbackError);
+                throw new Error('Translation failed with both services');
+            }
         }
     }
 }

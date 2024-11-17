@@ -33,13 +33,13 @@
             <div class="input-wrapper">
                 <textarea id="prompt-input" class="prompt-input" placeholder="Enter your prompt here..."></textarea>
                 <div class="input-buttons">
+                    <button class="input-btn draw-things-btn" id="draw-things-btn">
+                        <i class="fas fa-arrow-right"></i>
+                        <div class="tooltip">Send to Draw Things</div>
+                    </button>
                     <button class="input-btn vision-btn" id="vision-btn">
                         <i class="fas fa-image"></i>
                         <div class="tooltip">Analyze Image</div>
-                    </button>
-                    <button class="input-btn draw-things-btn" id="draw-things-btn" style="display: none;">
-                        <i class="fas fa-arrow-right"></i>
-                        <div class="tooltip">Send to Draw Things</div>
                     </button>
                     <button class="input-btn" id="copy-prompt">
                         <i class="fas fa-copy"></i>
@@ -85,6 +85,19 @@
         </div>
         <div class="history-content">
             <!-- Historia będzie dodawana tutaj dynamicznie -->
+        </div>
+    </div>
+    <div id="translation-overlay" class="overlay" style="display: none;">
+        <div class="overlay-content">
+            <div class="translation-status">
+                <i class="fas fa-language"></i>
+                <span id="translation-status-text">Detecting language...</span>
+            </div>
+            <div class="translation-progress">
+                <div class="progress-bar">
+                    <div class="progress-fill"></div>
+                </div>
+            </div>
         </div>
     </div>
     <script src="renderer.js"></script>

@@ -1,44 +1,51 @@
-const { app } = require('electron');
+const fs = require('fs').promises;
 const path = require('path');
-const fs = require('fs');
+const { app } = require('electron');
 
 class SettingsManager {
     constructor() {
         this.settingsPath = path.join(app.getPath('userData'), 'settings.json');
         this.defaultSettings = {
             theme: 'dark',
-            animations: true,
-            historyLimit: 100
-        };
-        this.settings = this.loadSettings();
-    }
-
-    loadSettings() {
-        try {
-            if (fs.existsSync(this.settingsPath)) {
-                return { ...this.defaultSettings, ...JSON.parse(fs.readFileSync(this.settingsPath, 'utf8')) };
+            promptTranslation: true,
+            tagGeneration: true,
+            slowMode: false,
+            slowModeDelay: 2000,
+            drawThingsIntegration: {
+                enabled: true,
+                autoSend: true,
+                port: 3333
             }
-        } catch (error) {
-            console.error('Error loading settings:', error);
-        }
-        return { ...this.defaultSettings };
+        };
+        this.settings = { ...this.defaultSettings };
+        this.loadSettings();
     }
 
-    saveSettings() {
+    async loadSettings() {
         try {
-            fs.writeFileSync(this.settingsPath, JSON.stringify(this.settings, null, 2));
+            const data = await fs.readFile(this.settingsPath, 'utf8');
+            this.settings = { ...this.defaultSettings, ...JSON.parse(data) };
+        } catch (error) {
+            console.log('No settings file found, using defaults');
+            await this.saveSettings();
+        }
+    }
+
+    async saveSettings() {
+        try {
+            await fs.writeFile(this.settingsPath, JSON.stringify(this.settings, null, 2));
         } catch (error) {
             console.error('Error saving settings:', error);
         }
     }
 
-    updateSettings(newSettings) {
-        this.settings = { ...this.settings, ...newSettings };
-        this.saveSettings();
-        return this.settings;
+    getSettings() {
+        return { ...this.settings };
     }
 
-    getSettings() {
+    async updateSettings(newSettings) {
+        this.settings = { ...this.settings, ...newSettings };
+        await this.saveSettings();
         return this.settings;
     }
 }

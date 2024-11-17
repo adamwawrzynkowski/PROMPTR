@@ -938,14 +938,19 @@ input, button, textarea, [role="button"] {
 
 /* Dodaj style dla przycisku draw-things */
 .input-btn.draw-things-btn {
-    order: -1;
+    background: var(--button-background);
     color: var(--text);
     opacity: 0.7;
+    transition: all 0.2s ease;
 }
 
 .input-btn.draw-things-btn:hover {
     opacity: 1;
     background: var(--button-hover);
+}
+
+.input-btn.draw-things-btn i {
+    color: #4CAF50;
 }
 
 /* Usuń poprzednie style dla titlebar-item.vision */
@@ -1148,4 +1153,50 @@ input, button, textarea, [role="button"] {
 
 .refresh-all-btn i {
     font-size: 14px;
+}
+
+#translation-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+
+.translation-status {
+    text-align: center;
+    margin-bottom: 15px;
+    color: #fff;
+    font-size: 1.2em;
+}
+
+.translation-status i {
+    margin-right: 10px;
+    color: #4CAF50;
+}
+
+.translation-progress {
+    width: 300px;
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    padding: 3px;
+}
+
+.translation-progress .progress-bar {
+    height: 20px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.translation-progress .progress-fill {
+    height: 100%;
+    background: #4CAF50;
+    width: 0%;
+    transition: width 0.3s ease;
 }
