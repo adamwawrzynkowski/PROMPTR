@@ -795,6 +795,7 @@ input, button, textarea, [role="button"] {
     justify-content: flex-end;
     padding: 0 10px;
     margin-bottom: 20px;
+    gap: 10px;
 }
 
 .manage-styles-btn {
@@ -1098,3 +1099,53 @@ input, button, textarea, [role="button"] {
 }
 
 /* Usuń stare style scrollbarów z innych plików CSS */
+
+/* Style dla przycisków refresh */
+.card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+}
+
+.refresh-btn {
+    background: var(--button-background);
+    border: none;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.refresh-btn:hover {
+    background: var(--button-hover);
+    transform: rotate(180deg);
+}
+
+.refresh-all-btn {
+    background: var(--button-background);
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
+}
+
+.refresh-all-btn:hover {
+    background: var(--button-hover);
+    transform: translateY(-1px);
+}
+
+.refresh-all-btn i {
+    font-size: 14px;
+}

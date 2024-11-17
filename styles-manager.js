@@ -4,62 +4,99 @@ const fs = require('fs');
 
 class StylesManager {
     constructor() {
-        this.stylesPath = path.join(app.getPath('userData'), 'custom-styles.json');
+        this.configPath = path.join(__dirname, 'config', 'styles.json');
+        this.customStyles = {};
         this.defaultStyles = {
-            realistic: {
+            'realistic': {
                 name: 'Realistic',
                 icon: 'camera',
-                description: 'Enhances prompt with photorealistic details and camera settings',
-                fixedTags: ['photorealistic', '8k', 'detailed', 'photography']
+                description: 'Professional photography style with realistic details and natural lighting',
+                fixedTags: ['photorealistic', 'detailed', 'professional photography', 'natural lighting']
             },
-            cinematic: {
+            'cinematic': {
                 name: 'Cinematic',
                 icon: 'film',
-                description: 'Transforms prompt into a movie-like scene with dramatic elements',
-                fixedTags: ['cinematic', 'dramatic lighting', 'movie scene']
+                description: 'Movie-like scenes with dramatic lighting and cinematic composition',
+                fixedTags: ['cinematic', 'movie scene', 'dramatic lighting', 'film grain']
             },
-            fantasy: {
-                name: 'Fantasy',
-                icon: 'dragon',
-                description: 'Adds magical and fantastical elements to your prompt',
-                fixedTags: ['fantasy', 'magical', 'mystical']
+            'vintage': {
+                name: 'Vintage',
+                icon: 'clock-rotate-left',
+                description: 'Retro and nostalgic aesthetics with classic photography elements',
+                fixedTags: ['vintage', 'retro', 'old photograph', 'nostalgic', 'film photography']
             },
-            artistic: {
+            'artistic': {
                 name: 'Artistic',
                 icon: 'palette',
-                description: 'Enhances prompt with fine art techniques and styles',
-                fixedTags: ['artistic', 'fine art', 'masterpiece']
+                description: 'Fine art style with emphasis on artistic techniques and expression',
+                fixedTags: ['fine art', 'artistic', 'masterpiece', 'expressive']
             },
-            conceptart: {
-                name: 'Concept Art',
-                icon: 'pencil-ruler',
-                description: 'Adds professional concept art and design elements',
-                fixedTags: ['concept art', 'professional', 'detailed']
+            'abstract': {
+                name: 'Abstract',
+                icon: 'brush',
+                description: 'Non-representational art focusing on shapes, colors, and forms',
+                fixedTags: ['abstract art', 'geometric', 'modern art', 'non-representational']
             },
-            anime: {
+            'poetic': {
+                name: 'Poetic',
+                icon: 'feather',
+                description: 'Dreamy and ethereal imagery with soft, romantic elements',
+                fixedTags: ['ethereal', 'dreamy', 'romantic', 'soft lighting', 'atmospheric']
+            },
+            'anime': {
                 name: 'Anime',
                 icon: 'star',
-                description: 'Transforms prompt into anime/manga art style',
-                fixedTags: ['anime', 'manga style', 'japanese art']
+                description: 'Japanese animation style with distinctive anime characteristics',
+                fixedTags: ['anime style', 'manga art', 'cel shaded', 'japanese animation']
+            },
+            'cartoon': {
+                name: 'Cartoon',
+                icon: 'pen',
+                description: 'Stylized cartoon art with bold lines and vibrant colors',
+                fixedTags: ['cartoon style', 'stylized', 'bold colors', 'illustration']
+            },
+            'cute': {
+                name: 'Cute',
+                icon: 'heart',
+                description: 'Adorable and kawaii style with charming elements',
+                fixedTags: ['kawaii', 'cute', 'adorable', 'chibi', 'pastel colors']
+            },
+            'scifi': {
+                name: 'Sci-Fi',
+                icon: 'robot',
+                description: 'Futuristic science fiction aesthetics with advanced technology',
+                fixedTags: ['science fiction', 'futuristic', 'cyberpunk', 'technological']
             }
         };
-        this.customStyles = this.loadCustomStyles();
+        this.loadStyles();
     }
 
-    loadCustomStyles() {
+    loadStyles() {
         try {
-            if (fs.existsSync(this.stylesPath)) {
-                return JSON.parse(fs.readFileSync(this.stylesPath, 'utf8'));
+            const configDir = path.dirname(this.configPath);
+            if (!fs.existsSync(configDir)) {
+                fs.mkdirSync(configDir, { recursive: true });
+            }
+            
+            if (fs.existsSync(this.configPath)) {
+                this.customStyles = JSON.parse(fs.readFileSync(this.configPath, 'utf8'));
+            } else {
+                this.customStyles = {};
+                this.saveStyles();
             }
         } catch (error) {
             console.error('Error loading custom styles:', error);
+            this.customStyles = {};
         }
-        return {};
     }
 
-    saveCustomStyles() {
+    saveStyles() {
         try {
-            fs.writeFileSync(this.stylesPath, JSON.stringify(this.customStyles, null, 2));
+            const configDir = path.dirname(this.configPath);
+            if (!fs.existsSync(configDir)) {
+                fs.mkdirSync(configDir, { recursive: true });
+            }
+            fs.writeFileSync(this.configPath, JSON.stringify(this.customStyles, null, 2));
         } catch (error) {
             console.error('Error saving custom styles:', error);
         }
@@ -69,18 +106,18 @@ class StylesManager {
         return { ...this.defaultStyles, ...this.customStyles };
     }
 
+    getStyle(id) {
+        return this.customStyles[id] || this.defaultStyles[id];
+    }
+
     addCustomStyle(id, style) {
         this.customStyles[id] = style;
-        this.saveCustomStyles();
+        this.saveStyles();
     }
 
     removeCustomStyle(id) {
         delete this.customStyles[id];
-        this.saveCustomStyles();
-    }
-
-    getStyle(id) {
-        return this.customStyles[id] || this.defaultStyles[id];
+        this.saveStyles();
     }
 
     isCustomStyle(id) {

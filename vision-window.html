@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Analyze Image</title>
+    <link rel="stylesheet" href="vision-window.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="titlebar">
+        <div class="titlebar-title">Analyze Image</div>
+        <button class="close-button">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+    <div class="vision-container">
+        <div id="drop-zone">
+            <div class="drop-text">Drop image here</div>
+            <div class="or-text">or</div>
+            <button id="select-image">
+                <i class="fas fa-image"></i>
+                Select Image
+            </button>
+        </div>
+        <img id="preview" src="" alt="Preview">
+        <div class="analysis-section" style="display: none;">
+            <div class="analysis-result"></div>
+            <div class="analysis-actions">
+                <button id="regenerate">
+                    <i class="fas fa-sync-alt"></i>
+                    Regenerate
+                </button>
+                <button id="regenerate-detailed">
+                    <i class="fas fa-sync-alt"></i>
+                    Regenerate Detailed
+                </button>
+                <button id="use">
+                    <i class="fas fa-check"></i>
+                    Use
+                </button>
+            </div>
+        </div>
+        <button id="analyze" disabled>
+            <i class="fas fa-magic"></i>
+            Analyze Image
+        </button>
+    </div>
+    <script src="vision-renderer.js"></script>
+</body>
+</html> 

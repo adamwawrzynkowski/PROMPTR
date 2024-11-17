@@ -114,7 +114,8 @@ body {
 }
 
 .form-group textarea {
-    min-height: 100px;
+    width: calc(100% - 24px);
+    min-height: 120px;
 }
 
 .form-group input:focus,
@@ -200,4 +201,40 @@ body {
 
 ::-webkit-scrollbar-thumb:hover {
     background: rgba(255, 255, 255, 0.3);
+}
+
+.description-wrapper {
+    position: relative;
+    display: flex;
+    gap: 10px;
+}
+
+.description-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.analyze-image-btn {
+    background: var(--button-background);
+    border: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+}
+
+.analyze-image-btn i {
+    font-size: 14px;
+}
+
+.analyze-image-btn:hover {
+    background: var(--button-hover);
+    transform: translateY(-1px);
 } 

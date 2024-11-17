@@ -6,7 +6,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let tagGenerationTimeout;
     let drawThingsButton = null;
     let isGenerating = false;
-    let activeStyles = new Set(['realistic', 'cinematic', 'fantasy', 'artistic', 'conceptart', 'anime']);
+    let activeStyles = new Set(['realistic', 'cinematic', 'vintage', 'artistic', 'abstract', 'poetic', 'anime', 'cartoon', 'cute', 'scifi']);
 
     // Funkcja do wyświetlania tagów
     function displayTags(tags) {
@@ -126,7 +126,12 @@ document.addEventListener('DOMContentLoaded', () => {
             .filter(([id]) => activeStyles.has(id))
             .map(([id, style]) => `
                 <div class="option-card" data-style-id="${id}">
-                    <h2><i class="fas fa-${style.icon}"></i> ${style.name}</h2>
+                    <div class="card-header">
+                        <h2><i class="fas fa-${style.icon}"></i> ${style.name}</h2>
+                        <button class="refresh-btn" title="Refresh prompt">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                    </div>
                     <p>${style.description}</p>
                     <div class="suggestion-area"></div>
                     <button class="apply-btn" disabled>Apply</button>
@@ -173,6 +178,29 @@ document.addEventListener('DOMContentLoaded', () => {
                 const y = ((e.clientY - rect.top) / card.offsetHeight) * 100;
                 card.style.setProperty('--mouse-x', `${x}%`);
                 card.style.setProperty('--mouse-y', `${y}%`);
+            });
+        });
+
+        // Dodaj obsługę przycisku refresh dla pojedynczego kafelka
+        document.querySelectorAll('.refresh-btn').forEach(btn => {
+            btn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                const card = btn.closest('.option-card');
+                const styleId = card.dataset.styleId;
+                const promptText = promptInput.value.trim();
+                
+                if (promptText && !isGenerating) {
+                    const suggestionArea = card.querySelector('.suggestion-area');
+                    suggestionArea.innerHTML = '<p class="loading">Generating...</p>';
+                    
+                    try {
+                        const improvedPrompt = await ipcRenderer.invoke('generate-prompt', promptText, styleId);
+                        suggestionArea.textContent = improvedPrompt;
+                        card.querySelector('.apply-btn').disabled = false;
+                    } catch (error) {
+                        suggestionArea.innerHTML = `<p class="error">Error: ${error.message}</p>`;
+                    }
+                }
             });
         });
     }
@@ -382,4 +410,12 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
     }
+
+    // Nasłuchuj na wynik analizy obrazu
+    ipcRenderer.on('vision-result', (event, description, source) => {
+        if (source === 'prompt' && promptInput) {
+            promptInput.value = description;
+            promptInput.dispatchEvent(new Event('input'));
+        }
+    });
 });

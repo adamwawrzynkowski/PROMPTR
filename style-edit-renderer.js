@@ -92,4 +92,17 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Inicjalizacja siatki ikon
     renderIconsGrid();
+
+    // Dodaj obsługę przycisku analizy obrazu
+    document.getElementById('analyze-image-btn').addEventListener('click', () => {
+        // Otwórz okno analizy obrazu z parametrem 'style'
+        ipcRenderer.send('open-vision-for-style');
+    });
+
+    // Nasłuchuj na wynik analizy obrazu
+    ipcRenderer.on('vision-result', (event, description, source) => {
+        if (source === 'style' && descriptionInput) {
+            descriptionInput.value = description;
+        }
+    });
 }); 

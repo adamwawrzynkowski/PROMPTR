@@ -249,7 +249,7 @@ class OllamaManager {
         };
     }
 
-    async generatePrompt(basePrompt, style, customStyle = null) {
+    async generatePrompt(basePrompt, styleId, customStyle = null) {
         if (!this.isConnected || !this.currentModel) {
             throw new Error(this.lastError || 'Not connected or no model selected');
         }
@@ -270,18 +270,28 @@ Rules:
 4. Do not use quotes or special formatting
 5. Do not start with phrases like "Here's" or "This is"`;
         } else {
-            const styleInstructions = {
-                realistic: "photorealistic, detailed photography, professional camera settings, natural lighting",
-                cinematic: "cinematic shot, movie scene, dramatic lighting, film grain, professional cinematography",
-                fantasy: "fantasy art, magical, ethereal, mystical atmosphere, enchanted",
-                artistic: "artistic, fine art, masterpiece, professional artwork",
-                conceptart: "concept art, professional illustration, digital art, detailed design",
-                anime: "anime style, manga art, japanese animation, cel shaded"
-            };
+            // Mapowanie styleId na instrukcje stylu
+            const styleInstructions = new Map([
+                ['realistic', "photorealistic, detailed photography, professional camera settings, natural lighting"],
+                ['cinematic', "cinematic shot, movie scene, dramatic lighting, film grain, professional cinematography"],
+                ['vintage', "vintage style, retro aesthetics, old photograph, film photography, nostalgic"],
+                ['artistic', "artistic, fine art, masterpiece, professional artwork, expressive"],
+                ['abstract', "abstract art, non-representational, geometric shapes, modern art, contemporary"],
+                ['poetic', "ethereal, dreamy, romantic, soft lighting, atmospheric, moody"],
+                ['anime', "anime style, manga art, japanese animation, cel shaded"],
+                ['cartoon', "cartoon style, stylized art, bold lines, vibrant colors"],
+                ['cute', "kawaii style, adorable, chibi, pastel colors, charming"],
+                ['scifi', "science fiction, futuristic, cyberpunk, high tech, advanced technology"]
+            ]);
+
+            if (!styleInstructions.has(styleId)) {
+                console.error('Unknown style ID:', styleId);
+                throw new Error(`Unknown style: ${styleId}`);
+            }
 
             stylePrompt = `Enhance this prompt for Stable Diffusion image generation:
 Base prompt: ${basePrompt}
-Style: ${styleInstructions[style]}
+Style: ${styleInstructions.get(styleId)}
 
 Rules:
 1. Return ONLY the enhanced prompt
@@ -292,6 +302,9 @@ Rules:
         }
 
         try {
+            console.log('Generating prompt for style:', styleId);
+            console.log('Using prompt template:', stylePrompt);
+
             const response = await this.makeRequest(`${this.baseUrl}/api/generate`, {
                 method: 'POST',
                 headers: {
@@ -337,7 +350,7 @@ Rules:
                 }
             }
 
-            console.log('Cleaned response:', cleanedResponse);
+            console.log('Generated prompt:', cleanedResponse);
 
             if (!cleanedResponse) {
                 throw new Error('Failed to generate prompt');
@@ -418,7 +431,7 @@ Rules:
         }
     }
 
-    async analyzeImage(imageData) {
+    async analyzeImage(imageData, detailed = false) {
         if (!this.isConnected) {
             throw new Error('Not connected to Ollama');
         }
@@ -430,24 +443,49 @@ Rules:
         try {
             console.log('Starting image analysis with model:', this.visionModel);
             
+            const prompt = detailed ? 
+                `Provide a comprehensive and detailed description of this image that could be used as a prompt for image generation.
+
+Rules:
+1. Write a detailed description in 5-7 sentences
+2. Include extensive details about:
+   - Main subject and composition
+   - Lighting conditions and atmosphere
+   - Colors and color palette
+   - Textures and materials
+   - Style and artistic techniques
+   - Background and environment
+   - Mood and emotional qualities
+3. Use rich, descriptive language and artistic terminology
+4. Focus on visual elements that would be important for recreation
+5. Keep the description flowing and natural
+6. Do not use bullet points or lists
+7. Do not include phrases like "the image shows" or "I can see"
+8. Minimum 5 sentences required` 
+                : 
+                `Provide a concise description of this image that captures its key visual elements.
+
+Rules:
+1. Keep it brief (2-3 sentences maximum)
+2. Include only the most important visual elements:
+   - Main subject
+   - Key style elements
+   - Dominant mood or atmosphere
+3. Use clear and direct language
+4. Focus on the most striking visual aspects
+5. Do not use phrases like "the image shows" or "I can see"
+6. Maximum 3 sentences allowed`;
+
             const response = await this.makeRequest(`${this.baseUrl}/api/generate`, {
                 method: 'POST',
                 body: {
                     model: this.visionModel,
-                    prompt: `Analyze this image and create a Stable Diffusion prompt that could generate a similar image.
-                    Follow these rules:
-                    1. Focus on main subject, style, lighting, composition, and important details
-                    2. Include technical aspects like camera settings, shot type, lighting setup
-                    3. Add quality enhancing terms like "highly detailed", "professional", "masterpiece" where appropriate
-                    4. Format the response as a comma-separated list of descriptors
-                    5. Do not include words like "prompt:", "a photo of", or other meta descriptions
-                    6. Do not use quotes or special formatting
-                    7. Keep artistic and stylistic terms at the beginning
-                    8. Put technical and quality terms at the end
-                    9. Do not explain or comment on the image, just provide the prompt
-                    10. Keep the response concise but comprehensive`,
+                    prompt: prompt,
                     images: [imageData.split(',')[1]],
-                    stream: false
+                    stream: false,
+                    options: {
+                        temperature: detailed ? 0.8 : 0.7 // Nieco wyższa temperatura dla szczegółowego opisu
+                    }
                 }
             });
 
@@ -468,8 +506,8 @@ Rules:
             } else if (data.response) {
                 // Czyść odpowiedź z niepotrzebnych elementów
                 let cleanedResponse = data.response
-                    .replace(/^(a photo of|an image of|prompt:|this is|showing)/gi, '')
-                    .replace(/\n+/g, ', ')
+                    .replace(/^(a photo of|an image of|this image shows|i can see|in this image|the image depicts)/gi, '')
+                    .replace(/\n+/g, ' ')
                     .replace(/\s+/g, ' ')
                     .replace(/,\s*,/g, ',')
                     .replace(/^\s*,\s*/, '')

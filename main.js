@@ -17,8 +17,8 @@ const configManager = require('./config-manager');
 const styleEditWindow = require('./style-edit-window');
 const fs = require('fs').promises;
 
-// Dodaj stałą z wersją aplikacji
-const APP_VERSION = 'v0.1';
+// Zmień wersję aplikacji
+const APP_VERSION = 'v1.0';
 
 // Dodaj na początku pliku, gdzie są inne stałe
 const DRAW_THINGS_PATH = '/Applications/Draw Things.app';
@@ -254,34 +254,30 @@ ipcMain.on('toggle-history', () => {
     console.log('History toggled');
 });
 
-ipcMain.handle('generate-prompt', async (event, basePrompt, style) => {
+ipcMain.handle('generate-prompt', async (event, basePrompt, styleId) => {
     try {
         const status = ollamaManager.getStatus();
         if (!status.isConnected || !status.currentModel) {
-            if (!configWindowInstance) {
-                configWindowInstance = configWindow.create();
-                configWindowInstance.on('closed', () => {
-                    configWindowInstance = null;
-                });
-            }
-            throw new Error('Please configure Ollama and select a model first');
+            throw new Error('Not connected or no model selected');
         }
 
         // Pobierz styl z managera stylów
-        const styleConfig = stylesManager.getStyle(style);
-        if (!styleConfig) {
+        const style = stylesManager.getStyle(styleId);
+        if (!style) {
             throw new Error('Style not found');
         }
 
         // Sprawdź czy to custom styl
-        const isCustomStyle = stylesManager.isCustomStyle(style);
+        const isCustomStyle = stylesManager.isCustomStyle(styleId);
         
         // Generuj prompt z uwzględnieniem custom stylu
-        return await ollamaManager.generatePrompt(
+        const improvedPrompt = await ollamaManager.generatePrompt(
             basePrompt, 
-            style,
-            isCustomStyle ? styleConfig : null
+            styleId,
+            isCustomStyle ? style : null
         );
+
+        return improvedPrompt;
     } catch (error) {
         console.error('Error in generate-prompt handler:', error);
         throw error;
@@ -295,11 +291,17 @@ ipcMain.handle('generate-tags', async (event, text) => {
             throw new Error('Not connected or no model selected');
         }
         
+        console.log('Generating tags for text:', text);
         const tags = await ollamaManager.generateTags(text);
+        console.log('Generated tags:', tags);
+
+        // Wyślij tagi bezpośrednio do okna, które wysłało żądanie
         event.sender.send('tags-generated', tags);
+        
         return tags;
     } catch (error) {
-        console.error('Error generating tags:', error);
+        console.error('Error in generate-tags handler:', error);
+        // Wyślij błąd do okna
         event.sender.send('tags-generated-error', error.message);
         throw error;
     }
@@ -727,6 +729,19 @@ ipcMain.handle('export-styles', async (event, styles) => {
             message: 'Error exporting styles: ' + error.message 
         };
     }
+});
+
+// Dodaj handler dla przekazywania wyniku analizy do okna edycji stylu
+ipcMain.on('vision-analysis-complete', (event, description, source = 'prompt') => {
+    // Przekaż wynik do wszystkich okien wraz z informacją o źródle
+    BrowserWindow.getAllWindows().forEach(window => {
+        window.webContents.send('vision-result', description, source);
+    });
+});
+
+// Dodaj nowy handler dla analizy obrazu dla stylu
+ipcMain.on('open-vision-for-style', () => {
+    const visionWindowInstance = visionWindow.create('style');
 });
 
 app.whenReady().then(createWindow);
