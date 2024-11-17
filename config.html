@@ -9,7 +9,9 @@
     <div class="container">
         <div class="title-bar">
             <div class="title">Ollama Configuration</div>
-            <button class="close-button" id="close-btn">×</button>
+            <button class="close-button" id="close-btn">
+                <i class="fas fa-times"></i>
+            </button>
         </div>
 
         <div class="content">
@@ -45,6 +47,13 @@
                     <i class="fas fa-save"></i>
                     Save Configuration
                 </button>
+            </div>
+
+            <div class="models-container">
+                <h3>Available Models</h3>
+                <div id="models-list" class="models-list">
+                    <!-- Tu będą dynamicznie dodawane modele -->
+                </div>
             </div>
         </div>
     </div>

@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Edit Style</title>
+    <link rel="stylesheet" href="style-edit-window.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="titlebar">
+        <div class="titlebar-title" id="window-title">New Style</div>
+        <button class="titlebar-close" id="close-btn">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+    <div class="styles-window">
+        <div class="style-edit-form">
+            <div class="form-group">
+                <label for="style-name">Name</label>
+                <input type="text" id="style-name" placeholder="Enter style name">
+            </div>
+            <div class="form-group">
+                <label>Icon</label>
+                <div class="icons-grid" id="icons-grid">
+                    <!-- Icons will be added dynamically -->
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="style-description">Description</label>
+                <textarea id="style-description" placeholder="Enter style description"></textarea>
+            </div>
+            <div class="form-group">
+                <label for="style-tags">Fixed Tags (separated by commas)</label>
+                <input type="text" id="style-tags" placeholder="tag1, tag2, tag3">
+            </div>
+            <button class="save-btn" id="save-btn">
+                <i class="fas fa-save"></i>
+                Save Style
+            </button>
+        </div>
+    </div>
+    <script src="style-edit-renderer.js"></script>
+</body>
+</html> 

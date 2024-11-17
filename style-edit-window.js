@@ -1,7 +1,7 @@
 const { BrowserWindow } = require('electron');
 const path = require('path');
 
-function create() {
+function create(styleId = null) {
     const window = new BrowserWindow({
         width: 500,
         height: 600,
@@ -12,13 +12,20 @@ function create() {
         frame: false,
         resizable: false,
         titleBarStyle: 'hiddenInset',
-        trafficLightPosition: { x: -20, y: -100 }, // Ukryj przyciski poza widokiem
+        trafficLightPosition: { x: -20, y: -100 },
         transparent: true,
         vibrancy: 'under-window',
         visualEffectState: 'active'
     });
 
-    window.loadFile(path.join(__dirname, 'styles-window.html'));
+    window.loadFile(path.join(__dirname, 'style-edit-window.html'));
+
+    if (styleId) {
+        window.webContents.on('did-finish-load', () => {
+            window.webContents.send('edit-style', styleId);
+        });
+    }
+
     return window;
 }
 

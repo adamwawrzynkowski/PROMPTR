@@ -84,11 +84,7 @@
     <div class="app-container">
         <div class="input-section">
             <div class="input-wrapper">
-                <textarea 
-                    class="prompt-input" 
-                    placeholder="Enter your prompt here..."
-                    rows="3"
-                ></textarea>
+                <textarea id="prompt-input" class="prompt-input" placeholder="Enter your prompt here..."></textarea>
                 <div class="input-buttons">
                     <button class="input-btn vision-btn" id="vision-btn">
                         <i class="fas fa-image"></i>
@@ -108,9 +104,7 @@
                     </button>
                 </div>
             </div>
-            <div class="tags-container">
-                <!-- Tagi będą dodawane tutaj dynamicznie -->
-            </div>
+            <div id="tags-container" class="tags-container"></div>
         </div>
         
         <div class="style-selector">
@@ -440,7 +434,7 @@
             });
         }
 
-        // Dodaj obsługę zamykania historii
+        // Dodaj obsług zamykania historii
         document.querySelector('.history-close').addEventListener('click', () => {
             document.querySelector('.history-panel').classList.remove('open');
         });

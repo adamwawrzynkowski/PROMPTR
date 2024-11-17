@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog } = require('electron');
 const path = require('path');
 const http = require('http');
 const ollamaManager = require('./ollama');
@@ -14,6 +14,8 @@ const visionWindow = require('./vision-window');
 const modelInstallWindow = require('./model-install-window');
 const startupWindow = require('./startup-window');
 const configManager = require('./config-manager');
+const styleEditWindow = require('./style-edit-window');
+const fs = require('fs').promises;
 
 // Dodaj stałą z wersją aplikacji
 const APP_VERSION = 'v0.1';
@@ -292,9 +294,13 @@ ipcMain.handle('generate-tags', async (event, text) => {
         if (!status.isConnected || !status.currentModel) {
             throw new Error('Not connected or no model selected');
         }
-        return await ollamaManager.generateTags(text);
+        
+        const tags = await ollamaManager.generateTags(text);
+        event.sender.send('tags-generated', tags);
+        return tags;
     } catch (error) {
-        console.error('Error in generate-tags handler:', error);
+        console.error('Error generating tags:', error);
+        event.sender.send('tags-generated-error', error.message);
         throw error;
     }
 });
@@ -451,11 +457,16 @@ ipcMain.handle('analyze-image', async (event, imageData) => {
             throw new Error('Ollama is not connected');
         }
 
+        // Sprawdź czy model vision jest wybrany
+        if (!status.visionModel) {
+            throw new Error('No vision model selected. Please configure a vision model in Ollama Configuration first.');
+        }
+
         // Sprawdź czy model vision jest dostępny
         const isModelAvailable = await ollamaManager.checkModelAvailability(status.visionModel);
         if (!isModelAvailable) {
             modelInstallWindow.create(status.visionModel);
-            throw new Error('Vision model needs to be installed first');
+            throw new Error(`Vision model ${status.visionModel} needs to be installed first`);
         }
         
         console.log('Starting image analysis...');
@@ -505,7 +516,22 @@ ipcMain.handle('check-ollama-status', async () => {
 // Handler do pobierania dostępnych modeli
 ipcMain.handle('get-available-models', async () => {
     try {
-        return await ollamaManager.listModels();
+        // Lista dostępnych modeli Ollama
+        const availableModels = [
+            { name: 'llama2', type: 'Text' },
+            { name: 'llama2:13b', type: 'Text' },
+            { name: 'llama2:70b', type: 'Text' },
+            { name: 'codellama', type: 'Text' },
+            { name: 'mistral', type: 'Text' },
+            { name: 'mixtral', type: 'Text' },
+            { name: 'neural-chat', type: 'Text' },
+            { name: 'starling-lm', type: 'Text' },
+            { name: 'llava', type: 'Vision' },
+            { name: 'bakllava', type: 'Vision' }
+        ];
+        
+        console.log('Available models:', availableModels);
+        return availableModels;
     } catch (error) {
         console.error('Error getting available models:', error);
         return [];
@@ -530,7 +556,13 @@ ipcMain.handle('save-config', async (event, config) => {
 // Dodaj nowe handlery
 ipcMain.handle('install-model', async (event, modelName) => {
     try {
-        await ollamaManager.installModel(modelName);
+        await ollamaManager.installModel(modelName, (progress) => {
+            // Wyślij aktualizację postępu do okna konfiguracji
+            event.sender.send('model-download-progress', {
+                model: modelName,
+                progress: progress
+            });
+        });
         return true;
     } catch (error) {
         console.error('Error installing model:', error);
@@ -562,6 +594,137 @@ ipcMain.handle('refresh-ollama-status', async () => {
         return {
             isConnected: false,
             error: error.message
+        };
+    }
+});
+
+ipcMain.handle('delete-model', async (event, modelName) => {
+    try {
+        await ollamaManager.deleteModel(modelName);
+        return true;
+    } catch (error) {
+        console.error('Error deleting model:', error);
+        throw error;
+    }
+});
+
+// Zaktualizuj handlery dla tworzenia/edycji stylu
+ipcMain.on('create-new-style', (event) => {
+    const newStyleWindow = styleEditWindow.create();
+    newStyleWindow.on('closed', () => {
+        // Odśwież listę stylów w oknie zarządzania
+        event.sender.send('refresh-styles');
+    });
+});
+
+ipcMain.on('edit-style', (event, styleId) => {
+    const styleWindow = styleEditWindow.create(styleId);
+    styleWindow.on('closed', () => {
+        event.sender.send('refresh-styles');
+    });
+});
+
+// Handler do importu stylów
+ipcMain.handle('import-styles', async () => {
+    try {
+        const result = await dialog.showOpenDialog({
+            properties: ['openFile'],
+            filters: [
+                { name: 'PROMPTR Style', extensions: ['promptrstyle'] }
+            ]
+        });
+
+        if (result.canceled) {
+            return { success: false, message: 'Import canceled' };
+        }
+
+        const filePath = result.filePaths[0];
+        const fileContent = await fs.readFile(filePath, 'utf8');
+        const styles = JSON.parse(fileContent);
+
+        // Sprawdź każdy styl przed importem
+        for (const style of styles) {
+            const styleId = `custom_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+            
+            // Sprawdź czy styl ma wszystkie wymagane pola
+            if (!style.name || !style.description || !style.icon || !Array.isArray(style.fixedTags)) {
+                return { success: false, message: 'Invalid style format' };
+            }
+
+            // Sprawdź czy styl o takiej nazwie już istnieje
+            const existingStyles = stylesManager.getAllStyles();
+            const styleExists = Object.values(existingStyles).some(
+                existing => existing.name.toLowerCase() === style.name.toLowerCase()
+            );
+
+            if (styleExists) {
+                return { 
+                    success: false, 
+                    message: `Style "${style.name}" already exists` 
+                };
+            }
+
+            // Dodaj styl
+            stylesManager.addCustomStyle(styleId, style);
+        }
+
+        return { 
+            success: true, 
+            message: `Successfully imported ${styles.length} style(s)` 
+        };
+    } catch (error) {
+        console.error('Error importing styles:', error);
+        return { 
+            success: false, 
+            message: 'Error importing styles: ' + error.message 
+        };
+    }
+});
+
+// Handler do eksportu stylów
+ipcMain.handle('export-styles', async (event, styles) => {
+    try {
+        if (!Array.isArray(styles)) {
+            styles = [styles];
+        }
+
+        if (styles.length === 0) {
+            return { 
+                success: false, 
+                message: 'No styles to export' 
+            };
+        }
+
+        // Użyj nazwy stylu jako nazwy pliku
+        const defaultFileName = styles.length === 1 
+            ? `${styles[0].name.toLowerCase().replace(/\s+/g, '_')}.promptrstyle`
+            : 'promptr_styles.promptrstyle';
+
+        const result = await dialog.showSaveDialog({
+            defaultPath: defaultFileName,
+            filters: [
+                { name: 'PROMPTR Style', extensions: ['promptrstyle'] }
+            ]
+        });
+
+        if (result.canceled) {
+            return { success: false, message: 'Export canceled' };
+        }
+
+        await fs.writeFile(
+            result.filePath, 
+            JSON.stringify(styles, null, 2)
+        );
+
+        return { 
+            success: true, 
+            message: styles.length === 1 ? 'Style exported successfully' : `Successfully exported ${styles.length} styles`
+        };
+    } catch (error) {
+        console.error('Error exporting styles:', error);
+        return { 
+            success: false, 
+            message: 'Error exporting styles: ' + error.message 
         };
     }
 });

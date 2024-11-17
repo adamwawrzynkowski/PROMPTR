@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Manage Styles</title>
+    <link rel="stylesheet" href="styles-window.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="titlebar">
+        <div class="titlebar-title">Manage Styles</div>
+        <button class="titlebar-close" id="close-btn">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+    <div class="styles-window">
+        <div class="styles-actions">
+            <button class="action-btn" id="import-btn">
+                <i class="fas fa-file-import"></i>
+                Import Style
+            </button>
+        </div>
+        <div class="styles-list">
+            <!-- Style będą dodawane tutaj dynamicznie -->
+        </div>
+        <button class="add-style-btn" id="add-style-btn">
+            <i class="fas fa-plus"></i>
+            Add New Style
+        </button>
+    </div>
+    <script src="styles-window-renderer.js"></script>
+</body>
+</html> 

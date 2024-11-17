@@ -10,12 +10,33 @@
     --error: #f44336;
 }
 
+* {
+    scrollbar-width: thin;
+    scrollbar-color: var(--text-secondary) transparent;
+}
+
+*::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+    background-color: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+    background-color: var(--text-secondary);
+    border-radius: 4px;
+}
+
+*::-webkit-scrollbar-track {
+    background-color: transparent;
+}
+
 body {
     margin: 0;
     padding: 0;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
     background: var(--background);
     color: var(--text);
+    height: 100vh;
     overflow: hidden;
 }
 
@@ -33,6 +54,7 @@ body {
     justify-content: space-between;
     align-items: center;
     border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
 }
 
 .title {
@@ -45,10 +67,14 @@ body {
     background: none;
     border: none;
     color: var(--text-secondary);
-    font-size: 20px;
     cursor: pointer;
-    padding: 4px 8px;
+    padding: 4px;
     border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
     transition: all 0.2s ease;
 }
 
@@ -57,11 +83,17 @@ body {
     color: var(--text);
 }
 
+.close-button i {
+    font-size: 14px;
+}
+
 .content {
     padding: 24px;
     display: flex;
     flex-direction: column;
     gap: 24px;
+    overflow-y: auto;
+    height: calc(100vh - 53px); /* 53px to wysokość title-bar */
 }
 
 .status-section {
@@ -175,4 +207,135 @@ body {
 
 .status-indicator i.fa-spin {
     animation: spin 1s linear infinite;
+}
+
+.models-container {
+    background: var(--card-background);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px;
+    margin-top: auto; /* Przesunie kontener na dół */
+}
+
+.models-list {
+    max-height: 300px;
+    overflow-y: auto;
+    margin-top: 12px;
+    padding-right: 8px;
+}
+
+.model-item {
+    display: flex;
+    align-items: center;
+    padding: 10px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 8px;
+}
+
+.model-item:last-child {
+    border-bottom: none;
+    margin-bottom: 0;
+}
+
+.model-info {
+    flex: 1;
+}
+
+.model-name {
+    font-weight: bold;
+    margin-bottom: 5px;
+}
+
+.model-tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    margin-left: 8px;
+}
+
+.tag-text {
+    background-color: #4CAF50;
+    color: white;
+}
+
+.tag-vision {
+    background-color: #2196F3;
+    color: white;
+}
+
+.model-action {
+    margin-left: 10px;
+}
+
+.progress-bar {
+    width: 100px;
+    height: 4px;
+    background-color: var(--border);
+    border-radius: 2px;
+    overflow: hidden;
+    margin-right: 10px;
+}
+
+.progress-fill {
+    height: 100%;
+    background-color: var(--success);
+    transition: width 0.3s ease;
+}
+
+.download-button {
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    font-size: 13px;
+    border: none;
+    background: var(--button-background);
+    color: var(--text);
+    transition: all 0.2s ease;
+    min-width: 80px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.download-button:hover {
+    background: var(--button-hover);
+    transform: translateY(-1px);
+}
+
+.download-button:active {
+    transform: translateY(0);
+}
+
+.download-button i {
+    font-size: 12px;
+}
+
+.delete-button {
+    background: rgba(244, 67, 54, 0.2);
+    color: #ff5252;
+}
+
+.delete-button:hover {
+    background: rgba(244, 67, 54, 0.3);
+}
+
+.installed-button {
+    background-color: #4CAF50;
+    color: white;
+    border: none;
+}
+
+.progress-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.progress-text {
+    font-size: 12px;
+    color: var(--text-secondary);
+    min-width: 40px;
+    text-align: right;
 } 

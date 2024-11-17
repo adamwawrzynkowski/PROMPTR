@@ -176,10 +176,37 @@ class OllamaManager {
     async listModels() {
         try {
             const response = await this.makeRequest(`${this.baseUrl}/api/tags`);
+            if (!response.ok) {
+                throw new Error('Failed to get installed models');
+            }
+
             const data = await response.json();
-            return data.models || [];
+            const installedModels = data.models || [];
+            
+            // Pobierz listę dostępnych modeli
+            const availableModels = [
+                { name: 'llama2', type: 'Text' },
+                { name: 'llama2:13b', type: 'Text' },
+                { name: 'llama2:70b', type: 'Text' },
+                { name: 'codellama', type: 'Text' },
+                { name: 'mistral', type: 'Text' },
+                { name: 'mixtral', type: 'Text' },
+                { name: 'neural-chat', type: 'Text' },
+                { name: 'starling-lm', type: 'Text' },
+                { name: 'llava', type: 'Vision' },
+                { name: 'bakllava', type: 'Vision' }
+            ];
+
+            // Oznacz modele jako zainstalowane
+            return availableModels.map(model => ({
+                ...model,
+                installed: installedModels.some(installed => 
+                    installed.name === model.name || 
+                    installed.name.split(':')[0] === model.name
+                )
+            }));
         } catch (error) {
-            console.error('Error fetching models:', error);
+            console.error('Error listing models:', error);
             return [];
         }
     }
@@ -329,36 +356,55 @@ Rules:
 
     async generateTags(text) {
         if (!this.isConnected || !this.currentModel) {
-            throw new Error(this.lastError || 'Not connected or no model selected');
+            throw new Error('Not connected or no model selected');
         }
 
-        const systemPrompt = `You are a tag suggestion system for Stable Diffusion. Generate relevant tags for image generation. Include artistic styles, technical terms, descriptive elements, and quality modifiers. Output ONLY comma-separated tags, no other text.`;
-
-        const prompt = `Generate a comprehensive list of relevant tags for this prompt. Include style descriptors, quality terms, lighting, camera settings, artistic terms, and mood indicators. Return ONLY single words or short compound terms: ${text}`;
-
         try {
+            console.log('Generating tags using model:', this.currentModel);
             const response = await this.makeRequest(`${this.baseUrl}/api/generate`, {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
                 body: JSON.stringify({
                     model: this.currentModel,
-                    prompt: prompt,
-                    system: systemPrompt,
+                    prompt: `Given this text, extract key descriptive words and phrases that could be used as tags for image generation. Format the response as a simple comma-separated list without any additional text or explanations.
+
+Text: "${text}"
+
+Rules:
+1. Return ONLY the tags, no other text
+2. Separate tags with commas
+3. Keep tags short and descriptive
+4. Focus on visual elements and style
+5. Include important details and attributes`,
                     stream: false,
-                    temperature: 0.8 // Zwiększona kreatywność
+                    options: {
+                        temperature: 0.7,
+                        stop: ["\n", "Here", "Tags", "The", "Note", "Remember", ":", "\"", "'"]
+                    }
                 })
             });
 
+            if (!response.ok) {
+                throw new Error('Failed to generate tags');
+            }
+
             const data = await response.json();
-            return data.response
+            console.log('Raw API response:', data);
+
+            if (!data.response) {
+                throw new Error('Empty response from API');
+            }
+
+            // Czyść i przetwórz odpowiedź
+            const tags = data.response
                 .trim()
+                .replace(/^(tags:|here are the tags:|extracted tags:|key tags:)/i, '')
                 .split(',')
                 .map(tag => tag.trim())
-                .filter(tag => tag && tag.length > 1) // Usunięte ograniczenie spacji
-                .filter((tag, index, self) => self.indexOf(tag) === index) // Usuń duplikaty
-                .slice(0, 15); // Zwiększona liczba tagów
+                .filter(tag => tag.length > 0 && tag.length < 50)
+                .filter(Boolean); // usuwa puste stringi
+
+            console.log('Processed tags:', tags);
+            return tags;
         } catch (error) {
             console.error('Error generating tags:', error);
             throw error;
@@ -437,36 +483,91 @@ Rules:
         }
     }
 
-    async installModel(modelName) {
-        return new Promise((resolve, reject) => {
-            const process = exec(`ollama pull ${modelName}`, (error) => {
-                if (error) {
-                    console.error('Error installing model:', error);
-                    reject(error);
-                }
-                resolve();
+    async installModel(modelName, progressCallback) {
+        try {
+            const response = await fetch(`${this.baseUrl}/api/pull`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ name: modelName }),
             });
 
-            process.stdout.on('data', (data) => {
-                // Parse progress from Ollama output
-                const match = data.toString().match(/(\d+)%/);
-                if (match) {
-                    const progress = parseInt(match[1]);
-                    BrowserWindow.getAllWindows().forEach(window => {
-                        window.webContents.send('install-progress', {
-                            progress,
-                            status: `Downloading: ${progress}%`
-                        });
-                    });
+            const reader = response.body.getReader();
+            let downloadedSize = 0;
+            let totalSize = 0;
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                const text = new TextDecoder().decode(value);
+                const lines = text.split('\n').filter(line => line.trim());
+
+                for (const line of lines) {
+                    try {
+                        const data = JSON.parse(line);
+                        if (data.total) {
+                            totalSize = data.total;
+                            downloadedSize = data.completed;
+                            const progress = (downloadedSize / totalSize) * 100;
+                            if (progressCallback) {
+                                progressCallback(progress);
+                            }
+                        }
+                    } catch (e) {
+                        console.error('Error parsing progress data:', e);
+                    }
                 }
+            }
+
+            return true;
+        } catch (error) {
+            console.error('Error installing model:', error);
+            throw error;
+        }
+    }
+
+    async deleteModel(modelName) {
+        try {
+            const response = await fetch(`${this.baseUrl}/api/delete`, {
+                method: 'DELETE',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({ name: modelName }),
             });
-        });
+
+            if (!response.ok) {
+                throw new Error(`Failed to delete model: ${response.statusText}`);
+            }
+
+            return true;
+        } catch (error) {
+            console.error('Error deleting model:', error);
+            throw error;
+        }
     }
 
     async checkModelAvailability(modelName) {
         try {
-            const models = await this.listModels();
-            return models.some(model => model.name === modelName);
+            // Pobierz listę zainstalowanych modeli
+            const response = await this.makeRequest(`${this.baseUrl}/api/tags`);
+            if (!response.ok) {
+                throw new Error('Failed to get installed models');
+            }
+
+            const data = await response.json();
+            const installedModels = data.models || [];
+            
+            // Sprawdź czy model jest na liście zainstalowanych
+            const isInstalled = installedModels.some(model => 
+                model.name === modelName || 
+                model.name.split(':')[0] === modelName
+            );
+            
+            console.log(`Model ${modelName} installed:`, isInstalled);
+            return isInstalled;
         } catch (error) {
             console.error('Error checking model availability:', error);
             return false;

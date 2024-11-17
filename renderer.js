@@ -1,127 +1,60 @@
-import React, { useState, useEffect } from 'react';
-import { createRoot } from 'react-dom/client';
-import { motion, AnimatePresence } from 'framer-motion';
-import { 
-    DocumentTextIcon, 
-    SparklesIcon, 
-    BeakerIcon, 
-    CodeBracketIcon,
-    ArrowPathIcon,
-    Cog6ToothIcon,
-    BookmarkIcon
-} from '@heroicons/react/24/outline';
-import './styles.css';
+const { ipcRenderer } = require('electron');
 
-let drawThingsButton = null;
-
-async function checkDrawThingsStatus() {
-    try {
-        const isRunning = await window.ipcRenderer.invoke('check-draw-things');
-        if (drawThingsButton) {
-            drawThingsButton.style.display = isRunning ? 'block' : 'none';
-        }
-    } catch (error) {
-        console.error('Error checking Draw Things status:', error);
-    }
-}
-
-function initializeDrawThings() {
-    const promptInput = document.querySelector('#prompt-input');
-    const inputWrapper = promptInput.parentElement;
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('DOM loaded');
+    const promptInput = document.getElementById('prompt-input');
+    const tagsContainer = document.getElementById('tags-container');
     
-    drawThingsButton = document.createElement('button');
-    drawThingsButton.className = 'draw-things-button';
-    drawThingsButton.innerHTML = '<i class="fas fa-paint-brush"></i>';
-    drawThingsButton.title = 'Send to Draw Things';
-    drawThingsButton.style.display = 'none';
-    
-    drawThingsButton.addEventListener('click', async () => {
-        const prompt = promptInput.value;
-        if (prompt) {
-            try {
-                await window.ipcRenderer.invoke('send-to-draw-things', prompt);
-            } catch (error) {
-                console.error('Error sending to Draw Things:', error);
-            }
+    console.log('Elements found:', {
+        promptInput: !!promptInput,
+        tagsContainer: !!tagsContainer
+    });
+
+    let tagGenerationTimeout;
+
+    // Nasłuchuj na zmiany w polu promptu
+    promptInput.addEventListener('input', (e) => {
+        console.log('Input event triggered');
+        clearTimeout(tagGenerationTimeout);
+        const text = e.target.value.trim();
+        
+        if (text.length > 0) {
+            console.log('Generating tags for:', text);
+            // Pokaż "Generating tags..."
+            tagsContainer.innerHTML = '<span class="tag loading">Generating tags...</span>';
+            
+            // Poczekaj chwilę zanim wyślesz żądanie
+            tagGenerationTimeout = setTimeout(async () => {
+                try {
+                    console.log('Invoking generate-tags');
+                    const result = await ipcRenderer.invoke('generate-tags', text);
+                    console.log('Generate-tags result:', result);
+                } catch (error) {
+                    console.error('Error generating tags:', error);
+                    tagsContainer.innerHTML = '<span class="tag error">Error generating tags</span>';
+                }
+            }, 500);
+        } else {
+            console.log('Clearing tags container');
+            tagsContainer.innerHTML = '';
         }
     });
-    
-    inputWrapper.appendChild(drawThingsButton);
-    
-    checkDrawThingsStatus();
-    setInterval(checkDrawThingsStatus, 5000);
-}
 
-const App = () => {
-    // ... (poprzedni kod stanu) ...
+    // Nasłuchuj na wygenerowane tagi
+    ipcRenderer.on('tags-generated', (event, tags) => {
+        console.log('Received tags:', tags);
+        if (Array.isArray(tags) && tags.length > 0) {
+            tagsContainer.innerHTML = tags
+                .map(tag => `<span class="tag">${tag}</span>`)
+                .join('');
+        } else {
+            tagsContainer.innerHTML = '';
+        }
+    });
 
-    return (
-        <>
-            <div className="titlebar">
-                <span>Prompt Enhancer</span>
-            </div>
-            <div className="app-content">
-                <div className="prompt-container">
-                    <textarea
-                        className="prompt-input"
-                        value={prompt}
-                        onChange={(e) => setPrompt(e.target.value)}
-                        placeholder="Enter your prompt here..."
-                    />
-                </div>
-
-                <div className="suggestions-grid">
-                    {suggestions.map((suggestion, index) => (
-                        <motion.div
-                            key={index}
-                            className="suggestion-tile"
-                            initial={{ opacity: 0, y: 20 }}
-                            animate={{ opacity: 1, y: 0 }}
-                            transition={{ delay: index * 0.1 }}
-                        >
-                            <div className="suggestion-tile-content">
-                                <div className="suggestion-header">
-                                    <Icon name={suggestion.icon} />
-                                    <h3>{suggestion.type}</h3>
-                                </div>
-                                <p>{suggestion.text}</p>
-                                <div className="improved-prompt">
-                                    {isLoading ? (
-                                        "Generating..."
-                                    ) : (
-                                        suggestion.improvedPrompt || "Enter your prompt above to see suggestions..."
-                                    )}
-                                </div>
-                                <button 
-                                    className="apply-button"
-                                    onClick={() => {
-                                        if (suggestion.improvedPrompt) {
-                                            setPrompt(suggestion.improvedPrompt);
-                                        }
-                                    }}
-                                    disabled={!suggestion.improvedPrompt || isLoading}
-                                >
-                                    Apply
-                                </button>
-                            </div>
-                        </motion.div>
-                    ))}
-                </div>
-            </div>
-        </>
-    );
-};
-
-const container = document.getElementById('root');
-const root = createRoot(container);
-root.render(<App />); 
-
-// Dodaj obsługę przycisku vision
-document.getElementById('vision-button').addEventListener('click', () => {
-    ipcRenderer.send('open-vision');
+    // Nasłuchuj na błędy
+    ipcRenderer.on('tags-generated-error', (event, error) => {
+        console.error('Received error:', error);
+        tagsContainer.innerHTML = `<span class="tag error">${error}</span>`;
+    });
 });
-
-// Dodaj obsługę otrzymanego promptu
-ipcRenderer.on('set-prompt', (event, prompt) => {
-    document.getElementById('prompt-input').value = prompt;
-}); 
