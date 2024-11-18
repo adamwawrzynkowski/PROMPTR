@@ -33,33 +33,37 @@ async function updateStatus() {
             statusText.textContent = 'Connected to Ollama';
             statusIcon.className = 'fas fa-plug';
             
-            // Update models lists
-            const models = status.availableModels || [];
-            console.log('Available models from status:', models);
+            // Pobierz listę modeli
+            const models = await ipcRenderer.invoke('get-available-models');
+            console.log('Available models:', models);
             
-            // Filter models
+            // Filtruj modele na tekstowe i wizyjne oraz tylko zainstalowane
             const textModels = models.filter(model => 
-                !VISION_MODELS.some(vm => model.name.toLowerCase().includes(vm.toLowerCase()))
+                model.type === 'Text' && model.installed
             );
             const visionModels = models.filter(model => 
-                VISION_MODELS.some(vm => model.name.toLowerCase().includes(vm.toLowerCase()))
+                model.type === 'Vision' && model.installed
             );
             
-            // Update text models select
-            modelSelect.innerHTML = '<option value="">Select a model</option>' +
-                textModels.map(model => 
-                    `<option value="${model.name}" ${status.currentModel === model.name ? 'selected' : ''}>
-                        ${model.name}
-                    </option>`
-                ).join('');
+            // Aktualizuj select dla modeli tekstowych
+            modelSelect.innerHTML = '<option value="">Select a model</option>';
+            textModels.forEach(model => {
+                const option = document.createElement('option');
+                option.value = model.id;
+                option.textContent = model.name;
+                option.selected = status.currentModel === model.id;
+                modelSelect.appendChild(option);
+            });
             
-            // Update vision models select
-            visionModelSelect.innerHTML = '<option value="">Select a vision model</option>' +
-                visionModels.map(model => 
-                    `<option value="${model.name}" ${status.visionModel === model.name ? 'selected' : ''}>
-                        ${model.name}
-                    </option>`
-                ).join('');
+            // Aktualizuj select dla modeli wizyjnych
+            visionModelSelect.innerHTML = '<option value="">Select a vision model</option>';
+            visionModels.forEach(model => {
+                const option = document.createElement('option');
+                option.value = model.id;
+                option.textContent = model.name;
+                option.selected = status.visionModel === model.id;
+                visionModelSelect.appendChild(option);
+            });
             
             modelSelect.disabled = false;
             visionModelSelect.disabled = false;
@@ -86,21 +90,27 @@ async function updateStatus() {
 
 async function refreshModels() {
     try {
+        console.log('Refreshing models list...');
         const modelsListElement = document.getElementById('models-list');
         modelsListElement.innerHTML = ''; // Wyczyść listę
 
         // Pobierz listę dostępnych modeli
         const models = await ipcRenderer.invoke('get-available-models');
-        console.log('Available models from API:', models);
+        console.log('Received models:', models);
+
+        if (!models || models.length === 0) {
+            console.warn('No models received');
+            modelsListElement.innerHTML = '<div class="no-models">No models available</div>';
+            return;
+        }
 
         // Dla każdego modelu stwórz element
         for (const model of models) {
-            const isInstalled = await ipcRenderer.invoke('check-model-availability', model.name);
-            console.log(`Model ${model.name} installed:`, isInstalled);
+            console.log('Processing model:', model);
             
             const modelElement = document.createElement('div');
             modelElement.className = 'model-item';
-            modelElement.dataset.model = model.name;
+            modelElement.dataset.model = model.id;
             
             const modelInfo = document.createElement('div');
             modelInfo.className = 'model-info';
@@ -119,17 +129,17 @@ async function refreshModels() {
             const actionContainer = document.createElement('div');
             actionContainer.className = 'model-action';
             
-            if (isInstalled) {
+            if (model.installed) {
                 const deleteButton = document.createElement('button');
                 deleteButton.className = 'download-button delete-button';
                 deleteButton.innerHTML = '<i class="fas fa-trash"></i> Delete';
-                deleteButton.onclick = () => deleteModel(model.name);
+                deleteButton.onclick = () => deleteModel(model.id);
                 actionContainer.appendChild(deleteButton);
             } else {
                 const downloadButton = document.createElement('button');
                 downloadButton.className = 'download-button';
                 downloadButton.innerHTML = '<i class="fas fa-download"></i> Download';
-                downloadButton.onclick = () => downloadModel(model.name);
+                downloadButton.onclick = () => downloadModel(model.id);
                 actionContainer.appendChild(downloadButton);
             }
             
@@ -142,6 +152,8 @@ async function refreshModels() {
         await updateStatus();
     } catch (error) {
         console.error('Error refreshing models:', error);
+        const modelsListElement = document.getElementById('models-list');
+        modelsListElement.innerHTML = `<div class="error-message">Error loading models: ${error.message}</div>`;
     }
 }
 
@@ -222,4 +234,33 @@ saveBtn.addEventListener('click', async () => {
         alert('Error saving configuration: ' + error.message);
         saveBtn.disabled = false;
     }
-}); 
+});
+
+async function loadModels() {
+    try {
+        const models = await window.electron.invoke('get-available-models');
+        console.log('Received models:', models);
+        
+        // Podziel modele na tekstowe i wizyjne
+        const textModels = models.filter(model => model.type === 'Text');
+        const visionModels = models.filter(model => model.type === 'Vision');
+
+        // Zaktualizuj listy wyboru
+        updateModelSelect(textModelSelect, textModels);
+        updateModelSelect(visionModelSelect, visionModels);
+    } catch (error) {
+        console.error('Error loading models:', error);
+        showError('Failed to load models: ' + error.message);
+    }
+}
+
+function updateModelSelect(select, models) {
+    select.innerHTML = '<option value="">Select a model</option>';
+    models.forEach(model => {
+        const option = document.createElement('option');
+        option.value = model.id;
+        option.textContent = `${model.name}${model.installed ? ' (installed)' : ''}`;
+        option.disabled = !model.installed;
+        select.appendChild(option);
+    });
+} 

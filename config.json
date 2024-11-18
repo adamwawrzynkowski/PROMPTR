@@ -1,4 +1,4 @@
 {
-  "currentModel": "mistral:latest",
+  "currentModel": "llama3.2:latest",
   "visionModel": "llava:7b"
 }

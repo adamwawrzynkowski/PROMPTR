@@ -1,33 +1,23 @@
-const { BrowserWindow } = require('electron');
+const { BrowserWindow, ipcMain } = require('electron');
 const path = require('path');
 
-let window = null;
-
 function create() {
-    window = new BrowserWindow({
+    const window = new BrowserWindow({
         width: 400,
-        height: 200,
+        height: 300,
+        frame: false,
+        transparent: true,
+        resizable: false,
         webPreferences: {
             nodeIntegration: true,
             contextIsolation: false
-        },
-        frame: false,
-        resizable: false,
-        center: true,
-        show: false,
-        transparent: true
+        }
     });
 
-    window.loadFile('startup.html');
-
-    window.once('ready-to-show', () => {
-        window.show();
-    });
-
+    window.loadFile(path.join(__dirname, 'startup.html'));
     return window;
 }
 
 module.exports = {
-    create,
-    window
+    create
 }; 

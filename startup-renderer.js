@@ -1,32 +1,51 @@
 const { ipcRenderer } = require('electron');
 
+// Elementy UI
 const progressBar = document.getElementById('progress');
 const statusText = document.querySelector('.status-text');
-const statusIcon = document.querySelector('.status-icon i');
-const closeButton = document.getElementById('close-btn');
+const closeBtn = document.getElementById('close-btn');
+const versionElement = document.getElementById('version');
 
-closeButton.addEventListener('click', () => {
+// Obsługa zamykania
+closeBtn.addEventListener('click', () => {
     ipcRenderer.send('quit-app');
 });
 
-let progress = 0;
-const progressSteps = [
-    { value: 30, text: 'Connecting to Ollama...' },
-    { value: 60, text: 'Checking configuration...' },
-    { value: 90, text: 'Starting application...' }
-];
+// Obsługa wersji
+ipcRenderer.on('app-version', (event, version) => {
+    versionElement.textContent = version;
+});
 
-ipcRenderer.on('startup-progress', (event, { step, status }) => {
-    if (step < progressSteps.length) {
-        progress = progressSteps[step].value;
-        statusText.textContent = status || progressSteps[step].text;
-        progressBar.style.width = `${progress}%`;
+// Obsługa postępu
+ipcRenderer.on('startup-progress', (event, data) => {
+    console.log('Received startup progress:', data);
+    
+    // Aktualizuj pasek postępu
+    const progress = ((data.step + 1) / 3) * 100;
+    progressBar.style.width = `${progress}%`;
+    
+    // Aktualizuj tekst statusu
+    if (data.status) {
+        statusText.textContent = data.status;
     }
 });
 
+// Obsługa błędów
 ipcRenderer.on('startup-error', (event, error) => {
-    statusText.textContent = `Error: ${error}`;
-    statusText.style.color = '#f44336';
-    statusIcon.className = 'fas fa-exclamation-triangle';
-    statusIcon.style.color = '#f44336';
-}); 
+    console.error('Startup error:', error);
+    statusText.textContent = error;
+    statusText.classList.add('error');
+    progressBar.classList.add('error');
+});
+
+// Dodaj style dla błędów
+const style = document.createElement('style');
+style.textContent = `
+    .error {
+        color: #ff4444 !important;
+    }
+    .progress-bar .error {
+        background-color: #ff4444 !important;
+    }
+`;
+document.head.appendChild(style); 

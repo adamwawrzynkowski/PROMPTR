@@ -6,7 +6,10 @@ const configManager = require('./config-manager');
 
 class OllamaManager {
     constructor() {
-        this.baseUrl = 'http://localhost:11434';
+        this.endpoint = {
+            host: '127.0.0.1',
+            port: 11434
+        };
         this.isConnected = false;
         
         const savedConfig = configManager.getConfig();
@@ -16,6 +19,15 @@ class OllamaManager {
         this.availableModels = [];
         this.lastError = null;
         this.startingServer = false;
+    }
+
+    updateEndpoint(endpoint) {
+        console.log('Updating Ollama endpoint to:', endpoint);
+        this.endpoint = endpoint;
+    }
+
+    getBaseUrl() {
+        return `http://${this.endpoint.host}:${this.endpoint.port}`;
     }
 
     makeRequest(url, options = {}) {
@@ -72,68 +84,20 @@ class OllamaManager {
     async checkConnection() {
         console.log('Checking Ollama connection...');
         try {
-            // Sprawdź najpierw /api/version
-            const versionResponse = await this.makeRequest(`${this.baseUrl}/api/version`);
-            console.log('Version check response:', versionResponse.status);
+            const response = await this.makeRequest(`${this.getBaseUrl()}/api/version`);
+            console.log('Ollama connection response:', response);
             
-            if (!versionResponse.ok) {
+            if (!response.ok) {
                 this.isConnected = false;
-                throw new Error('Could not get Ollama version');
+                return false;
             }
             
-            const versionData = await versionResponse.json();
-            console.log('Ollama version:', versionData);
-            
-            // Jeśli version działa, sprawdź /api/tags
-            const tagsResponse = await this.makeRequest(`${this.baseUrl}/api/tags`);
-            console.log('Tags check response:', tagsResponse.status);
-            
-            if (tagsResponse.ok) {
-                const data = await tagsResponse.json();
-                console.log('Available models:', data);
-                
-                this.isConnected = true;
-                this.availableModels = data.models || [];
-                this.lastError = null;
-
-                // Sprawdź czy aktualnie wybrane modele są dostępne
-                if (this.currentModel) {
-                    const isCurrentModelAvailable = await this.checkModelAvailability(this.currentModel);
-                    if (!isCurrentModelAvailable) {
-                        this.currentModel = null;
-                    }
-                }
-
-                if (this.visionModel) {
-                    const isVisionModelAvailable = await this.checkModelAvailability(this.visionModel);
-                    if (!isVisionModelAvailable) {
-                        this.visionModel = null;
-                    }
-                }
-                
-                return {
-                    isConnected: true,
-                    currentModel: this.currentModel,
-                    visionModel: this.visionModel,
-                    availableModels: this.availableModels,
-                    error: null
-                };
-            } else {
-                this.isConnected = false;
-                throw new Error('Could not get available models');
-            }
+            this.isConnected = true;
+            return true;
         } catch (error) {
-            console.error('Connection check error:', error);
+            console.error('Ollama connection error:', error);
             this.isConnected = false;
-            this.lastError = `Ollama connection error: ${error.message}`;
-            
-            return {
-                isConnected: false,
-                currentModel: null,
-                visionModel: null,
-                availableModels: [],
-                error: this.lastError
-            };
+            return false;
         }
     }
 
@@ -156,7 +120,7 @@ class OllamaManager {
             const checkConnection = async () => {
                 try {
                     console.log('Checking if server is up...');
-                    const response = await this.makeRequest(`${this.baseUrl}/api/tags`);
+                    const response = await this.makeRequest(`${this.getBaseUrl()}/api/tags`);
                     if (response.ok) {
                         console.log('Ollama server started successfully');
                         this.startingServer = false;
@@ -175,7 +139,7 @@ class OllamaManager {
 
     async listModels() {
         try {
-            const response = await this.makeRequest(`${this.baseUrl}/api/tags`);
+            const response = await this.makeRequest(`${this.getBaseUrl()}/api/tags`);
             if (!response.ok) {
                 throw new Error('Failed to get installed models');
             }
@@ -305,7 +269,7 @@ Rules:
             console.log('Generating prompt for style:', styleId);
             console.log('Using prompt template:', stylePrompt);
 
-            const response = await this.makeRequest(`${this.baseUrl}/api/generate`, {
+            const response = await this.makeRequest(`${this.getBaseUrl()}/api/generate`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -374,7 +338,7 @@ Rules:
 
         try {
             console.log('Generating tags using model:', this.currentModel);
-            const response = await this.makeRequest(`${this.baseUrl}/api/generate`, {
+            const response = await this.makeRequest(`${this.getBaseUrl()}/api/generate`, {
                 method: 'POST',
                 body: JSON.stringify({
                     model: this.currentModel,
@@ -460,7 +424,7 @@ Keep it brief and concise. Do not describe the content or subjects in the image.
                 numPredict = 300; // Krótsza odpowiedź dla standardowej analizy
             }
 
-            const response = await fetch('http://localhost:11434/api/generate', {
+            const response = await this.makeRequest(`${this.getBaseUrl()}/api/generate`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -478,9 +442,7 @@ Keep it brief and concise. Do not describe the content or subjects in the image.
             });
 
             if (!response.ok) {
-                const errorText = await response.text();
-                console.error('Ollama API error response:', errorText);
-                throw new Error(`HTTP error! status: ${response.status}, details: ${errorText}`);
+                throw new Error(`HTTP error! status: ${response.status}`);
             }
 
             const data = await response.json();
@@ -503,43 +465,48 @@ Keep it brief and concise. Do not describe the content or subjects in the image.
 
     async installModel(modelName, progressCallback) {
         try {
-            const response = await fetch(`${this.baseUrl}/api/pull`, {
+            const response = await this.makeRequest(`${this.getBaseUrl()}/api/pull`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ name: modelName }),
+                body: JSON.stringify({ name: modelName })
             });
 
-            const reader = response.body.getReader();
-            let downloadedSize = 0;
-            let totalSize = 0;
+            // Obsługa streamu dla postępu pobierania
+            if (response.ok) {
+                const reader = response.body.getReader();
+                let downloadedSize = 0;
+                let totalSize = 0;
 
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) break;
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
 
-                const text = new TextDecoder().decode(value);
-                const lines = text.split('\n').filter(line => line.trim());
+                    const text = new TextDecoder().decode(value);
+                    const lines = text.split('\n').filter(line => line.trim());
 
-                for (const line of lines) {
-                    try {
-                        const data = JSON.parse(line);
-                        if (data.total) {
-                            totalSize = data.total;
-                            downloadedSize = data.completed;
-                            const progress = (downloadedSize / totalSize) * 100;
-                            if (progressCallback) {
-                                progressCallback(progress);
+                    for (const line of lines) {
+                        try {
+                            const data = JSON.parse(line);
+                            if (data.total) {
+                                totalSize = data.total;
+                                downloadedSize = data.completed;
+                                const progress = (downloadedSize / totalSize) * 100;
+                                if (progressCallback) {
+                                    progressCallback(progress);
+                                }
                             }
+                        } catch (e) {
+                            console.error('Error parsing progress data:', e);
                         }
-                    } catch (e) {
-                        console.error('Error parsing progress data:', e);
                     }
                 }
-            }
 
-            return true;
+                return true;
+            } else {
+                throw new Error('Failed to install model');
+            }
         } catch (error) {
             console.error('Error installing model:', error);
             throw error;
@@ -548,16 +515,16 @@ Keep it brief and concise. Do not describe the content or subjects in the image.
 
     async deleteModel(modelName) {
         try {
-            const response = await fetch(`${this.baseUrl}/api/delete`, {
+            const response = await this.makeRequest(`${this.getBaseUrl()}/api/delete`, {
                 method: 'DELETE',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({ name: modelName }),
+                body: JSON.stringify({ name: modelName })
             });
 
             if (!response.ok) {
-                throw new Error(`Failed to delete model: ${response.statusText}`);
+                throw new Error(`Failed to delete model: ${response.status}`);
             }
 
             return true;
@@ -569,20 +536,21 @@ Keep it brief and concise. Do not describe the content or subjects in the image.
 
     async checkModelAvailability(modelName) {
         try {
-            // Pobierz listę zainstalowanych modeli
-            const response = await this.makeRequest(`${this.baseUrl}/api/tags`);
-            if (!response.ok) {
-                throw new Error('Failed to get installed models');
-            }
-
-            const data = await response.json();
-            const installedModels = data.models || [];
+            console.log('Checking availability for model:', modelName);
+            if (!modelName) return false;
             
-            // Sprawdź czy model jest na liście zainstalowanych
-            const isInstalled = installedModels.some(model => 
-                model.name === modelName || 
-                model.name.split(':')[0] === modelName
-            );
+            const installedModels = await this.getInstalledModels();
+            console.log('Installed models:', installedModels);
+            
+            // Sprawdź dokładne dopasowanie lub warianty z tagami
+            const isInstalled = installedModels.some(installed => {
+                const installedBase = installed.split(':')[0].toLowerCase();
+                const searchBase = modelName.split(':')[0].toLowerCase();
+                return installed === modelName || 
+                       installedBase === searchBase ||
+                       installed.startsWith(modelName + ':') ||
+                       modelName.startsWith(installed + ':');
+            });
             
             console.log(`Model ${modelName} installed:`, isInstalled);
             return isInstalled;
@@ -683,7 +651,7 @@ Keep it brief and concise. Do not describe the content or subjects in the image.
                 }
 
                 // Najpierw wykryj język
-                const languageResponse = await this.makeRequest(`${this.baseUrl}/api/generate`, {
+                const languageResponse = await this.makeRequest(`${this.getBaseUrl()}/api/generate`, {
                     method: 'POST',
                     body: JSON.stringify({
                         model: this.currentModel,
@@ -701,7 +669,7 @@ Keep it brief and concise. Do not describe the content or subjects in the image.
 
                 // Jeśli to nie angielski, przetłumacz
                 if (detectedLanguage !== 'en') {
-                    const translationResponse = await this.makeRequest(`${this.baseUrl}/api/generate`, {
+                    const translationResponse = await this.makeRequest(`${this.getBaseUrl()}/api/generate`, {
                         method: 'POST',
                         body: JSON.stringify({
                             model: this.currentModel,
@@ -734,6 +702,48 @@ Keep it brief and concise. Do not describe the content or subjects in the image.
                 console.error('Fallback translation error:', fallbackError);
                 throw new Error('Translation failed with both services');
             }
+        }
+    }
+
+    async getInstalledModels() {
+        try {
+            console.log('Fetching installed models...');
+            const response = await this.makeRequest(`${this.getBaseUrl()}/api/tags`);
+            
+            if (!response.ok) {
+                console.error('Failed to get installed models, response not OK');
+                return [];
+            }
+
+            const data = await response.json();
+            console.log('Raw response from /api/tags:', data);
+
+            if (!data.models || !Array.isArray(data.models)) {
+                console.warn('No models array in response:', data);
+                return [];
+            }
+
+            // Lista modeli do pominięcia (modele do kodowania)
+            const excludedModels = ['codellama'];
+
+            // Przetwórz wszystkie modele
+            const modelNames = data.models
+                .map(model => model.name)
+                .filter(name => {
+                    // Pomiń modele do kodowania
+                    const baseName = name.split(':')[0].toLowerCase();
+                    return !excludedModels.includes(baseName);
+                })
+                .filter((name, index, self) => {
+                    // Usuń duplikaty, ale zachowaj warianty z tagami
+                    return self.indexOf(name) === index;
+                });
+
+            console.log('Processed installed models:', modelNames);
+            return modelNames;
+        } catch (error) {
+            console.error('Error getting installed models:', error);
+            return [];
         }
     }
 }

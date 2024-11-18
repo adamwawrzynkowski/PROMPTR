@@ -85,30 +85,179 @@ async function checkDrawThingsStatus() {
     });
 }
 
+// Zmodyfikuj funkcję findOllamaPort
+async function findOllamaPort() {
+    // Najpierw sprawdź czy proces Ollamy działa
+    return new Promise((resolve) => {
+        exec('pgrep ollama', async (error, stdout, stderr) => {
+            if (error || !stdout.trim()) {
+                console.log('Ollama process is not running');
+                resolve(null);
+                return;
+            }
+
+            console.log('Ollama process found, checking ports...');
+
+            // Sprawdź który port jest używany przez Ollama
+            exec('lsof -i -P | grep ollama', async (error, stdout, stderr) => {
+                if (error || !stdout.trim()) {
+                    console.log('No Ollama ports found');
+                    resolve(null);
+                    return;
+                }
+
+                // Przeanalizuj wynik aby znaleźć port
+                const lines = stdout.split('\n');
+                for (const line of lines) {
+                    // Szukaj linii zawierającej LISTEN i IPv4
+                    if (line.includes('LISTEN') && line.includes('TCP')) {
+                        const match = line.match(/:(\d+)/);
+                        if (match && match[1]) {
+                            const port = parseInt(match[1]);
+                            console.log(`Found Ollama listening on port ${port}`);
+                            resolve({ host: '127.0.0.1', port });
+                            return;
+                        }
+                    }
+                }
+
+                // Jeśli nie znaleziono portu w lsof, spróbuj domyślne porty
+                const defaultPorts = [11434, 8080, 3000];
+                const localhost = '127.0.0.1';
+
+                for (const port of defaultPorts) {
+                    try {
+                        const isAvailable = await checkPort(port);
+                        if (isAvailable) {
+                            console.log(`Found Ollama on default port ${port}`);
+                            resolve({ host: localhost, port });
+                            return;
+                        }
+                    } catch (error) {
+                        console.log(`Port ${port} check failed:`, error.message);
+                        continue;
+                    }
+                }
+
+                console.log('No available Ollama ports found');
+                resolve(null);
+            });
+        });
+    });
+}
+
+// Dodaj funkcję pomocniczą do sprawdzania portu
+function checkPort(port) {
+    return new Promise((resolve) => {
+        const req = http.request({
+            hostname: '127.0.0.1',
+            port: port,
+            path: '/api/version',
+            method: 'GET',
+            timeout: 1000
+        }, (res) => {
+            let data = '';
+            res.on('data', chunk => data += chunk);
+            res.on('end', () => {
+                try {
+                    const response = JSON.parse(data);
+                    resolve(response.version ? true : false);
+                } catch {
+                    resolve(false);
+                }
+            });
+        });
+
+        req.on('error', () => resolve(false));
+        req.on('timeout', () => {
+            req.destroy();
+            resolve(false);
+        });
+
+        req.end();
+    });
+}
+
+// Zmodyfikuj funkcję checkOllamaConnection
 async function checkOllamaConnection() {
     try {
+        console.log('Starting Ollama connection check...');
+        
+        // Najpierw sprawdź czy Ollama jest uruchomiona
+        const ollamaEndpoint = await findOllamaPort();
+        
+        if (!ollamaEndpoint) {
+            console.log('Ollama is not running, attempting to start...');
+            // Spróbuj zatrzymać istniejący proces
+            exec('pkill ollama', async () => {
+                // Poczekaj chwilę
+                await new Promise(resolve => setTimeout(resolve, 2000));
+                
+                // Uruchom Ollamę
+                exec('ollama serve', async (error) => {
+                    if (error) {
+                        console.error('Error starting Ollama:', error);
+                        return { 
+                            isConnected: false, 
+                            error: 'Failed to start Ollama server' 
+                        };
+                    }
+                    
+                    // Poczekaj na uruchomienie serwera
+                    await new Promise(resolve => setTimeout(resolve, 3000));
+                    
+                    // Sprawdź ponownie połączenie
+                    const newEndpoint = await findOllamaPort();
+                    if (newEndpoint) {
+                        ollamaManager.updateEndpoint(newEndpoint);
+                        await ollamaManager.checkConnection();
+                        return ollamaManager.getStatus();
+                    }
+                });
+            });
+            
+            return { 
+                isConnected: false, 
+                error: 'Could not find Ollama endpoint' 
+            };
+        }
+
+        console.log('Found Ollama endpoint:', ollamaEndpoint);
+        ollamaManager.updateEndpoint(ollamaEndpoint);
+        
         const isConnected = await ollamaManager.checkConnection();
+        console.log('Ollama connection check result:', isConnected);
+        
+        if (!isConnected) {
+            return {
+                isConnected: false,
+                error: 'Could not connect to Ollama'
+            };
+        }
+        
         const status = ollamaManager.getStatus();
+        console.log('Final Ollama status:', status);
+        
+        // Sprawdź czy mamy wszystkie potrzebne informacje
+        if (!status.currentModel) {
+            return {
+                isConnected: true,
+                error: 'No model selected'
+            };
+        }
         
         BrowserWindow.getAllWindows().forEach(window => {
             window.webContents.send('ollama-status', status);
         });
         
-        if (!isConnected && !configWindowInstance) {
-            await ollamaManager.startServer();
-            const newStatus = await ollamaManager.checkConnection();
-            if (!newStatus.isConnected || !newStatus.currentModel) {
-                configWindowInstance = configWindow.create();
-                configWindowInstance.on('closed', () => {
-                    configWindowInstance = null;
-                });
-            }
-        }
-        
         return status;
     } catch (error) {
-        console.error('Error checking Ollama connection:', error);
-        return { isConnected: false };
+        console.error('Error in checkOllamaConnection:', error);
+        return { 
+            isConnected: false, 
+            error: error.message,
+            details: 'Check if Ollama is installed and running'
+        };
     }
 }
 
@@ -132,94 +281,60 @@ async function createWindow() {
         show: false
     });
 
+    // Załaduj główne okno od razu
     mainWindow.loadFile('index.html');
 
-    try {
-        // Rozpocznij proces inicjalizacji
-        startup.webContents.send('startup-progress', { step: 0 });
-        
-        // Spróbuj połączyć się z Ollama kilka razy
-        let connectionAttempts = 0;
-        const maxAttempts = 3;
-        let status = null;
-
-        while (connectionAttempts < maxAttempts) {
-            startup.webContents.send('startup-progress', { 
-                step: 0,
-                status: `Connecting to Ollama (attempt ${connectionAttempts + 1}/${maxAttempts})...`
-            });
-
-            status = await ollamaManager.checkConnection();
-            console.log('Connection status:', status);
-            
-            if (status && status.isConnected) {
-                break;
-            }
-
-            connectionAttempts++;
-            if (connectionAttempts < maxAttempts) {
-                await new Promise(resolve => setTimeout(resolve, 2000));
-            }
-        }
-
-        if (!status || !status.isConnected) {
-            console.error('Failed to connect to Ollama:', status);
-            startup.webContents.send('startup-error', 'Could not connect to Ollama. Please make sure Ollama is running and try again.');
-            return;
-        }
-
-        // Kontynuuj inicjalizację jeśli połączenie się powiodło
+    // Wyślij wersję do okna startowego po załadowaniu
+    startup.webContents.on('did-finish-load', () => {
+        startup.webContents.send('app-version', APP_VERSION);
         startup.webContents.send('startup-progress', { 
-            step: 1, 
-            status: 'Checking Ollama configuration...' 
+            step: 0,
+            status: 'Initializing...' 
+        });
+    });
+
+    try {
+        // Próba połączenia z Ollamą
+        startup.webContents.send('startup-progress', { 
+            step: 1,
+            status: 'Connecting to Ollama...' 
         });
 
-        // Sprawdź konfigurację
-        const currentStatus = ollamaManager.getStatus();
+        const status = await checkOllamaConnection();
+        console.log('Ollama connection status:', status);
+
+        // Kontynuuj niezależnie od statusu połączenia
         startup.webContents.send('startup-progress', { 
-            step: 2, 
+            step: 2,
             status: 'Starting application...' 
         });
 
-        // Poczekaj na załadowanie głównego okna
-        await new Promise(resolve => {
-            mainWindow.webContents.on('did-finish-load', async () => {
-                mainWindow.webContents.send('app-version', APP_VERSION);
-                const currentSettings = settingsManager.getSettings();
-                await themeManager.applyTheme(currentSettings.theme, mainWindow);
-                resolve();
-            });
-        });
+        // Krótkie opóźnienie dla pokazania komunikatu
+        await new Promise(resolve => setTimeout(resolve, 1000));
 
-        // Sprawdź czy zapisane modele są dostępne
-        const savedConfig = configManager.getConfig();
-        if (savedConfig.currentModel) {
-            const isModelAvailable = await ollamaManager.checkModelAvailability(savedConfig.currentModel);
-            if (!isModelAvailable) {
-                configWindowInstance = configWindow.create();
-                configWindowInstance.on('closed', () => {
-                    configWindowInstance = null;
-                });
-            }
-        } else {
-            // Jeśli nie ma zapisanego modelu, pokaż okno konfiguracji
-            configWindowInstance = configWindow.create();
-            configWindowInstance.on('closed', () => {
-                configWindowInstance = null;
-            });
-        }
+        // Zastosuj ustawienia
+        const currentSettings = settingsManager.getSettings();
+        await themeManager.applyTheme(currentSettings.theme, mainWindow);
 
-        // Zamknij okno startowe i pokaż główne okno
-        startup.close();
+        // Pokaż główne okno i zamknij startowe
         mainWindow.show();
+        startup.close();
 
-        // Rozpocznij sprawdzanie połączenia
+        // Rozpocznij okresowe sprawdzanie połączenia
         connectionCheckInterval = setInterval(checkOllamaConnection, 5000);
 
     } catch (error) {
         console.error('Error during startup:', error);
+        
+        // W przypadku błędu, pokaż komunikat i kontynuuj
         startup.webContents.send('startup-error', error.message);
-        // Nie zamykaj aplikacji automatycznie
+        
+        // Krótkie opóźnienie na pokazanie błędu
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Mimo błędu, uruchom aplikację
+        mainWindow.show();
+        startup.close();
     }
 }
 
@@ -524,36 +639,107 @@ ipcMain.handle('check-ollama-status', async () => {
 // Handler do pobierania dostępnych modeli
 ipcMain.handle('get-available-models', async () => {
     try {
-        // Lista dostępnych modeli Ollama
-        const availableModels = [
-            { name: 'llama2', type: 'Text' },
-            { name: 'llama2:13b', type: 'Text' },
-            { name: 'llama2:70b', type: 'Text' },
-            { name: 'codellama', type: 'Text' },
-            { name: 'mistral', type: 'Text' },
-            { name: 'mixtral', type: 'Text' },
-            { name: 'neural-chat', type: 'Text' },
-            { name: 'starling-lm', type: 'Text' },
-            { name: 'llava', type: 'Vision' },
-            { name: 'bakllava', type: 'Vision' }
-        ];
+        console.log('Getting available models...');
         
-        console.log('Available models:', availableModels);
-        return availableModels;
+        // Lista znanych modeli
+        const knownModels = {
+            'llama2': { name: 'Llama 2', type: 'Text' },
+            'llama3': { name: 'Llama 3', type: 'Text' },
+            'llama3.2': { name: 'Llama 3.2', type: 'Text' },
+            'mistral': { name: 'Mistral', type: 'Text' },
+            'mixtral': { name: 'Mixtral', type: 'Text' },
+            'neural-chat': { name: 'Neural Chat', type: 'Text' },
+            'starling-lm': { name: 'Starling LM', type: 'Text' },
+            'dolphin-llama3': { name: 'Dolphin Llama 3', type: 'Text' },
+            'llava': { name: 'Llava', type: 'Vision' },
+            'bakllava': { name: 'Bakllava', type: 'Vision' }
+        };
+
+        // Pobierz listę zainstalowanych modeli
+        const installedModels = await ollamaManager.getInstalledModels();
+        console.log('Installed models:', installedModels);
+
+        // Przygotuj listę wszystkich modeli
+        const allModels = [];
+
+        // Dodaj zainstalowane modele
+        for (const installedModel of installedModels) {
+            // Wyciągnij podstawową nazwę modelu (bez tagów)
+            const baseModelName = installedModel.split(':')[0].toLowerCase();
+            
+            // Jeśli model jest znany, użyj jego konfiguracji
+            if (knownModels[baseModelName]) {
+                allModels.push({
+                    id: installedModel,
+                    name: `${knownModels[baseModelName].name} (${installedModel})`,
+                    type: knownModels[baseModelName].type,
+                    installed: true
+                });
+            } else {
+                // Dla nieznanych modeli, określ typ na podstawie nazwy
+                const type = installedModel.includes('llava') ? 'Vision' : 'Text';
+                allModels.push({
+                    id: installedModel,
+                    name: installedModel,
+                    type: type,
+                    installed: true
+                });
+            }
+        }
+
+        // Dodaj nieznane modele jako dostępne do pobrania
+        Object.entries(knownModels).forEach(([modelId, modelInfo]) => {
+            if (!installedModels.some(installed => installed.startsWith(modelId))) {
+                allModels.push({
+                    id: modelId,
+                    name: modelInfo.name,
+                    type: modelInfo.type,
+                    installed: false
+                });
+            }
+        });
+        
+        console.log('Final models list:', allModels);
+        return allModels;
     } catch (error) {
         console.error('Error getting available models:', error);
         return [];
     }
 });
 
-// Zmień istniejący handler save-config na handle
+// Zaktualizuj handler do zapisywania konfiguracji
 ipcMain.handle('save-config', async (event, config) => {
     try {
-        await ollamaManager.setModel(config.model);
-        await ollamaManager.setVisionModel(config.visionModel);
+        console.log('Saving config:', config);
+        
+        // Sprawdź czy wybrane modele są zainstalowane
+        const textModel = config.model;
+        const visionModel = config.visionModel;
+        
+        if (textModel) {
+            const isTextModelInstalled = await ollamaManager.checkModelAvailability(textModel);
+            if (!isTextModelInstalled) {
+                throw new Error(`Text model ${textModel} is not installed`);
+            }
+        }
+        
+        if (visionModel) {
+            const isVisionModelInstalled = await ollamaManager.checkModelAvailability(visionModel);
+            if (!isVisionModelInstalled) {
+                throw new Error(`Vision model ${visionModel} is not installed`);
+            }
+        }
+
+        // Zapisz konfigurację
+        await ollamaManager.setModel(textModel);
+        await ollamaManager.setVisionModel(visionModel);
+        
+        // Zaktualizuj status we wszystkich oknach
+        const newStatus = ollamaManager.getStatus();
         BrowserWindow.getAllWindows().forEach(window => {
-            window.webContents.send('ollama-status', ollamaManager.getStatus());
+            window.webContents.send('ollama-status', newStatus);
         });
+
         return true;
     } catch (error) {
         console.error('Error saving config:', error);
@@ -561,25 +747,15 @@ ipcMain.handle('save-config', async (event, config) => {
     }
 });
 
-// Dodaj nowe handlery
-ipcMain.handle('install-model', async (event, modelName) => {
+// Dodaj nowy handler do sprawdzania czy model jest zainstalowany
+ipcMain.handle('check-model-installed', async (event, modelId) => {
     try {
-        await ollamaManager.installModel(modelName, (progress) => {
-            // Wyślij aktualizację postępu do okna konfiguracji
-            event.sender.send('model-download-progress', {
-                model: modelName,
-                progress: progress
-            });
-        });
-        return true;
+        const isInstalled = await ollamaManager.checkModelAvailability(modelId);
+        return isInstalled;
     } catch (error) {
-        console.error('Error installing model:', error);
-        throw error;
+        console.error('Error checking model installation:', error);
+        return false;
     }
-});
-
-ipcMain.handle('check-model-availability', async (event, modelName) => {
-    return await ollamaManager.checkModelAvailability(modelName);
 });
 
 // Dodaj nowy handler przed app.whenReady()
