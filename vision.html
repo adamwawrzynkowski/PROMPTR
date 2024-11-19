@@ -1,33 +1,428 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Image Analysis</title>
-    <link rel="stylesheet" href="vision.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <title>Analyze Image</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: transparent;
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            color: white;
+            user-select: none;
+        }
+
+        .window {
+            background: rgba(28, 28, 35, 0.95);
+            border-radius: 12px;
+            padding: 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+            min-height: 100vh;
+            box-sizing: border-box;
+            position: relative;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px;
+            -webkit-app-region: drag;
+            background: rgba(28, 28, 35, 0.95);
+            border-top-left-radius: 12px;
+            border-top-right-radius: 12px;
+            position: sticky;
+            top: 0;
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 20px;
+            font-weight: 600;
+        }
+
+        .close-button {
+            -webkit-app-region: no-drag;
+            background: none;
+            border: none;
+            color: #fff;
+            font-size: 24px;
+            cursor: pointer;
+            padding: 4px 8px;
+            border-radius: 6px;
+        }
+
+        .close-button:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .drag-area {
+            width: 100%;
+            height: 300px;
+            border-radius: 8px;
+            border: 2px dashed rgba(255, 255, 255, 0.2);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            background: rgba(0, 0, 0, 0.2);
+        }
+
+        .drag-area.active {
+            border-color: #4CAF50;
+            background: rgba(76, 175, 80, 0.1);
+        }
+
+        .drag-area .icon {
+            font-size: 50px;
+            color: rgba(255, 255, 255, 0.5);
+        }
+
+        .drag-area p {
+            margin: 10px 0;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .model-selector {
+            width: 100%;
+            padding: 12px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            color: white;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        .analyze-button {
+            width: 100%;
+            padding: 12px;
+            border-radius: 8px;
+            background: #4CAF50;
+            border: none;
+            color: white;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+
+        .analyze-button:hover {
+            background: #45a049;
+        }
+
+        /* Nowe style dla progress i wyników */
+        .progress-container {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 12px;
+            margin-top: 8px;
+            display: none;
+        }
+
+        .progress-bar {
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            margin-top: 8px;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: #4CAF50;
+            width: 0%;
+            transition: width 0.3s ease;
+        }
+
+        .result-container {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 8px;
+            padding: 16px;
+            display: none;
+        }
+
+        .error-container {
+            background: rgba(255, 0, 0, 0.1);
+            border-radius: 8px;
+            padding: 12px;
+            margin-top: 8px;
+            color: #ff6b6b;
+            display: none;
+        }
+
+        #status {
+            font-size: 14px;
+            margin-bottom: 8px;
+        }
+
+        #result-content {
+            font-family: monospace;
+            white-space: pre-wrap;
+            font-size: 12px;
+        }
+
+        .content {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding-right: 8px;
+            margin-right: -8px;
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        .button-group {
+            margin-top: 16px;
+        }
+
+        .secondary-button {
+            flex: 1;
+            padding: 8px;
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.1);
+            border: none;
+            color: white;
+            font-size: 14px;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
+        }
+
+        .secondary-button:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        .drag-area,
+        .model-selector,
+        .analyze-button,
+        .progress-container,
+        .result-container,
+        .error-container {
+            max-width: 100%;
+            box-sizing: border-box;
+        }
+
+        #result-content {
+            font-family: monospace;
+            white-space: pre-wrap;
+            font-size: 12px;
+            word-break: break-word;
+            max-width: 100%;
+        }
+    </style>
 </head>
 <body>
-    <div class="title-bar">
-        <div class="title">Image Analysis</div>
-        <div class="close-button">×</div>
-    </div>
-    
-    <div class="container">
-        <div id="drop-zone" class="drop-zone">
-            <i class="fas fa-cloud-upload-alt" style="font-size: 24px; color: var(--text-secondary);"></i>
-            <p>Drag and drop an image here or</p>
-            <button id="select-image">
-                <i class="fas fa-folder-open"></i>
-                Select Image
-            </button>
+    <div class="window">
+        <div class="header">
+            <h1>Analyze Image</h1>
+            <button class="close-button" style="-webkit-app-region: no-drag">×</button>
         </div>
-        <img id="preview" class="preview-image" style="display: none;">
-        <div class="buttons">
-            <button id="analyze" class="analyze-button" disabled>
-                <i class="fas fa-magic"></i>
+        
+        <div class="content">
+            <div class="drag-area" id="drag-area">
+                <div class="icon">📁</div>
+                <p>Drag & Drop image here or click to select</p>
+                <input type="file" id="file-input" accept="image/*" style="display: none">
+            </div>
+
+            <select class="model-selector" id="model-selector">
+                <!-- Options will be added dynamically -->
+            </select>
+
+            <button class="analyze-button" id="analyze-button">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M21 21L15 15M17 10C17 13.866 13.866 17 10 17C6.13401 17 3 13.866 3 10C3 6.13401 6.13401 3 10 3C13.866 3 17 6.13401 17 10Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                </svg>
                 Analyze Image
             </button>
+
+            <div class="progress-container" id="progress-container">
+                <div id="status">Preparing analysis...</div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="progress"></div>
+                </div>
+            </div>
+
+            <div class="result-container" id="result">
+                <h3>Analysis Results</h3>
+                <div id="result-content"></div>
+                <div class="button-group">
+                    <button class="secondary-button" id="copy-button">
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M8 16H6C4.89543 16 4 15.1046 4 14V6C4 4.89543 4.89543 4 6 4H14C15.1046 4 16 4.89543 16 6V8M10 20H18C19.1046 20 20 19.1046 20 18V10C20 8.89543 19.1046 8 18 8H10C8.89543 8 8 8.89543 8 10V18C8 19.1046 8.89543 20 10 20Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+                        </svg>
+                        Copy to Prompt
+                    </button>
+                </div>
+            </div>
+
+            <div class="error-container" id="error">
+                <h3>Error</h3>
+                <div id="error-content"></div>
+            </div>
         </div>
     </div>
-    <script src="vision-renderer.js"></script>
+
+    <script>
+        const { ipcRenderer } = require('electron');
+
+        // Obsługa drag & drop
+        const dragArea = document.getElementById('drag-area');
+        const fileInput = document.getElementById('file-input');
+        let selectedImage = null;
+
+        dragArea.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', function() {
+            const file = this.files[0];
+            handleFile(file);
+        });
+
+        dragArea.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dragArea.classList.add('active');
+        });
+
+        dragArea.addEventListener('dragleave', () => {
+            dragArea.classList.remove('active');
+        });
+
+        dragArea.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dragArea.classList.remove('active');
+            const file = e.dataTransfer.files[0];
+            handleFile(file);
+        });
+
+        function handleFile(file) {
+            if (file && file.type.startsWith('image/')) {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    selectedImage = e.target.result;
+                    dragArea.innerHTML = `<img src="${selectedImage}" style="max-width: 100%; max-height: 100%; object-fit: contain;">`;
+                };
+                reader.readAsDataURL(file);
+            }
+        }
+
+        // Aktualizacja listy modeli
+        ipcRenderer.on('update-models', (event, models) => {
+            const selector = document.getElementById('model-selector');
+            selector.innerHTML = ''; // Wyczyść obecne opcje
+            
+            // Dodaj opcję Ollama jeśli jest dostępna
+            const ollamaModel = models.find(m => m.type === 'ollama');
+            if (ollamaModel) {
+                selector.add(new Option(ollamaModel.name, ollamaModel.id));
+                
+                // Dodaj separator jeśli są też modele custom
+                if (models.length > 1) {
+                    const separator = document.createElement('option');
+                    separator.disabled = true;
+                    separator.text = '──────────';
+                    selector.add(separator);
+                }
+            }
+            
+            // Dodaj modele custom
+            const customModels = models.filter(m => m.type === 'custom');
+            customModels.forEach(model => {
+                selector.add(new Option(model.name, model.id));
+            });
+
+            // Jeśli nie ma żadnych modeli
+            if (models.length === 0) {
+                const option = new Option('No models available', '');
+                option.disabled = true;
+                selector.add(option);
+            }
+        });
+
+        // Obsługa przycisku analizy
+        document.getElementById('analyze-button').addEventListener('click', async () => {
+            if (!selectedImage) {
+                alert('Please select an image first');
+                return;
+            }
+
+            const modelSelector = document.getElementById('model-selector');
+            const selectedModel = modelSelector.value;
+            const isCustomModel = selectedModel !== 'ollama';
+
+            try {
+                document.getElementById('progress-container').style.display = 'block';
+                document.getElementById('result').style.display = 'none';
+                document.getElementById('error').style.display = 'none';
+                document.getElementById('progress').style.width = '0%';
+                document.getElementById('status').textContent = 'Starting analysis...';
+
+                const result = await ipcRenderer.invoke('analyze-image', 
+                    selectedImage,
+                    'content',
+                    isCustomModel,
+                    selectedModel
+                );
+
+                if (result) {
+                    document.getElementById('result').style.display = 'block';
+                    document.getElementById('result-content').textContent = 
+                        JSON.stringify(result, null, 2);
+                }
+            } catch (error) {
+                document.getElementById('error').style.display = 'block';
+                document.getElementById('error-content').textContent = error.message;
+            }
+        });
+
+        // Handle progress updates
+        ipcRenderer.on('analysis-progress', (event, data) => {
+            const progressContainer = document.getElementById('progress-container');
+            const progressBar = document.getElementById('progress');
+            const status = document.getElementById('status');
+            
+            progressContainer.style.display = 'block';
+            status.textContent = data.status;
+            progressBar.style.width = `${data.progress * 100}%`;
+
+            if (data.result) {
+                progressContainer.style.display = 'none';
+                document.getElementById('result').style.display = 'block';
+                document.getElementById('result-content').textContent = 
+                    typeof data.result === 'string' ? data.result : JSON.stringify(data.result, null, 2);
+            }
+        });
+
+        // Handle errors
+        ipcRenderer.on('analysis-error', (event, message) => {
+            document.getElementById('error').style.display = 'block';
+            document.getElementById('error-content').textContent = message;
+        });
+
+        // Close button
+        document.querySelector('.close-button').addEventListener('click', () => {
+            window.close();
+        });
+
+        // Dodaj obsługę przycisków
+        document.getElementById('copy-button').addEventListener('click', () => {
+            const resultContent = document.getElementById('result-content').textContent;
+            if (resultContent) {
+                ipcRenderer.invoke('set-prompt', resultContent);
+            }
+        });
+    </script>
 </body>
 </html> 

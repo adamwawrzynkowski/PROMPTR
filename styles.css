@@ -939,18 +939,51 @@ input, button, textarea, [role="button"] {
 /* Dodaj style dla przycisku draw-things */
 .input-btn.draw-things-btn {
     background: var(--button-background);
+    border: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    display: none; /* Domyślnie ukryty, będzie pokazywany przez JavaScript */
+    align-items: center;
+    justify-content: center;
     color: var(--text);
-    opacity: 0.7;
+    cursor: pointer;
     transition: all 0.2s ease;
+    position: relative;
 }
 
 .input-btn.draw-things-btn:hover {
-    opacity: 1;
     background: var(--button-hover);
+    transform: translateY(-1px);
 }
 
 .input-btn.draw-things-btn i {
-    color: #4CAF50;
+    color: var(--accent-color); /* Zielony kolor dla ikony */
+    font-size: 14px;
+}
+
+.input-btn.draw-things-btn .tooltip {
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--card-background);
+    color: var(--text);
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.2s ease;
+    margin-top: 8px;
+    border: 1px solid var(--border);
+    z-index: 1000;
+}
+
+.input-btn.draw-things-btn:hover .tooltip {
+    opacity: 1;
+    visibility: visible;
 }
 
 /* Usuń poprzednie style dla titlebar-item.vision */
@@ -1157,46 +1190,58 @@ input, button, textarea, [role="button"] {
 
 #translation-overlay {
     position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.7);
-    display: flex;
-    justify-content: center;
-    align-items: center;
+    top: 60px;
+    right: 20px;
+    background: var(--card-background);
+    border-radius: 8px;
+    padding: 12px 20px;
+    color: var(--text);
     z-index: 1000;
+    display: none;
+    animation: fadeIn 0.3s ease;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--border);
+}
+
+.overlay-content {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
 }
 
 .translation-status {
-    text-align: center;
-    margin-bottom: 15px;
-    color: #fff;
-    font-size: 1.2em;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 14px;
 }
 
 .translation-status i {
-    margin-right: 10px;
-    color: #4CAF50;
+    color: var(--accent-color);
 }
 
 .translation-progress {
-    width: 300px;
-    background: rgba(255, 255, 255, 0.1);
-    border-radius: 10px;
-    padding: 3px;
+    width: 200px;
+    background: var(--button-background);
+    border-radius: 4px;
+    padding: 2px;
 }
 
 .translation-progress .progress-bar {
-    height: 20px;
-    background: rgba(255, 255, 255, 0.2);
-    border-radius: 8px;
+    height: 4px;
+    background: var(--button-background);
+    border-radius: 2px;
     overflow: hidden;
 }
 
 .translation-progress .progress-fill {
     height: 100%;
-    background: #4CAF50;
+    background: var(--accent-color);
     width: 0%;
     transition: width 0.3s ease;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
 }

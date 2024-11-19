@@ -7,6 +7,7 @@ const refreshBtn = document.getElementById('refresh-btn');
 const statusText = document.getElementById('status-text');
 const statusIcon = document.querySelector('.status-indicator i');
 const closeBtn = document.getElementById('close-btn');
+const importModelBtn = document.getElementById('import-model-btn');
 
 const VISION_MODELS = ['llava'];
 
@@ -17,6 +18,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     console.log('DOM Content Loaded');
     await updateStatus();
     await refreshModels();
+    await loadCustomModels();
 });
 
 async function updateStatus() {
@@ -148,6 +150,9 @@ async function refreshModels() {
             modelsListElement.appendChild(modelElement);
         }
 
+        // Dodaj odświeżanie custom modeli
+        await loadCustomModels();
+
         // Odśwież też listy wyboru modeli
         await updateStatus();
     } catch (error) {
@@ -263,4 +268,71 @@ function updateModelSelect(select, models) {
         option.disabled = !model.installed;
         select.appendChild(option);
     });
-} 
+}
+
+importModelBtn.addEventListener('click', () => {
+    ipcRenderer.send('open-model-import');
+});
+
+// Dodaj funkcję do ładowania custom modeli
+async function loadCustomModels() {
+    try {
+        const customModels = await ipcRenderer.invoke('get-custom-models');
+        const customModelsListElement = document.getElementById('custom-models-list');
+        customModelsListElement.innerHTML = '';
+
+        if (customModels.length === 0) {
+            customModelsListElement.innerHTML = '<div class="no-models">No custom models imported</div>';
+            return;
+        }
+
+        for (const model of customModels) {
+            const modelElement = document.createElement('div');
+            modelElement.className = 'model-item';
+            
+            const modelInfo = document.createElement('div');
+            modelInfo.className = 'model-info';
+            
+            const modelName = document.createElement('span');
+            modelName.className = 'model-name';
+            modelName.textContent = model.name;
+            
+            const modelTag = document.createElement('span');
+            modelTag.className = `model-tag tag-${model.type.toLowerCase()}`;
+            modelTag.textContent = model.type;
+            
+            modelInfo.appendChild(modelName);
+            modelInfo.appendChild(modelTag);
+            
+            const actionContainer = document.createElement('div');
+            actionContainer.className = 'model-action';
+            
+            const deleteButton = document.createElement('button');
+            deleteButton.className = 'download-button delete-button';
+            deleteButton.innerHTML = '<i class="fas fa-trash"></i> Delete';
+            deleteButton.onclick = () => deleteCustomModel(model.name);
+            
+            actionContainer.appendChild(deleteButton);
+            modelElement.appendChild(modelInfo);
+            modelElement.appendChild(actionContainer);
+            customModelsListElement.appendChild(modelElement);
+        }
+    } catch (error) {
+        console.error('Error loading custom models:', error);
+    }
+}
+
+// Dodaj funkcję usuwania custom modelu
+async function deleteCustomModel(modelName) {
+    if (confirm(`Are you sure you want to delete ${modelName}?`)) {
+        try {
+            await ipcRenderer.invoke('delete-custom-model', modelName);
+            await loadCustomModels();
+            await refreshModels();
+        } catch (error) {
+            console.error('Error deleting custom model:', error);
+            alert(`Error deleting model: ${error.message}`);
+        }
+    }
+}
+ 

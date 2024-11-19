@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Converting Model</title>
+    <style>
+        body {
+            background: rgba(28, 28, 35, 0.95);
+            color: white;
+            font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+            padding: 20px;
+            border-radius: 12px;
+            user-select: none;
+        }
+        .progress-message {
+            text-align: center;
+            margin-top: 20px;
+        }
+        .spinner {
+            width: 40px;
+            height: 40px;
+            margin: 20px auto;
+            border: 4px solid rgba(255,255,255,0.1);
+            border-radius: 50%;
+            border-top: 4px solid #fff;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body>
+    <div class="spinner"></div>
+    <div class="progress-message" id="message">Converting model...</div>
+    <script>
+        const { ipcRenderer } = require('electron');
+        ipcRenderer.on('progress-message', (event, message) => {
+            document.getElementById('message').textContent = message;
+        });
+    </script>
+</body>
+</html> 

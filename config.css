@@ -338,4 +338,78 @@ body {
     color: var(--text-secondary);
     min-width: 40px;
     text-align: right;
+}
+
+.custom-models-section {
+    margin-top: 20px;
+    padding: 15px;
+    background: var(--background-secondary);
+    border-radius: 8px;
+}
+
+.custom-models-section h3 {
+    margin: 0 0 15px 0;
+    color: var(--text-primary);
+    font-size: 16px;
+}
+
+.custom-model-controls {
+    display: flex;
+    gap: 10px;
+    margin-bottom: 15px;
+}
+
+.custom-model-controls input {
+    flex: 1;
+    padding: 8px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background: var(--background-primary);
+    color: var(--text-primary);
+}
+
+.custom-model-controls .action-button {
+    padding: 8px 15px;
+    background: var(--accent-color);
+    border: none;
+    border-radius: 4px;
+    color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.custom-model-controls .action-button:hover {
+    background: var(--accent-color-hover);
+}
+
+.custom-models-list {
+    margin-top: 10px;
+}
+
+.custom-model-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px;
+    background: var(--background-primary);
+    border-radius: 4px;
+    margin-bottom: 8px;
+}
+
+.custom-model-info {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.custom-model-name {
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.custom-model-url {
+    font-size: 0.9em;
+    color: var(--text-secondary);
 } 

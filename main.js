@@ -15,18 +15,33 @@ const modelInstallWindow = require('./model-install-window');
 const startupWindow = require('./startup-window');
 const configManager = require('./config-manager');
 const styleEditWindow = require('./style-edit-window');
-const fs = require('fs').promises;
+const fs = require('fs');
+const modelImportWindow = require('./model-import-window');
+const sharp = require('sharp');
+const { PythonShell } = require('python-shell');
+const ort = require('onnxruntime-node');
+const { spawn } = require('child_process');
+const https = require('https');
+
+// Usuń niepotrzebne importy
+// const ort = require('onnxruntime-node');
+// const { InferenceSession, Tensor } = ort;
 
 // Zmień wersję aplikacji
-const APP_VERSION = 'v1.0';
+const APP_VERSION = 'v0.9 Beta';
 
 // Dodaj na początku pliku, gdzie są inne stałe
 const DRAW_THINGS_PATH = '/Applications/Draw Things.app';
 const DRAW_THINGS_PORT = 3333;
+const SAFETENSORS_MODELS_PATH = path.join(app.getPath('userData'), 'models');
+const CUSTOM_MODELS_PATH = path.join(app.getPath('userData'), 'custom-models');
 
 let mainWindow;
 let connectionCheckInterval;
 let configWindowInstance = null;
+
+// Dodaj na początku pliku zmienną do śledzenia aktualnego żądania
+let currentGenerationRequest = null;
 
 // Dodaj funkcję sprawdzającą port
 function checkPort(port) {
@@ -55,8 +70,15 @@ function checkPort(port) {
 }
 
 // Zmodyfikuj funkcję sprawdzania statusu Draw Things
-async function checkDrawThingsStatus() {
+async function checkDrawThingsStatus(port = null) {
     console.log('Checking Draw Things status...');
+    
+    // Użyj portu z parametru lub z ustawień
+    if (!port) {
+        const settings = settingsManager.getSettings();
+        port = settings.drawThingsIntegration.port || 3333;
+    }
+    
     return new Promise(async (resolve) => {
         // Najpierw sprawdź czy Draw Things jest uruchomione
         exec('pgrep -f "Draw Things"', async (error, stdout, stderr) => {
@@ -69,17 +91,40 @@ async function checkDrawThingsStatus() {
             console.log('Draw Things process found, checking port...');
 
             // Sprawdź czy port jest używany przez Draw Things
-            exec(`lsof -i :${DRAW_THINGS_PORT}`, (error, stdout, stderr) => {
-                console.log(`Port ${DRAW_THINGS_PORT} check result:`, stdout);
+            exec(`lsof -i :${port}`, (error, stdout, stderr) => {
+                console.log(`Port ${port} check result:`, stdout);
                 
                 if (error || !stdout.trim()) {
-                    console.log(`Port ${DRAW_THINGS_PORT} is not in use`);
+                    console.log(`Port ${port} is not in use`);
                     resolve(false);
                     return;
                 }
 
-                console.log(`Port ${DRAW_THINGS_PORT} is active, Draw Things is available`);
-                resolve(true);
+                // Sprawdź czy port jest aktywny poprzez proste żądanie HTTP
+                const testRequest = http.request({
+                    hostname: '127.0.0.1',
+                    port: port,
+                    path: '/sdapi/v1/txt2img',
+                    method: 'GET',
+                    timeout: 1000
+                }, (res) => {
+                    // Nawet jeśli dostaniemy 404, to znaczy że serwer odpowiada
+                    console.log(`Draw Things API response: ${res.statusCode}`);
+                    resolve(true);
+                });
+
+                testRequest.on('error', (error) => {
+                    console.log('Draw Things API test error:', error.message);
+                    resolve(false);
+                });
+
+                testRequest.on('timeout', () => {
+                    console.log('Draw Things API test timeout');
+                    testRequest.destroy();
+                    resolve(false);
+                });
+
+                testRequest.end();
             });
         });
     });
@@ -183,42 +228,13 @@ async function checkOllamaConnection() {
     try {
         console.log('Starting Ollama connection check...');
         
-        // Najpierw sprawdź czy Ollama jest uruchomiona
         const ollamaEndpoint = await findOllamaPort();
         
         if (!ollamaEndpoint) {
-            console.log('Ollama is not running, attempting to start...');
-            // Spróbuj zatrzymać istniejący proces
-            exec('pkill ollama', async () => {
-                // Poczekaj chwilę
-                await new Promise(resolve => setTimeout(resolve, 2000));
-                
-                // Uruchom Ollamę
-                exec('ollama serve', async (error) => {
-                    if (error) {
-                        console.error('Error starting Ollama:', error);
-                        return { 
-                            isConnected: false, 
-                            error: 'Failed to start Ollama server' 
-                        };
-                    }
-                    
-                    // Poczekaj na uruchomienie serwera
-                    await new Promise(resolve => setTimeout(resolve, 3000));
-                    
-                    // Sprawdź ponownie połączenie
-                    const newEndpoint = await findOllamaPort();
-                    if (newEndpoint) {
-                        ollamaManager.updateEndpoint(newEndpoint);
-                        await ollamaManager.checkConnection();
-                        return ollamaManager.getStatus();
-                    }
-                });
-            });
-            
             return { 
                 isConnected: false, 
-                error: 'Could not find Ollama endpoint' 
+                error: 'Could not find Ollama endpoint',
+                currentModel: null
             };
         }
 
@@ -231,54 +247,52 @@ async function checkOllamaConnection() {
         if (!isConnected) {
             return {
                 isConnected: false,
-                error: 'Could not connect to Ollama'
+                error: 'Could not connect to Ollama',
+                currentModel: null
             };
         }
         
         const status = ollamaManager.getStatus();
         console.log('Final Ollama status:', status);
         
-        // Sprawdź czy mamy wszystkie potrzebne informacje
-        if (!status.currentModel) {
-            return {
-                isConnected: true,
-                error: 'No model selected'
-            };
-        }
+        // Zwróć tylko podstawowe informacje
+        return {
+            isConnected: status.isConnected,
+            currentModel: status.currentModel,
+            error: status.error
+        };
         
-        BrowserWindow.getAllWindows().forEach(window => {
-            window.webContents.send('ollama-status', status);
-        });
-        
-        return status;
     } catch (error) {
         console.error('Error in checkOllamaConnection:', error);
         return { 
             isConnected: false, 
             error: error.message,
-            details: 'Check if Ollama is installed and running'
+            currentModel: null
         };
     }
 }
 
 async function createWindow() {
-    // Najpierw pokaż okno startowe
+    console.log('Creating main window...');
     const startup = startupWindow.create();
     
-    // Utwórz główne okno, ale nie pokazuj go jeszcze
     mainWindow = new BrowserWindow({
         width: 1200,
         height: 800,
         webPreferences: {
             nodeIntegration: true,
             contextIsolation: false,
-            enableRemoteModule: true
+            enableRemoteModule: true,
+            backgroundThrottling: false,
+            offscreen: false,
+            enableHardwareAcceleration: true
         },
         frame: false,
         transparent: true,
         titleBarStyle: 'hidden',
         backgroundColor: '#00000000',
-        show: false
+        show: false,
+        paintWhenInitiallyHidden: true
     });
 
     // Załaduj główne okno od razu
@@ -314,14 +328,46 @@ async function createWindow() {
 
         // Zastosuj ustawienia
         const currentSettings = settingsManager.getSettings();
-        await themeManager.applyTheme(currentSettings.theme, mainWindow);
+        if (currentSettings && currentSettings.theme) {
+            await themeManager.applyTheme(currentSettings.theme, mainWindow);
+        }
 
         // Pokaż główne okno i zamknij startowe
         mainWindow.show();
         startup.close();
 
+        // Natychmiast sprawdź i wyślij status Ollama
+        const initialStatus = await checkOllamaConnection();
+        const serializedStatus = {
+            isConnected: !!initialStatus.isConnected,
+            currentModel: initialStatus.currentModel || null,
+            error: initialStatus.error || null
+        };
+        mainWindow.webContents.send('ollama-status', serializedStatus);
+
         // Rozpocznij okresowe sprawdzanie połączenia
-        connectionCheckInterval = setInterval(checkOllamaConnection, 5000);
+        connectionCheckInterval = setInterval(async () => {
+            try {
+                const status = await checkOllamaConnection();
+                const serializedStatus = {
+                    isConnected: !!status.isConnected,
+                    currentModel: status.currentModel || null,
+                    error: status.error || null
+                };
+
+                BrowserWindow.getAllWindows().forEach(window => {
+                    if (!window.isDestroyed()) {
+                        try {
+                            window.webContents.send('ollama-status', serializedStatus);
+                        } catch (error) {
+                            console.error('Error sending status to window:', error);
+                        }
+                    }
+                });
+            } catch (error) {
+                console.error('Error in connection check interval:', error);
+            }
+        }, 5000);
 
     } catch (error) {
         console.error('Error during startup:', error);
@@ -372,11 +418,142 @@ ipcMain.on('toggle-history', () => {
     console.log('History toggled');
 });
 
-ipcMain.handle('generate-prompt', async (event, basePrompt, styleId) => {
+// Zaktualizuj handler generate-tags
+ipcMain.handle('generate-tags', async (event, text) => {
     try {
+        // Anuluj poprzednie żądanie jeśli istnieje
+        if (currentGenerationRequest) {
+            console.log('Cancelling previous generation request');
+            await currentGenerationRequest.cancel();
+            currentGenerationRequest = null;
+        }
+
         const status = ollamaManager.getStatus();
         if (!status.isConnected || !status.currentModel) {
             throw new Error('Not connected or no model selected');
+        }
+        
+        console.log('Original text:', text);
+
+        // Sprawdź ustawienia tłumaczenia i przetłumacz jeśli potrzeba
+        const settings = settingsManager.getSettings();
+        let textToProcess = text;
+
+        if (settings.autoTranslate) {
+            console.log('Auto-translate is enabled, translating...');
+            try {
+                const translationResult = await ollamaManager.detectAndTranslateText(text);
+                console.log('Translation result:', translationResult);
+                
+                if (translationResult.isTranslated) {
+                    textToProcess = translationResult.translatedText;
+                    console.log('Using translated text:', textToProcess);
+                    
+                    // Wyślij tylko podstawowe informacje o tłumaczeniu
+                    const serializedTranslation = {
+                        isTranslated: true,
+                        originalText: text,
+                        translatedText: textToProcess,
+                        originalLanguage: translationResult.originalLanguage || 'unknown'
+                    };
+                    
+                    event.sender.send('translation-status', serializedTranslation);
+                }
+            } catch (translationError) {
+                console.error('Translation error:', translationError);
+                event.sender.send('translation-error', {
+                    message: translationError.message || 'Translation failed'
+                });
+                throw translationError;
+            }
+        }
+
+        // Kontynuuj tylko jeśli mamy tekst do przetworzenia
+        if (!textToProcess) {
+            throw new Error('No text to process');
+        }
+
+        console.log('Generating tags for text:', textToProcess);
+
+        // Utwórz nowe żądanie
+        currentGenerationRequest = {
+            cancel: () => ollamaManager.cancelCurrentGeneration(),
+            promise: ollamaManager.generateTags(textToProcess)
+        };
+
+        // Generuj tagi
+        const tags = await currentGenerationRequest.promise;
+        currentGenerationRequest = null;
+
+        if (!tags || tags.length === 0) {
+            throw new Error('No tags generated');
+        }
+
+        console.log('Generated tags:', tags);
+        event.sender.send('tags-generated', tags);
+        return tags;
+
+    } catch (error) {
+        console.error('Error in generate-tags handler:', error);
+        event.sender.send('tags-generated-error', {
+            message: error.message || 'Tag generation failed'
+        });
+        currentGenerationRequest = null;
+        throw error;
+    }
+});
+
+// Zaktualizuj handler generate-prompt
+ipcMain.handle('generate-prompt', async (event, basePrompt, styleId) => {
+    try {
+        // Anuluj poprzednie żądanie jeśli istnieje
+        if (currentGenerationRequest) {
+            console.log('Cancelling previous generation request');
+            await currentGenerationRequest.cancel();
+            currentGenerationRequest = null;
+        }
+
+        const status = ollamaManager.getStatus();
+        if (!status.isConnected || !status.currentModel) {
+            throw new Error('Not connected or no model selected');
+        }
+
+        // Sprawdź ustawienia tłumaczenia i przetłumacz jeśli potrzeba
+        const settings = settingsManager.getSettings();
+        let promptToProcess = basePrompt;
+
+        if (settings.autoTranslate) {
+            console.log('Auto-translate is enabled, translating...');
+            try {
+                const translationResult = await ollamaManager.detectAndTranslateText(basePrompt);
+                console.log('Translation result:', translationResult);
+                
+                if (translationResult.isTranslated) {
+                    promptToProcess = translationResult.translatedText;
+                    console.log('Using translated prompt:', promptToProcess);
+                    
+                    // Wyślij tylko podstawowe informacje o tłumaczeniu
+                    const serializedTranslation = {
+                        isTranslated: true,
+                        originalText: basePrompt,
+                        translatedText: promptToProcess,
+                        originalLanguage: translationResult.originalLanguage || 'unknown'
+                    };
+                    
+                    event.sender.send('translation-status', serializedTranslation);
+                }
+            } catch (translationError) {
+                console.error('Translation error:', translationError);
+                event.sender.send('translation-error', {
+                    message: translationError.message || 'Translation failed'
+                });
+                throw translationError;
+            }
+        }
+
+        // Kontynuuj tylko jeśli mamy prompt do przetworzenia
+        if (!promptToProcess) {
+            throw new Error('No prompt to process');
         }
 
         // Pobierz styl z managera stylów
@@ -388,49 +565,59 @@ ipcMain.handle('generate-prompt', async (event, basePrompt, styleId) => {
         // Sprawdź czy to custom styl
         const isCustomStyle = stylesManager.isCustomStyle(styleId);
         
-        // Generuj prompt z uwzględnieniem custom stylu
-        const improvedPrompt = await ollamaManager.generatePrompt(
-            basePrompt, 
-            styleId,
-            isCustomStyle ? style : null
-        );
+        // Utwórz nowe żądanie
+        currentGenerationRequest = {
+            cancel: () => ollamaManager.cancelCurrentGeneration(),
+            promise: ollamaManager.generatePrompt(
+                promptToProcess, 
+                styleId,
+                isCustomStyle ? style : null
+            )
+        };
+
+        // Generuj prompt
+        const improvedPrompt = await currentGenerationRequest.promise;
+        currentGenerationRequest = null;
 
         return improvedPrompt;
+
     } catch (error) {
         console.error('Error in generate-prompt handler:', error);
-        throw error;
-    }
-});
-
-ipcMain.handle('generate-tags', async (event, text) => {
-    try {
-        const status = ollamaManager.getStatus();
-        if (!status.isConnected || !status.currentModel) {
-            throw new Error('Not connected or no model selected');
-        }
-        
-        console.log('Generating tags for text:', text);
-        const tags = await ollamaManager.generateTags(text);
-        console.log('Generated tags:', tags);
-
-        // Wyślij tagi bezpośrednio do okna, które wysłało żądanie
-        event.sender.send('tags-generated', tags);
-        
-        return tags;
-    } catch (error) {
-        console.error('Error in generate-tags handler:', error);
-        // Wyślij błąd do okna
-        event.sender.send('tags-generated-error', error.message);
+        currentGenerationRequest = null;
         throw error;
     }
 });
 
 ipcMain.handle('get-styles', () => {
-    return stylesManager.getAllStyles();
+    const styles = stylesManager.getAllStyles();
+    // Upewnij się, że zwracamy prosty obiekt JSON
+    return Object.fromEntries(
+        Object.entries(styles).map(([id, style]) => [
+            id,
+            {
+                ...style,
+                // Upewnij się, że wszystkie pola są serializowalne
+                name: String(style.name),
+                description: String(style.description),
+                icon: String(style.icon),
+                fixedTags: Array.isArray(style.fixedTags) ? style.fixedTags.map(String) : []
+            }
+        ])
+    );
 });
 
 ipcMain.handle('get-style', (event, id) => {
-    return stylesManager.getStyle(id);
+    const style = stylesManager.getStyle(id);
+    if (!style) return null;
+    
+    // Upewnij się, że zwracamy prosty obiekt JSON
+    return {
+        ...style,
+        name: String(style.name),
+        description: String(style.description),
+        icon: String(style.icon),
+        fixedTags: Array.isArray(style.fixedTags) ? style.fixedTags.map(String) : []
+    };
 });
 
 ipcMain.handle('add-style', (event, style) => {
@@ -459,23 +646,46 @@ ipcMain.handle('get-available-styles', () => {
 });
 
 ipcMain.handle('get-settings', () => {
-    return settingsManager.getSettings();
+    try {
+        const settings = settingsManager.getSettings();
+        // Upewnij się, że zwracamy tylko serializowalne dane
+        return {
+            theme: settings.theme || 'dark',
+            autoTranslate: Boolean(settings.autoTranslate),
+            tagGeneration: Boolean(settings.tagGeneration),
+            slowMode: Boolean(settings.slowMode),
+            slowModeDelay: Number(settings.slowModeDelay) || 1000,
+            drawThingsIntegration: {
+                enabled: Boolean(settings.drawThingsIntegration?.enabled),
+                path: String(settings.drawThingsIntegration?.path || ''),
+                port: Number(settings.drawThingsIntegration?.port) || 3333
+            }
+        };
+    } catch (error) {
+        console.error('Error getting settings:', error);
+        return settingsManager.defaultSettings;
+    }
 });
 
 ipcMain.handle('save-settings', async (event, newSettings) => {
     try {
+        console.log('Saving new settings:', newSettings);
         const settings = settingsManager.updateSettings(newSettings);
         
         // Zastosuj nowe ustawienia do wszystkich okien
         const windows = BrowserWindow.getAllWindows();
         await Promise.all(windows.map(async (window) => {
-            try {
-                // Zastosuj motyw
-                await themeManager.applyTheme(settings.theme, window);
-                // Wyślij aktualizację ustawień do okna
-                window.webContents.send('settings-updated', settings);
-            } catch (error) {
-                console.error('Error applying settings to window:', error);
+            if (!window.isDestroyed()) {
+                try {
+                    // Zastosuj motyw
+                    if (settings.theme) {
+                        await themeManager.applyTheme(settings.theme, window);
+                    }
+                    // Wyślij aktualizację ustawień do okna
+                    window.webContents.send('settings-updated', settings);
+                } catch (error) {
+                    console.error('Error applying settings to window:', error);
+                }
             }
         }));
         
@@ -496,111 +706,294 @@ ipcMain.on('open-settings', () => {
 
 // Dodaj nowy handler IPC przed app.whenReady()
 ipcMain.handle('check-draw-things', async () => {
-    console.log('Received check-draw-things request');
-    const status = await checkDrawThingsStatus();
-    console.log('Draw Things status check result:', status);
-    return status;
+    const settings = settingsManager.getSettings();
+    const port = settings.drawThingsIntegration.port || 3333;
+    return await checkDrawThingsStatus(port);
 });
 
 // Zmodyfikuj handler do wysyłania promptu
 ipcMain.handle('send-to-draw-things', async (event, prompt) => {
-    const isAvailable = await checkDrawThingsStatus();
-    if (!isAvailable) {
-        throw new Error('Draw Things API is not available. Please make sure Draw Things is running and API Server is enabled with HTTP protocol.');
-    }
+    try {
+        // Pobierz aktualne ustawienia
+        const settings = settingsManager.getSettings();
+        const drawThingsPort = settings.drawThingsIntegration.port || 3333;
 
-    return new Promise((resolve, reject) => {
-        // Wysyłamy tylko prompt
-        const data = JSON.stringify({
-            prompt: prompt
-        });
+        const isAvailable = await checkDrawThingsStatus(drawThingsPort);
+        if (!isAvailable) {
+            throw new Error('Draw Things API is not available. Please make sure Draw Things is running and API Server is enabled with HTTP protocol.');
+        }
 
-        const options = {
-            hostname: 'localhost',
-            port: DRAW_THINGS_PORT,
-            path: '/sdapi/v1/txt2img',
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'Content-Length': Buffer.byteLength(data),
-                'Accept': 'application/json'
-            },
-            timeout: 5000
-        };
-
-        console.log('Sending request to Draw Things:', options.path);
-        console.log('Request data:', data);
-
-        const req = http.request(options, (res) => {
-            let responseData = '';
-
-            res.on('data', (chunk) => {
-                responseData += chunk;
+        return new Promise((resolve, reject) => {
+            // Wysyłamy tylko prompt
+            const data = JSON.stringify({
+                prompt: prompt
             });
 
-            res.on('end', () => {
-                console.log('Draw Things response:', responseData);
-                try {
-                    const response = JSON.parse(responseData);
+            const options = {
+                hostname: '127.0.0.1',
+                port: drawThingsPort,
+                path: '/sdapi/v1/txt2img',
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Content-Length': Buffer.byteLength(data),
+                    'Accept': 'application/json'
+                },
+                timeout: 10000
+            };
+
+            console.log('Sending request to Draw Things:', {
+                port: drawThingsPort,
+                path: options.path,
+                prompt: prompt
+            });
+
+            const req = http.request(options, (res) => {
+                let responseData = '';
+
+                res.on('data', (chunk) => {
+                    responseData += chunk;
+                });
+
+                res.on('end', () => {
+                    console.log('Draw Things response status:', res.statusCode);
                     if (res.statusCode === 200) {
                         resolve(true);
-                    } else if (response.error === "HTTPException" && response.detail) {
-                        reject(new Error(`Draw Things API error: ${response.detail}`));
                     } else {
-                        reject(new Error(`Draw Things API error: ${res.statusCode} - ${responseData}`));
+                        try {
+                            const response = JSON.parse(responseData);
+                            reject(new Error(`Draw Things API error: ${response.detail || responseData}`));
+                        } catch {
+                            reject(new Error(`Draw Things API error: ${res.statusCode} - ${responseData}`));
+                        }
                     }
-                } catch (error) {
-                    reject(new Error(`Failed to parse Draw Things response: ${responseData}`));
+                });
+            });
+
+            req.on('error', (error) => {
+                console.error('Error sending to Draw Things:', error);
+                if (error.code === 'ECONNREFUSED') {
+                    reject(new Error('Connection refused. Please make sure Draw Things API Server is running and accessible.'));
+                } else {
+                    reject(new Error(`Connection error: ${error.message}`));
                 }
             });
-        });
 
-        req.on('error', (error) => {
-            console.error('Error sending to Draw Things:', error);
-            reject(new Error('Please make sure Draw Things API Server is enabled with HTTP protocol'));
-        });
+            req.on('timeout', () => {
+                req.destroy();
+                reject(new Error('Request to Draw Things timed out. Please check your connection and try again.'));
+            });
 
-        req.on('timeout', () => {
-            req.destroy();
-            reject(new Error('Request to Draw Things timed out'));
+            req.write(data);
+            req.end();
         });
-
-        req.write(data);
-        req.end();
-    });
+    } catch (error) {
+        console.error('Error in send-to-draw-things handler:', error);
+        throw error;
+    }
 });
 
-ipcMain.handle('analyze-image', async (event, imageData, analysisType = 'content') => {
+ipcMain.handle('analyze-image', async (event, imageData, analysisType = 'content', useCustomModel = false, customModelName = null) => {
     try {
-        console.log('Checking Ollama status...');
+        console.log('Starting image analysis...', {
+            analysisType,
+            useCustomModel,
+            customModelName
+        });
+
+        // Sprawdź czy to model custom
+        if (useCustomModel) {
+            console.log('Using custom model:', customModelName);
+            
+            // Pobierz pełną ścieżkę do modelu
+            const customModelsPath = path.join(app.getPath('userData'), 'PROMPTR', 'custom-models', customModelName);
+            console.log('Looking for model in:', customModelsPath);
+            
+            try {
+                // Znajdź plik .safetensors w folderze modelu
+                const files = await fs.readdir(customModelsPath);
+                console.log('Files in model directory:', files);
+                
+                // Szukaj pliku model.safetensors lub innego .safetensors
+                let modelFile = files.find(file => file === 'model.safetensors') || 
+                              files.find(file => file.endsWith('.safetensors'));
+                
+                if (!modelFile) {
+                    throw new Error('No .safetensors file found in model directory');
+                }
+
+                const modelPath = path.join(customModelsPath, modelFile);
+                console.log('Using model file:', modelPath);
+
+                // Sprawdź czy plik istnieje
+                await fs.access(modelPath);
+                console.log('Found model at:', modelPath);
+                
+                const result = await analyzeWithCustomModel(imageData, modelPath);
+                return result;
+            } catch (error) {
+                console.error('Error accessing model:', error);
+                throw new Error(`Model file not found: ${customModelName}`);
+            }
+        }
+
+        // Dla modeli Ollama
         const status = ollamaManager.getStatus();
-        console.log('Ollama status:', status);
-        
         if (!status.isConnected) {
             throw new Error('Ollama is not connected');
         }
 
-        if (!status.visionModel) {
-            throw new Error('No vision model selected. Please configure a vision model in Ollama Configuration first.');
-        }
+        const result = await ollamaManager.analyzeImage(
+            imageData,
+            null,
+            analysisType,
+            false,
+            customModelName
+        );
 
-        const isModelAvailable = await ollamaManager.checkModelAvailability(status.visionModel);
-        if (!isModelAvailable) {
-            modelInstallWindow.create(status.visionModel);
-            throw new Error(`Vision model ${status.visionModel} needs to be installed first`);
-        }
-        
-        console.log('Starting image analysis...', 'Type:', analysisType);
-        
-        // Przekaż typ analizy bezpośrednio do metody analyzeImage
-        const result = await ollamaManager.analyzeImage(imageData, null, analysisType);
-        console.log('Analysis completed:', result);
         return result;
     } catch (error) {
-        console.error('Error analyzing image:', error);
+        console.error('Error in analyze-image:', error);
         throw error;
     }
 });
+
+// Dodaj nową funkcję do przetwarzania obrazu
+async function preprocessImage(imageData) {
+    try {
+        // Konwertuj base64 na buffer
+        const buffer = Buffer.from(imageData.split(',')[1], 'base64');
+
+        // Przetwórz obraz
+        const processedImage = await sharp(buffer)
+            .resize(224, 224) // Standardowy rozmiar dla wielu modeli CV
+            .normalise() // Normalizacja wartości pikseli
+            .raw()
+            .toBuffer({ resolveWithObject: true });
+
+        // Konwertuj do formatu float32 i normalizuj wartości do zakresu [0,1]
+        const float32Data = new Float32Array(processedImage.data.length);
+        for (let i = 0; i < processedImage.data.length; i++) {
+            float32Data[i] = processedImage.data[i] / 255.0;
+        }
+
+        return {
+            data: float32Data,
+            width: processedImage.info.width,
+            height: processedImage.info.height,
+            channels: 3
+        };
+    } catch (error) {
+        console.error('Error preprocessing image:', error);
+        throw error;
+    }
+}
+
+// Dodaj funkcję do dynamicznego importu
+async function getTransformers() {
+    const { pipeline, env } = await import('@xenova/transformers');
+    return { pipeline, env };
+}
+
+// Zaktualizuj funkcję analyzeWithCustomModel
+async function analyzeWithCustomModel(imageData, modelPath) {
+    try {
+        console.log('Starting analysis with model at path:', modelPath);
+
+        // Wyślij status do okna
+        BrowserWindow.getAllWindows().forEach(window => {
+            window.webContents.send('analysis-progress', {
+                status: 'Loading model...',
+                progress: 0.2
+            });
+        });
+
+        // Utwórz sesję ONNX Runtime
+        const session = await ort.InferenceSession.create(modelPath);
+
+        // Wyślij status
+        BrowserWindow.getAllWindows().forEach(window => {
+            window.webContents.send('analysis-progress', {
+                status: 'Processing image...',
+                progress: 0.4
+            });
+        });
+
+        // Przetwórz obraz
+        const processedImage = await preprocessImage(imageData);
+
+        // Wyślij status
+        BrowserWindow.getAllWindows().forEach(window => {
+            window.webContents.send('analysis-progress', {
+                status: 'Running inference...',
+                progress: 0.6
+            });
+        });
+
+        // Przygotuj tensor wejściowy
+        const inputTensor = new ort.Tensor(
+            'float32',
+            processedImage.data,
+            [1, processedImage.channels, processedImage.height, processedImage.width]
+        );
+
+        // Wykonaj inference
+        const feeds = { input: inputTensor };
+        const outputMap = await session.run(feeds);
+        const output = outputMap[Object.keys(outputMap)[0]];
+
+        // Wyślij status
+        BrowserWindow.getAllWindows().forEach(window => {
+            window.webContents.send('analysis-progress', {
+                status: 'Processing results...',
+                progress: 0.8
+            });
+        });
+
+        // Przetwórz wyniki
+        const outputData = output.data;
+        const maxIndex = Array.from(outputData).indexOf(Math.max(...outputData));
+        const confidence = outputData[maxIndex];
+
+        // Spróbuj załadować etykiety
+        let labels = [];
+        try {
+            const configPath = path.join(path.dirname(modelPath), 'config.json');
+            const configContent = await fs.readFile(configPath, 'utf8');
+            const config = JSON.parse(configContent);
+            labels = config.id2label || {};
+        } catch (error) {
+            console.log('No labels found in config, using indices');
+            labels = Array.from(outputData, (_, i) => `Class ${i}`);
+        }
+
+        const finalResult = {
+            description: labels[maxIndex] || `Class ${maxIndex}`,
+            confidence: confidence,
+            details: Array.from(outputData).map((score, idx) => ({
+                label: labels[idx] || `Class ${idx}`,
+                score: score
+            })).sort((a, b) => b.score - a.score).slice(0, 5)
+        };
+
+        // Wyślij końcowy status
+        BrowserWindow.getAllWindows().forEach(window => {
+            window.webContents.send('analysis-progress', {
+                status: 'Analysis complete',
+                progress: 1.0,
+                result: finalResult
+            });
+        });
+
+        return finalResult;
+    } catch (error) {
+        console.error('Error in analyzeWithCustomModel:', error);
+        BrowserWindow.getAllWindows().forEach(window => {
+            window.webContents.send('analysis-error', error.message);
+        });
+        throw error;
+    }
+}
 
 ipcMain.on('open-vision', () => {
     visionWindow.create();
@@ -936,6 +1329,302 @@ ipcMain.handle('detect-and-translate', async (event, text) => {
     }
 });
 
+// Dodaj nowy handler do instalacji modelu z Hugging Face
+ipcMain.handle('install-custom-model', async (event, modelUrl) => {
+    try {
+        const result = await ollamaManager.installCustomModel(modelUrl);
+        return result;
+    } catch (error) {
+        console.error('Error installing custom model:', error);
+        throw error;
+    }
+});
+
+// Dodaj handler
+ipcMain.on('open-model-import', () => {
+    modelImportWindow.create();
+});
+
+// Dodaj nowe handlery
+ipcMain.handle('get-custom-models', async () => {
+    return await ollamaManager.getCustomModels();
+});
+
+ipcMain.handle('delete-custom-model', async (event, modelName) => {
+    return await ollamaManager.deleteCustomModel(modelName);
+});
+
+// Dodaj funkcję do sprawdzania i instalacji zależności Pythona
+async function checkAndInstallPythonDependencies() {
+    return new Promise((resolve, reject) => {
+        const requirements = [
+            'torch',
+            'safetensors',
+            'numpy'
+        ];
+
+        // Najpierw sprawdź czy Python jest zainstalowany
+        const checkPython = spawn('python3', ['--version']);
+        
+        checkPython.on('error', () => {
+            dialog.showErrorBox(
+                'Python Not Found',
+                'Python 3 is required but not found. Please install Python 3 from python.org'
+            );
+            reject(new Error('Python not found'));
+        });
+
+        checkPython.on('close', (code) => {
+            if (code === 0) {
+                console.log('Python found, checking dependencies...');
+                
+                // Sprawdź zainstalowane pakiety
+                const pip = spawn('pip3', ['list']);
+                let installedPackages = '';
+
+                pip.stdout.on('data', (data) => {
+                    installedPackages += data.toString();
+                });
+
+                pip.on('close', async () => {
+                    const missingPackages = requirements.filter(pkg => 
+                        !installedPackages.includes(pkg)
+                    );
+
+                    if (missingPackages.length > 0) {
+                        console.log('Installing missing packages:', missingPackages);
+                        
+                        // Pokaż dialog informujący o instalacji
+                        dialog.showMessageBox({
+                            type: 'info',
+                            title: 'Installing Dependencies',
+                            message: `Installing required Python packages: ${missingPackages.join(', ')}`
+                        });
+
+                        // Instaluj brakujące pakiety
+                        const install = spawn('pip3', ['install', ...missingPackages]);
+                        
+                        install.stdout.on('data', (data) => {
+                            console.log('pip install output:', data.toString());
+                        });
+
+                        install.stderr.on('data', (data) => {
+                            console.error('pip install error:', data.toString());
+                        });
+
+                        install.on('close', (code) => {
+                            if (code === 0) {
+                                console.log('Dependencies installed successfully');
+                                resolve();
+                            } else {
+                                const error = new Error('Failed to install dependencies');
+                                dialog.showErrorBox(
+                                    'Installation Failed',
+                                    'Failed to install required Python packages. Please install them manually:\n' +
+                                    missingPackages.map(pkg => `pip3 install ${pkg}`).join('\n')
+                                );
+                                reject(error);
+                            }
+                        });
+                    } else {
+                        console.log('All dependencies already installed');
+                        resolve();
+                    }
+                });
+            } else {
+                reject(new Error('Python check failed'));
+            }
+        });
+    });
+}
+
+// Dodaj funkcję do pobierania ścieżki aplikacji
+function getAppDataPath() {
+    if (process.platform === 'darwin') { // macOS
+        return path.join(app.getPath('userData'), 'PROMPTR');
+    } else if (process.platform === 'win32') { // Windows
+        return path.join(app.getPath('userData'), 'PROMPTR');
+    } else { // Linux
+        return path.join(app.getPath('userData'), 'PROMPTR');
+    }
+}
+
+// Dodaj funkcję do pobierania ścieżki virtual env
+function getVenvPath() {
+    return path.join(getAppDataPath(), 'venv');
+}
+
+// Zmodyfikuj funkcję runPythonScript
+function runPythonScript(scriptPath, args = []) {
+    return new Promise((resolve, reject) => {
+        // Najpierw uruchom skrypt używając systemowego Pythona do utworzenia venv
+        if (scriptPath.endsWith('python_env_manager.py')) {
+            const pythonProcess = spawn('python3', [scriptPath, ...args]);
+            
+            let output = '';
+            let errorOutput = '';
+            
+            pythonProcess.stdout.on('data', (data) => {
+                output += data.toString();
+                console.log('Python output:', data.toString());
+            });
+            
+            pythonProcess.stderr.on('data', (data) => {
+                errorOutput += data.toString();
+                console.error('Python error:', data.toString());
+            });
+            
+            pythonProcess.on('close', (code) => {
+                if (code === 0) {
+                    resolve(output);
+                } else {
+                    reject(new Error(errorOutput || 'Python script failed'));
+                }
+            });
+        } else {
+            // Dla innych skryptów użyj Pythona z venv
+            const venvPython = path.join(getVenvPath(), 
+                process.platform === 'win32' ? 'Scripts\\python.exe' : 'bin/python');
+            
+            console.log('Using Python path:', venvPython);
+            console.log('Running script:', scriptPath);
+            console.log('With args:', args);
+
+            const pythonProcess = spawn(venvPython, [scriptPath, ...args]);
+            
+            let output = '';
+            let errorOutput = '';
+            
+            pythonProcess.stdout.on('data', (data) => {
+                output += data.toString();
+                console.log('Python output:', data.toString());
+            });
+            
+            pythonProcess.stderr.on('data', (data) => {
+                errorOutput += data.toString();
+                console.error('Python error:', data.toString());
+            });
+            
+            pythonProcess.on('error', (error) => {
+                console.error('Failed to start Python process:', error);
+                reject(new Error(`Failed to start Python process: ${error.message}`));
+            });
+            
+            pythonProcess.on('close', (code) => {
+                if (code === 0) {
+                    resolve(output);
+                } else {
+                    reject(new Error(errorOutput || 'Python script failed'));
+                }
+            });
+        }
+    });
+}
+
+// Zmodyfikuj obsługę importu modelu
+ipcMain.on('start-model-import', async (event, modelUrl) => {
+    const sender = event.sender;
+    let downloadResult = null;
+    
+    try {
+        // Step 1: Download
+        sender.send('import-status', {
+            step: 'download',
+            message: 'Starting download...',
+            isActive: true
+        });
+
+        downloadResult = await ollamaManager.installCustomModel(modelUrl, 
+            (progress, downloadedSize, totalSize, fileName) => {
+                sender.send('import-progress', { progress });
+                sender.send('import-status', {
+                    step: 'download',
+                    message: `Downloading ${fileName} (${(downloadedSize / 1024 / 1024).toFixed(1)}MB / ${(totalSize / 1024 / 1024).toFixed(1)}MB)`,
+                    isActive: true
+                });
+            }
+        );
+
+        if (!downloadResult.success) {
+            throw new Error(downloadResult.error || 'Download failed');
+        }
+
+        sender.send('import-status', {
+            step: 'download',
+            message: 'Download complete',
+            isComplete: true
+        });
+
+        // Step 2: Setup Python Environment
+        sender.send('import-status', {
+            step: 'dependencies',
+            message: 'Setting up Python environment...',
+            isActive: true
+        });
+
+        try {
+            // Uruchom setup środowiska Python
+            const envSetupPath = path.join(__dirname, 'python_env_manager.py');
+            await runPythonScript(envSetupPath);
+            
+            sender.send('import-status', {
+                step: 'dependencies',
+                message: 'Dependencies installed successfully',
+                isComplete: true
+            });
+        } catch (envError) {
+            throw new Error(`Failed to setup Python environment: ${envError.message}`);
+        }
+
+        // Step 3: Convert
+        sender.send('import-status', {
+            step: 'convert',
+            message: 'Converting to ONNX...',
+            isActive: true
+        });
+
+        try {
+            const convertScriptPath = path.join(__dirname, 'convert.py');
+            await runPythonScript(convertScriptPath, [downloadResult.path, path.join(downloadResult.path, 'model.onnx')]);
+            
+            sender.send('import-status', {
+                step: 'convert',
+                message: 'Conversion complete',
+                isComplete: true
+            });
+
+            sender.send('import-complete');
+        } catch (convError) {
+            throw new Error(`Conversion failed: ${convError.message}`);
+        }
+
+    } catch (error) {
+        console.error('Import error:', error);
+        sender.send('import-error', error.message);
+        
+        // Cleanup if needed
+        if (downloadResult && downloadResult.path) {
+            try {
+                fs.rmSync(downloadResult.path, { recursive: true, force: true });
+            } catch (cleanupError) {
+                console.error('Cleanup error:', cleanupError);
+            }
+        }
+    }
+});
+
+// Dodaj wywołanie sprawdzenia zależności przy starcie aplikacji
+app.whenReady().then(async () => {
+    try {
+        await checkAndInstallPythonDependencies();
+        createWindow();
+    } catch (error) {
+        console.error('Failed to check/install dependencies:', error);
+        // Kontynuuj uruchamianie aplikacji nawet jeśli instalacja się nie powiedzie
+        createWindow();
+    }
+});
+
 app.whenReady().then(createWindow);
 
 app.on('window-all-closed', () => {
@@ -948,5 +1637,164 @@ app.on('window-all-closed', () => {
 app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
         createWindow();
+    }
+});
+
+async function downloadHuggingFaceFiles(repoId, targetDir, progressCallback) {
+    try {
+        // Usuń przedrostek URL i wyczyść ścieżkę
+        repoId = repoId
+            .replace('https://huggingface.co/', '')
+            .replace('/tree/main', '')
+            .trim();
+        
+        if (repoId.startsWith('@')) {
+            repoId = repoId.substring(1);
+        }
+        
+        console.log('=== Download Process Start ===');
+        console.log('Repository ID:', repoId);
+        console.log('Target directory:', targetDir);
+
+        // Utwórz folder docelowy
+        if (!fs.existsSync(targetDir)) {
+            fs.mkdirSync(targetDir, { recursive: true });
+            console.log('Created target directory');
+        }
+
+        // Pobierz listę plików z API
+        const apiUrl = `https://huggingface.co/api/repos/${repoId}/tree/main`;
+        console.log('Fetching file list from:', apiUrl);
+        
+        const response = await fetch(apiUrl);
+        if (!response.ok) {
+            throw new Error(`Failed to fetch repository content: ${response.status} ${response.statusText}`);
+        }
+
+        const files = await response.json();
+        console.log('\n=== Files in Repository ===');
+        console.log('Found files:', files);
+
+        // Rekurencyjnie pobierz wszystkie pliki
+        const downloadPromises = [];
+        const downloadedFiles = [];
+
+        async function processDirectory(items, currentPath = '') {
+            for (const item of items) {
+                const itemPath = currentPath ? `${currentPath}/${item.path}` : item.path;
+                
+                if (item.type === 'directory') {
+                    // Pobierz zawartość podfolderu
+                    const subDirUrl = `https://huggingface.co/api/repos/${repoId}/tree/main/${itemPath}`;
+                    const subDirResponse = await fetch(subDirUrl);
+                    const subDirContent = await subDirResponse.json();
+                    await processDirectory(subDirContent, itemPath);
+                } else if (item.type === 'file') {
+                    // Utwórz podfoldery jeśli potrzebne
+                    const targetPath = path.join(targetDir, itemPath);
+                    await fs.mkdir(path.dirname(targetPath), { recursive: true });
+
+                    // Dodaj plik do kolejki pobierania
+                    downloadPromises.push(
+                        downloadFile(repoId, itemPath, targetPath, progressCallback)
+                            .then(() => {
+                                downloadedFiles.push(itemPath);
+                                progressCallback(
+                                    (downloadedFiles.length / files.length) * 100,
+                                    downloadedFiles.length,
+                                    files.length,
+                                    itemPath
+                                );
+                            })
+                    );
+                }
+            }
+        }
+
+        await processDirectory(files);
+        await Promise.all(downloadPromises);
+
+        console.log('\n=== Download Complete ===');
+        console.log('Downloaded files:', downloadedFiles);
+        return true;
+
+    } catch (error) {
+        console.error('\n=== Download Error ===');
+        console.error(error);
+        throw error;
+    }
+}
+
+// Dodaj nową funkcję pomocniczą do pobierania pojedynczego pliku
+async function downloadFile(repoId, filePath, targetPath, progressCallback) {
+    const fileUrl = `https://huggingface.co/${repoId}/resolve/main/${filePath}`;
+    console.log(`Downloading: ${filePath}`);
+    console.log(`From: ${fileUrl}`);
+    console.log(`To: ${targetPath}`);
+
+    const response = await fetch(fileUrl);
+    if (!response.ok) {
+        throw new Error(`Failed to download ${filePath}: ${response.status} ${response.statusText}`);
+    }
+
+    const fileStream = fs.createWriteStream(targetPath);
+    const reader = response.body.getReader();
+    const contentLength = parseInt(response.headers.get('content-length') || '0');
+    let downloadedLength = 0;
+
+    while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        downloadedLength += value.length;
+        fileStream.write(Buffer.from(value));
+
+        if (contentLength > 0) {
+            const progress = (downloadedLength / contentLength) * 100;
+            progressCallback(progress, downloadedLength, contentLength, filePath);
+        }
+    }
+
+    fileStream.end();
+    console.log(`Successfully downloaded ${filePath}`);
+}
+
+// Na początku pliku, po importach
+process.on('uncaughtException', (error) => {
+    console.error('Uncaught Exception:', error);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+    console.error('Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
+// Dodaj nową funkcję pomocniczą do sprawdzania statusu Ollama
+async function checkOllamaAvailability() {
+    const status = ollamaManager.getStatus();
+    if (!status.isConnected) {
+        throw new Error('Ollama is not connected');
+    }
+    if (!status.currentModel) {
+        throw new Error('No model selected');
+    }
+    return true;
+}
+
+// Dodaj nowy handler do sprawdzania statusu przed generowaniem
+ipcMain.handle('check-ollama-before-generation', async () => {
+    try {
+        return await checkOllamaAvailability();
+    } catch (error) {
+        console.error('Ollama availability check failed:', error);
+        throw error;
+    }
+});
+
+// Dodaj obsługę anulowania generowania
+ipcMain.on('cancel-generation', async () => {
+    try {
+        await ollamaManager.cancelCurrentGeneration();
+    } catch (error) {
+        console.error('Error cancelling generation:', error);
     }
 }); 

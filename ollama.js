@@ -1,8 +1,96 @@
 const https = require('https');
 const http = require('http');
-const { exec } = require('child_process');
+const { exec, spawn } = require('child_process');
 const { BrowserWindow } = require('electron');
 const configManager = require('./config-manager');
+const fsPromises = require('fs').promises;
+const fs = require('fs');
+const path = require('path');
+const { app } = require('electron');
+const fetch = require('node-fetch');
+
+// Dodaj na początku pliku
+const APP_NAME = 'PROMPTR';
+
+// Zaktualizuj funkcję downloadFile
+async function downloadFile(url, destPath) {
+    return new Promise((resolve, reject) => {
+        const destDir = path.dirname(destPath);
+        fsPromises.mkdir(destDir, { recursive: true })
+            .then(() => {
+                const file = fs.createWriteStream(destPath);
+                https.get(url, {
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (compatible; PROMPTR/1.0)'
+                    }
+                }, response => {
+                    if (response.statusCode === 302 || response.statusCode === 301) {
+                        // Obsługa przekierowania
+                        https.get(response.headers.location, response => {
+                            const totalSize = parseInt(response.headers['content-length'], 10);
+                            let downloadedSize = 0;
+
+                            response.on('data', (chunk) => {
+                                downloadedSize += chunk.length;
+                                const progress = (downloadedSize / totalSize) * 100;
+                                
+                                // Wysyłamy aktualizację postępu
+                                BrowserWindow.getAllWindows().forEach(window => {
+                                    window.webContents.send('model-import-progress', {
+                                        progress: Math.round(progress),
+                                        details: `Downloading... ${Math.round(downloadedSize / 1024 / 1024)}MB / ${Math.round(totalSize / 1024 / 1024)}MB`,
+                                        modelType: 'Vision'
+                                    });
+                                });
+                            });
+
+                            response.pipe(file);
+                            file.on('finish', () => {
+                                file.close();
+                                resolve();
+                            });
+                        }).on('error', err => {
+                            fs.unlink(destPath, () => {
+                                reject(err);
+                            });
+                        });
+                    } else if (response.statusCode !== 200) {
+                        fs.unlink(destPath, () => {
+                            reject(new Error(`Failed to download: ${response.statusCode}`));
+                        });
+                    } else {
+                        const totalSize = parseInt(response.headers['content-length'], 10);
+                        let downloadedSize = 0;
+
+                        response.on('data', (chunk) => {
+                            downloadedSize += chunk.length;
+                            const progress = (downloadedSize / totalSize) * 100;
+                            
+                            // Wysyłamy aktualizację postępu
+                            BrowserWindow.getAllWindows().forEach(window => {
+                                window.webContents.send('model-import-progress', {
+                                    progress: Math.round(progress),
+                                    details: `Downloading... ${Math.round(downloadedSize / 1024 / 1024)}MB / ${Math.round(totalSize / 1024 / 1024)}MB`,
+                                    modelType: 'Vision'
+                                });
+                            });
+                        });
+
+                        response.pipe(file);
+                        file.on('finish', () => {
+                            file.close();
+                            resolve();
+                        });
+                    }
+                }).on('error', err => {
+                    fs.unlink(destPath, () => {
+                        reject(err);
+                    });
+                });
+            })
+            .catch(reject);
+    });
+}
 
 class OllamaManager {
     constructor() {
@@ -19,6 +107,7 @@ class OllamaManager {
         this.availableModels = [];
         this.lastError = null;
         this.startingServer = false;
+        this.currentGeneration = null;
     }
 
     updateEndpoint(endpoint) {
@@ -44,25 +133,52 @@ class OllamaManager {
                 }
             };
 
-            console.log('Making request with options:', requestOptions);
+            console.log('Making request with options:', {
+                url,
+                method: requestOptions.method,
+                headers: requestOptions.headers,
+                body: options.body
+            });
 
             const req = http.request(requestOptions, (res) => {
-                let data = '';
+                let rawData = '';
                 
                 res.on('data', (chunk) => {
-                    data += chunk;
+                    rawData += chunk;
                 });
                 
                 res.on('end', () => {
-                    try {
-                        const jsonData = data ? JSON.parse(data) : {};
+                    // Dla odpowiedzi strumieniowych
+                    if (url.includes('/api/pull') || url.includes('/api/create')) {
+                        const lines = rawData.split('\n').filter(line => line.trim());
+                        const responses = lines.map(line => {
+                            try {
+                                return JSON.parse(line);
+                            } catch (e) {
+                                console.warn('Could not parse line:', line);
+                                return null;
+                            }
+                        }).filter(Boolean);
+
                         resolve({
                             ok: res.statusCode === 200,
                             status: res.statusCode,
-                            json: () => Promise.resolve(jsonData)
+                            responses: responses
                         });
-                    } catch (error) {
-                        reject(error);
+                    } else {
+                        // Dla normalnych odpowiedzi JSON
+                        try {
+                            const jsonData = rawData ? JSON.parse(rawData) : {};
+                            resolve({
+                                ok: res.statusCode === 200,
+                                status: res.statusCode,
+                                json: () => Promise.resolve(jsonData)
+                            });
+                        } catch (error) {
+                            console.error('Error parsing JSON response:', error);
+                            console.log('Raw response:', rawData);
+                            reject(new Error(`Failed to parse JSON response: ${error.message}`));
+                        }
                     }
                 });
             });
@@ -234,7 +350,6 @@ Rules:
 4. Do not use quotes or special formatting
 5. Do not start with phrases like "Here's" or "This is"`;
         } else {
-            // Mapowanie styleId na instrukcje stylu
             const styleInstructions = new Map([
                 ['realistic', "photorealistic, detailed photography, professional camera settings, natural lighting"],
                 ['cinematic', "cinematic shot, movie scene, dramatic lighting, film grain, professional cinematography"],
@@ -249,7 +364,6 @@ Rules:
             ]);
 
             if (!styleInstructions.has(styleId)) {
-                console.error('Unknown style ID:', styleId);
                 throw new Error(`Unknown style: ${styleId}`);
             }
 
@@ -269,7 +383,11 @@ Rules:
             console.log('Generating prompt for style:', styleId);
             console.log('Using prompt template:', stylePrompt);
 
-            const response = await this.makeRequest(`${this.getBaseUrl()}/api/generate`, {
+            // Anuluj poprzednie generowanie jeśli istnieje
+            await this.cancelCurrentGeneration();
+
+            // Zapisz bieżące generowanie
+            this.currentGeneration = this.makeRequest(`${this.getBaseUrl()}/api/generate`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
@@ -287,17 +405,24 @@ Rules:
                 })
             });
 
+            const response = await this.currentGeneration;
+            this.currentGeneration = null;
+
+            if (!response.ok) {
+                throw new Error('Failed to generate prompt');
+            }
+
             const data = await response.json();
-            if (!data.response) {
+            const responseText = data.response || '';
+
+            if (!responseText.trim()) {
                 throw new Error('Empty response from API');
             }
 
             // Bardziej agresywne czyszczenie odpowiedzi
-            let cleanedResponse = data.response
+            let cleanedResponse = responseText
                 .trim()
-                // Usuń wszystkie znaki specjalne z początku i końca
                 .replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9,]+$/g, '')
-                // Usuń typowe frazy wprowadzające
                 .replace(/^["'\s]+|["'\s]+$/g, '')
                 .replace(/^(Here's|I've|This|The|Modified|Enhanced|Let me|Would you).*?[:]/i, '')
                 .replace(/\n+/g, ' ')
@@ -324,139 +449,159 @@ Rules:
 
         } catch (error) {
             console.error('Error generating prompt:', error);
-            if (error.message.includes('Empty response')) {
-                throw new Error('Failed to generate prompt. Please try again.');
-            }
+            this.currentGeneration = null;
             throw error;
         }
     }
 
     async generateTags(text) {
-        if (!this.isConnected || !this.currentModel) {
-            throw new Error('Not connected or no model selected');
+        if (!text || text.trim().length === 0) {
+            throw new Error('No text provided for tag generation');
         }
 
         try {
-            console.log('Generating tags using model:', this.currentModel);
-            const response = await this.makeRequest(`${this.getBaseUrl()}/api/generate`, {
+            // Anuluj poprzednie generowanie jeśli istnieje
+            await this.cancelCurrentGeneration();
+
+            const prompt = `Generate relevant tags for this text. Return only tags separated by commas, without explanations: "${text}"`;
+            
+            // Zapisz bieżące generowanie
+            this.currentGeneration = this.makeRequest(`${this.getBaseUrl()}/api/generate`, {
                 method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
                 body: JSON.stringify({
                     model: this.currentModel,
-                    prompt: `Generate additional descriptive tags for image generation that are NOT already present in the input text. Return only new, unique tags as a comma-separated list.
-
-Input text: "${text}"
-
-Rules:
-1. Return ONLY new tags that are NOT in the input text
-2. Separate tags with commas
-3. Include style descriptors, artistic techniques, lighting, mood, and composition
-4. Focus on enhancing the visual description
-5. Return at least 10-15 relevant tags
-6. Do not repeat words from the input
-7. Do not include explanations or metadata`,
+                    prompt: prompt,
+                    system: "You are a tag generator. Return ONLY tags separated by commas, without any additional text or explanations.",
                     stream: false,
                     options: {
                         temperature: 0.7,
-                        stop: ["\n", "Here", "Tags", "The", "Note", "Remember", ":", "\"", "'"]
+                        num_predict: 100,
+                        stop: ["\n", ".", "Here", "Tags"],
                     }
                 })
             });
+
+            const response = await this.currentGeneration;
+            this.currentGeneration = null;
 
             if (!response.ok) {
                 throw new Error('Failed to generate tags');
             }
 
             const data = await response.json();
-            console.log('Raw API response:', data);
-
-            if (!data.response) {
+            const responseText = data.response || '';
+            
+            if (!responseText.trim()) {
                 throw new Error('Empty response from API');
             }
 
-            // Pobierz słowa z oryginalnego tekstu
-            const inputWords = new Set(text.toLowerCase().split(/[,\s]+/).map(word => word.trim()));
-
-            // Czyść i przetwórz odpowiedź
-            const tags = data.response
+            // Wyczyść i przetwórz tagi
+            const cleanedResponse = responseText
                 .trim()
-                .replace(/^(tags:|here are the tags:|extracted tags:|key tags:)/i, '')
+                .replace(/^(Here are|The tags|Tags:|Suggested tags:|Generated tags:)/i, '')
+                .replace(/["'`]/g, '')
+                .replace(/\.$/, '');
+
+            const tags = cleanedResponse
                 .split(',')
                 .map(tag => tag.trim())
-                .filter(tag => tag.length > 0 && tag.length < 50)
-                .filter(tag => !inputWords.has(tag.toLowerCase())) // Usuń tagi które są w oryginalnym tekście
-                .filter(Boolean) // usuwa puste stringi
-                .filter((tag, index, self) => self.indexOf(tag) === index); // usuń duplikaty
+                .filter(tag => tag.length > 0 && !tag.includes('\n'));
 
-            console.log('Processed tags:', tags);
+            if (tags.length === 0) {
+                throw new Error('No valid tags generated');
+            }
+
+            console.log('Generated tags:', tags);
             return tags;
+
         } catch (error) {
-            console.error('Error generating tags:', error);
+            console.error('Error in generateTags:', error);
+            this.currentGeneration = null;
             throw error;
         }
     }
 
-    async analyzeImage(imageData, systemPrompt, analysisType = 'content') {
+    async analyzeImage(imageData, systemPrompt, analysisType = 'content', useCustomModel = false, customModelName = null) {
         try {
-            if (!this.isConnected || !this.visionModel) {
-                throw new Error('Not connected or no vision model selected');
-            }
+            if (useCustomModel) {
+                // Użyj custom modelu
+                const customModelsDir = path.join(app.getPath('userData'), APP_NAME, 'custom-models');
+                const modelDir = path.join(customModelsDir, customModelName);
+                const configPath = path.join(modelDir, 'promptr_config.json');
+                
+                try {
+                    const configData = await fsPromises.readFile(configPath, 'utf8');
+                    const config = JSON.parse(configData);
+                    
+                    // Tutaj możesz użyć własnej logiki analizy obrazu dla custom modelu
+                    // Na razie zwróćmy przykładowy opis
+                    return `Image analysis using custom model: ${config.displayName}\n\n` +
+                           `This is a placeholder response for custom model analysis. ` +
+                           `The actual implementation would use the model files from: ${modelDir}`;
+                } catch (error) {
+                    throw new Error(`Failed to load custom model configuration: ${error.message}`);
+                }
+            } else {
+                // Użyj Ollama
+                if (!this.isConnected) {
+                    throw new Error('Not connected to Ollama');
+                }
 
-            let base64Image = imageData;
-            if (imageData.startsWith('data:')) {
-                base64Image = imageData.split(',')[1];
-            }
+                const modelToUse = this.visionModel;
+                if (!modelToUse) {
+                    throw new Error('No vision model selected in Ollama');
+                }
 
-            // Dostosuj prompt i parametry w zależności od typu analizy
-            let prompt, numPredict;
-            if (analysisType === 'style') {
-                prompt = `Focus ONLY on the artistic style of this image. Describe:
+                let base64Image = imageData;
+                if (imageData.startsWith('data:')) {
+                    base64Image = imageData.split(',')[1];
+                }
+
+                let prompt;
+                if (analysisType === 'style') {
+                    prompt = `Focus ONLY on the artistic style of this image. Describe:
 - Art style (realistic, cartoon, anime, etc.)
 - Color palette and mood
 - Lighting and composition
 - Artistic techniques used
 Keep it brief and concise. Do not describe the content or subjects in the image.`;
-                numPredict = 300; // Krótsza odpowiedź dla stylu
-            } else if (analysisType === 'detailed') {
-                prompt = systemPrompt || "Provide a detailed description of everything you see in this image.";
-                numPredict = 1000; // Dłuższa odpowiedź dla szczegółowego opisu
-            } else {
-                prompt = "Briefly describe what you see in this image. Focus on the main elements and overall composition.";
-                numPredict = 300; // Krótsza odpowiedź dla standardowej analizy
+                } else if (analysisType === 'detailed') {
+                    prompt = systemPrompt || "Provide a detailed description of everything you see in this image.";
+                } else {
+                    prompt = "Briefly describe what you see in this image. Focus on the main elements and overall composition.";
+                }
+
+                const response = await this.makeRequest(`${this.getBaseUrl()}/api/generate`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        model: modelToUse,
+                        prompt: prompt,
+                        images: [base64Image],
+                        stream: false,
+                        options: {
+                            temperature: 0.7,
+                            num_predict: analysisType === 'detailed' ? 1000 : 300,
+                        }
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                if (!data.response) {
+                    throw new Error('Empty response from Ollama API');
+                }
+
+                return data.response.trim();
             }
-
-            const response = await this.makeRequest(`${this.getBaseUrl()}/api/generate`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    model: this.visionModel,
-                    prompt: prompt,
-                    images: [base64Image],
-                    stream: false,
-                    options: {
-                        temperature: 0.7,
-                        num_predict: numPredict,
-                    }
-                })
-            });
-
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
-            }
-
-            const data = await response.json();
-            if (!data.response) {
-                throw new Error('Empty response from Ollama API');
-            }
-
-            // Wyczyść i sformatuj odpowiedź
-            let cleanedResponse = data.response
-                .trim()
-                .replace(/^(Here's|I see|In this image|The image shows)/i, '')
-                .trim();
-
-            return cleanedResponse;
         } catch (error) {
             console.error('Error in analyzeImage:', error);
             throw error;
@@ -562,82 +707,62 @@ Keep it brief and concise. Do not describe the content or subjects in the image.
 
     async detectAndTranslateText(text) {
         try {
-            // Najpierw sprawdź czy tekst wygląda na angielski
-            const englishWordPattern = /^[a-zA-Z\s,\.!?\-'"]+$/;
-            if (englishWordPattern.test(text)) {
-                console.log('Text appears to be English, skipping translation');
+            // Sprawdź ustawienia
+            const settings = require('./settings-manager').getSettings();
+            if (!settings.autoTranslate) {
+                console.log('Translation is disabled in settings');
                 return {
                     isTranslated: false,
                     originalText: text,
                     translatedText: text,
-                    originalLanguage: 'en'
+                    originalLanguage: 'unknown'
                 };
             }
 
-            // Użyj Google Translate API tylko dla tekstów, które nie wyglądają na angielskie
-            const response = await fetch('https://translation.googleapis.com/language/translate/v2/detect', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                },
-                body: JSON.stringify({
-                    q: text,
-                    key: 'AIzaSyBOti4mM-6x9WDnZIjIeyEU21OpBXqWBgw'
-                })
-            });
-
-            if (!response.ok) {
-                throw new Error('Language detection failed');
-            }
-
-            const detectionResult = await response.json();
-            const detectedLanguage = detectionResult.data.detections[0][0].language;
-            console.log('Detected language:', detectedLanguage);
-
-            // Jeśli wykryto angielski, nie tłumacz
-            if (detectedLanguage === 'en') {
+            // Sprawdź czy tekst jest pusty
+            if (!text || text.trim().length === 0) {
                 return {
                     isTranslated: false,
                     originalText: text,
                     translatedText: text,
-                    originalLanguage: 'en'
+                    originalLanguage: 'unknown'
                 };
             }
 
-            // Tłumacz tylko jeśli to na pewno nie jest angielski
-            const translateResponse = await fetch('https://translation.googleapis.com/language/translate/v2', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'Accept': 'application/json',
-                },
-                body: JSON.stringify({
-                    q: text,
-                    source: detectedLanguage,
-                    target: 'en',
-                    key: 'AIzaSyBOti4mM-6x9WDnZIjIeyEU21OpBXqWBgw'
-                })
-            });
+            console.log('Starting translation process...');
 
-            if (!translateResponse.ok) {
-                throw new Error('Translation failed');
-            }
-
-            const translationResult = await translateResponse.json();
-            return {
-                isTranslated: true,
-                originalText: text,
-                translatedText: translationResult.data.translations[0].translatedText,
-                originalLanguage: detectedLanguage
-            };
-        } catch (error) {
-            console.error('Error in detectAndTranslateText:', error);
+            // Użyj Google Translate API z parametrami w URL
+            const encodedText = encodeURIComponent(text);
+            const translateUrl = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=auto&tl=en&dt=t&q=${encodedText}`;
             
-            // Fallback do Ollama tylko jeśli tekst nie wygląda na angielski
+            console.log('Using Google Translate API...');
+
             try {
-                const englishWordPattern = /^[a-zA-Z\s,\.!?\-'"]+$/;
-                if (englishWordPattern.test(text)) {
+                const response = await fetch(translateUrl, {
+                    method: 'GET',
+                    headers: {
+                        'Accept': 'application/json',
+                        'User-Agent': 'Mozilla/5.0'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`Translation API error: ${response.status}`);
+                }
+
+                const data = await response.json();
+                
+                // Format odpowiedzi to: [[["tłumaczenie","oryginalny tekst",""]],,"język"]
+                if (!data || !data[0] || !data[0][0] || !data[0][0][0]) {
+                    throw new Error('Invalid translation response format');
+                }
+
+                const translatedText = data[0][0][0];
+                const detectedLanguage = data[2] || 'unknown';
+
+                // Jeśli wykryto angielski lub tłumaczenie jest identyczne z oryginałem
+                if (detectedLanguage === 'en' || translatedText.toLowerCase().trim() === text.toLowerCase().trim()) {
+                    console.log('Text is already in English or no translation needed');
                     return {
                         isTranslated: false,
                         originalText: text,
@@ -646,62 +771,39 @@ Keep it brief and concise. Do not describe the content or subjects in the image.
                     };
                 }
 
-                if (!this.isConnected || !this.currentModel) {
-                    throw new Error('Ollama is not connected');
-                }
-
-                // Najpierw wykryj język
-                const languageResponse = await this.makeRequest(`${this.getBaseUrl()}/api/generate`, {
-                    method: 'POST',
-                    body: JSON.stringify({
-                        model: this.currentModel,
-                        prompt: `Detect the language of this text and respond ONLY with language code (en, pl, de, etc): "${text}"`,
-                        stream: false,
-                        options: {
-                            temperature: 0.1,
-                            stop: ["\n", "Language", "The", "Code"]
-                        }
-                    })
+                console.log('Translation completed:', {
+                    from: detectedLanguage,
+                    original: text,
+                    translated: translatedText
                 });
 
-                const languageData = await languageResponse.json();
-                const detectedLanguage = languageData.response.trim().toLowerCase();
+                return {
+                    isTranslated: true,
+                    originalText: text,
+                    translatedText: translatedText,
+                    originalLanguage: detectedLanguage
+                };
 
-                // Jeśli to nie angielski, przetłumacz
-                if (detectedLanguage !== 'en') {
-                    const translationResponse = await this.makeRequest(`${this.getBaseUrl()}/api/generate`, {
-                        method: 'POST',
-                        body: JSON.stringify({
-                            model: this.currentModel,
-                            prompt: `Translate this text to English. Return ONLY the translation without any additional text:
-"${text}"`,
-                            stream: false,
-                            options: {
-                                temperature: 0.3,
-                                stop: ["\n", "Translation", "Here"]
-                            }
-                        })
-                    });
-
-                    const translationData = await translationResponse.json();
-                    return {
-                        isTranslated: true,
-                        originalText: text,
-                        translatedText: translationData.response.trim(),
-                        originalLanguage: detectedLanguage
-                    };
-                }
-
+            } catch (error) {
+                console.error('Translation API error:', error);
                 return {
                     isTranslated: false,
                     originalText: text,
                     translatedText: text,
-                    originalLanguage: 'en'
+                    originalLanguage: 'unknown',
+                    error: error.message
                 };
-            } catch (fallbackError) {
-                console.error('Fallback translation error:', fallbackError);
-                throw new Error('Translation failed with both services');
             }
+
+        } catch (error) {
+            console.error('Translation error:', error);
+            return {
+                isTranslated: false,
+                originalText: text,
+                translatedText: text,
+                originalLanguage: 'unknown',
+                error: error.message
+            };
         }
     }
 
@@ -723,27 +825,322 @@ Keep it brief and concise. Do not describe the content or subjects in the image.
                 return [];
             }
 
-            // Lista modeli do pominięcia (modele do kodowania)
+            // Lista modeli do pominięcia
             const excludedModels = ['codellama'];
 
             // Przetwórz wszystkie modele
             const modelNames = data.models
                 .map(model => model.name)
                 .filter(name => {
-                    // Pomiń modele do kodowania
                     const baseName = name.split(':')[0].toLowerCase();
                     return !excludedModels.includes(baseName);
                 })
-                .filter((name, index, self) => {
-                    // Usuń duplikaty, ale zachowaj warianty z tagami
-                    return self.indexOf(name) === index;
-                });
+                .filter((name, index, self) => self.indexOf(name) === index);
 
             console.log('Processed installed models:', modelNames);
             return modelNames;
         } catch (error) {
             console.error('Error getting installed models:', error);
             return [];
+        }
+    }
+
+    async installCustomModel(inputUrl, progressCallback) {
+        try {
+            // Sprawdź czy URL jest poprawny
+            if (!inputUrl.includes('huggingface.co')) {
+                throw new Error('Invalid model URL. Must be a Hugging Face model URL.');
+            }
+
+            // Ekstrakcja nazwy modelu i autora z URL
+            const urlParts = inputUrl.split('/');
+            const modelName = urlParts.pop();
+            const author = urlParts.pop();
+            
+            // Utworzenie pełnej nazwy modelu
+            const fullModelName = `${author}/${modelName}`;
+            
+            // Utwórz ścieżkę do katalogu modelu
+            const customModelsDir = path.join(app.getPath('userData'), APP_NAME, 'custom-models', modelName);
+            await fsPromises.mkdir(customModelsDir, { recursive: true });
+
+            // Pobierz konfigurację modelu z Hugging Face
+            const configUrl = `https://huggingface.co/${author}/${modelName}/raw/main/config.json`;
+            const modelFileUrl = `https://huggingface.co/${author}/${modelName}/resolve/main/model.safetensors`;
+            
+            // Ścieżki lokalne
+            const configPath = path.join(customModelsDir, 'config.json');
+            const modelPath = path.join(customModelsDir, 'model.safetensors');
+            const promprConfigPath = path.join(customModelsDir, 'promptr_config.json');
+
+            // Pobierz config.json
+            await downloadFile(configUrl, configPath);
+
+            // Pobierz model.safetensors z monitorowaniem postępu
+            await new Promise((resolve, reject) => {
+                const modelFile = fs.createWriteStream(modelPath);
+                https.get(modelFileUrl, {
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (compatible; PROMPTR/1.0)'
+                    }
+                }, response => {
+                    if (response.statusCode === 302 || response.statusCode === 301) {
+                        // Obsługa przekierowania
+                        https.get(response.headers.location, response => {
+                            const totalSize = parseInt(response.headers['content-length'], 10);
+                            let downloadedSize = 0;
+
+                            response.on('data', (chunk) => {
+                                downloadedSize += chunk.length;
+                                const progress = (downloadedSize / totalSize) * 100;
+                                if (progressCallback) {
+                                    progressCallback(Math.round(progress), downloadedSize, totalSize);
+                                }
+                            });
+
+                            response.pipe(modelFile);
+                            modelFile.on('finish', () => {
+                                modelFile.close();
+                                resolve();
+                            });
+                        }).on('error', err => {
+                            fs.unlink(modelPath, () => reject(err));
+                        });
+                    } else if (response.statusCode !== 200) {
+                        reject(new Error(`Failed to download: ${response.statusCode}`));
+                    } else {
+                        const totalSize = parseInt(response.headers['content-length'], 10);
+                        let downloadedSize = 0;
+
+                        response.on('data', (chunk) => {
+                            downloadedSize += chunk.length;
+                            const progress = (downloadedSize / totalSize) * 100;
+                            if (progressCallback) {
+                                progressCallback(Math.round(progress), downloadedSize, totalSize);
+                            }
+                        });
+
+                        response.pipe(modelFile);
+                        modelFile.on('finish', () => {
+                            modelFile.close();
+                            resolve();
+                        });
+                    }
+                }).on('error', err => {
+                    fs.unlink(modelPath, () => reject(err));
+                });
+            });
+
+            // Utwórz plik konfiguracyjny PROMPTR
+            const promprConfig = {
+                name: modelName,
+                author: author,
+                displayName: `${author}/${modelName}`,
+                type: 'Custom',
+                importDate: new Date().toISOString()
+            };
+
+            await fsPromises.writeFile(
+                promprConfigPath,
+                JSON.stringify(promprConfig, null, 2)
+            );
+
+            return {
+                success: true,
+                modelName: fullModelName,
+                path: customModelsDir
+            };
+
+        } catch (error) {
+            console.error('Error installing custom model:', error);
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    }
+
+    // Dodaj metodę do sprawdzania czy model jest customowy
+    isCustomModel(modelName) {
+        return modelName.startsWith('custom_');
+    }
+
+    getCustomModelsPath() {
+        return path.join(app.getPath('userData'), APP_NAME, 'custom-models');
+    }
+
+    async getCustomModels() {
+        try {
+            const customModelsDir = this.getCustomModelsPath();
+            console.log('Custom models directory:', customModelsDir);
+            
+            await fsPromises.mkdir(customModelsDir, { recursive: true });
+            const entries = await fsPromises.readdir(customModelsDir, { withFileTypes: true });
+            
+            const models = [];
+            for (const entry of entries) {
+                if (entry.isDirectory()) {
+                    const configPath = path.join(customModelsDir, entry.name, 'promptr_config.json');
+                    try {
+                        const configData = await fsPromises.readFile(configPath, 'utf8');
+                        const config = JSON.parse(configData);
+                        models.push({
+                            ...config,
+                            fullPath: path.join(customModelsDir, entry.name)
+                        });
+                    } catch (e) {
+                        console.warn(`Could not read config for ${entry.name}:`, e);
+                    }
+                }
+            }
+            
+            console.log('Found custom models:', models);
+            return models;
+        } catch (error) {
+            console.error('Error getting custom models:', error);
+            return [];
+        }
+    }
+
+    async deleteCustomModel(modelName) {
+        try {
+            // Usuń pliki modelu
+            const customModelsDir = path.join(app.getPath('userData'), APP_NAME, 'custom-models');
+            const modelDir = path.join(customModelsDir, modelName);
+            await fsPromises.rm(modelDir, { recursive: true, force: true });
+            
+            return true;
+        } catch (error) {
+            console.error('Error deleting custom model:', error);
+            throw error;
+        }
+    }
+
+    async convertModelToONNX(modelPath) {
+        try {
+            // Ścieżki plików
+            const safetensorsPath = path.join(modelPath, 'model.safetensors');
+            const onnxPath = path.join(modelPath, 'model.onnx');
+            
+            // Zaktualizowany skrypt Python
+            const pythonScript = `
+import torch
+from safetensors import safe_open
+import os
+
+def convert_safetensors_to_onnx(safetensors_path, onnx_path):
+    try:
+        # Wczytaj model z safetensors
+        with safe_open(safetensors_path, framework="pt", device="cpu") as f:
+            tensors = {k: f.get_tensor(k) for k in f.keys()}
+        
+        # Utwórz model PyTorch
+        class SimpleModel(torch.nn.Module):
+            def __init__(self, tensors):
+                super().__init__()
+                # Zamień kropki na podkreślenia w nazwach parametrów
+                self.tensors = torch.nn.ParameterDict({
+                    k.replace('.', '_'): torch.nn.Parameter(v) 
+                    for k, v in tensors.items()
+                })
+            
+            def forward(self, x):
+                # Przykładowa implementacja forward pass
+                # Dostosuj to do rzeczywistej architektury modelu
+                for tensor in self.tensors.values():
+                    if tensor.shape[-2:] == x.shape[-2:]:
+                        return tensor * x
+                return x
+
+        model = SimpleModel(tensors)
+        model.eval()
+
+        # Przykładowe dane wejściowe
+        dummy_input = torch.randn(1, 3, 224, 224)
+
+        # Eksportuj do ONNX
+        torch.onnx.export(
+            model,
+            dummy_input,
+            onnx_path,
+            export_params=True,
+            opset_version=11,
+            do_constant_folding=True,
+            input_names=['input'],
+            output_names=['output'],
+            dynamic_axes={'input': {0: 'batch_size'},
+                         'output': {0: 'batch_size'}}
+        )
+
+        # Usuń plik safetensors po udanej konwersji
+        if os.path.exists(onnx_path):
+            os.remove(safetensors_path)
+            return True
+        return False
+    except Exception as e:
+        print(f"Error during conversion: {str(e)}")
+        return False
+
+try:
+    success = convert_safetensors_to_onnx("${safetensorsPath}", "${onnxPath}")
+    print("SUCCESS" if success else "FAILED")
+except Exception as e:
+    print(f"Error: {str(e)}")
+    print("FAILED")
+`;
+
+            // Zapisz skrypt tymczasowo
+            const scriptPath = path.join(modelPath, 'convert.py');
+            await fsPromises.writeFile(scriptPath, pythonScript);
+
+            // Uruchom konwersję
+            return new Promise((resolve, reject) => {
+                const pythonProcess = spawn('python3', [scriptPath]);
+                
+                let output = '';
+                let errorOutput = '';
+
+                pythonProcess.stdout.on('data', (data) => {
+                    output += data.toString();
+                    console.log('Python output:', data.toString());
+                });
+
+                pythonProcess.stderr.on('data', (data) => {
+                    errorOutput += data.toString();
+                    console.error('Python error:', data.toString());
+                });
+
+                pythonProcess.on('close', async (code) => {
+                    // Usuń tymczasowy skrypt
+                    await fsPromises.unlink(scriptPath).catch(console.error);
+                    
+                    if (code !== 0 || !output.includes('SUCCESS')) {
+                        reject(new Error(errorOutput || 'Conversion failed'));
+                    } else {
+                        resolve(true);
+                    }
+                });
+            });
+        } catch (error) {
+            console.error('Error converting model:', error);
+            throw error;
+        }
+    }
+
+    // Dodaj metodę do anulowania generowania
+    async cancelCurrentGeneration() {
+        console.log('Cancelling current generation');
+        if (this.currentGeneration) {
+            try {
+                // Anuluj bieżące żądanie
+                await this.makeRequest(`${this.getBaseUrl()}/api/generate`, {
+                    method: 'DELETE'
+                });
+                this.currentGeneration = null;
+                console.log('Generation cancelled successfully');
+            } catch (error) {
+                console.error('Error cancelling generation:', error);
+            }
         }
     }
 }

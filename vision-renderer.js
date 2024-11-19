@@ -23,6 +23,7 @@ const analysisResult = document.querySelector('.analysis-result');
 const regenerateButton = document.getElementById('regenerate');
 const regenerateDetailedButton = document.getElementById('regenerate-detailed');
 const useButton = document.getElementById('use');
+const modelSelect = document.getElementById('model-select');
 
 // Obsługa przeciągania
 dropZone.addEventListener('dragover', (e) => {
@@ -58,46 +59,82 @@ selectButton.addEventListener('click', () => {
     input.click();
 });
 
-// Funkcja analizy obrazu
-async function analyzeImage(detailed = false) {
-    if (!selectedImage) return;
-    
+// Funkcja ładowania dostępnych modeli
+async function loadAvailableModels() {
     try {
-        analyzeButton.disabled = true;
-        analyzeButton.style.display = 'none';
-        analysisSection.style.display = 'block';
-        analysisResult.innerHTML = `
-            <div class="analyzing">
-                <div class="analyzing-spinner"></div>
-                <span>Analyzing...</span>
-            </div>
-        `;
+        // Pobierz modele Ollama
+        const ollamaModels = await ipcRenderer.invoke('get-available-models');
+        const visionModels = ollamaModels.filter(model => 
+            model.type === 'Vision' && model.installed
+        );
         
-        console.log('Sending image for analysis... Source:', analysisSource);
-        const result = await ipcRenderer.invoke('analyze-image', selectedImage, detailed);
-        console.log('Analysis result:', result);
+        // Pobierz custom modele
+        const customModels = await ipcRenderer.invoke('get-custom-models');
+        const customVisionModels = customModels.filter(model => model.type === 'Vision');
         
-        if (result) {
-            lastAnalysisResult = result;
-            showAnalysisResult(result);
-        } else {
-            throw new Error('No analysis result received');
-        }
+        // Połącz wszystkie modele
+        const allModels = [
+            ...visionModels.map(model => ({
+                ...model,
+                isCustom: false,
+                displayName: model.name
+            })),
+            ...customVisionModels.map(model => ({
+                id: model.name,
+                name: model.displayName,
+                type: 'Vision',
+                isCustom: true,
+                displayName: `${model.displayName} (Custom)`
+            }))
+        ];
+        
+        modelSelect.innerHTML = '<option value="">Select analysis model</option>';
+        allModels.forEach(model => {
+            const option = document.createElement('option');
+            option.value = model.id;
+            option.dataset.isCustom = model.isCustom;
+            option.textContent = model.displayName;
+            modelSelect.appendChild(option);
+        });
     } catch (error) {
-        console.error('Error analyzing image:', error);
-        analysisResult.innerHTML = `<div class="error">Error analyzing image: ${error.message}</div>`;
+        console.error('Error loading models:', error);
     }
 }
 
-// Funkcja pokazująca wynik analizy
-function showAnalysisResult(result) {
-    analysisResult.textContent = result;
-    analysisSection.style.display = 'block';
-    analyzeButton.style.display = 'none';
+// Zaktualizuj funkcję analizy obrazu
+async function analyzeImage(imageData, type) {
+    try {
+        const selectedOption = modelSelect.selectedOptions[0];
+        if (!selectedOption) {
+            throw new Error('Please select a model first');
+        }
+
+        const modelId = selectedOption.value;
+        const isCustomModel = selectedOption.dataset.isCustom === 'true';
+        
+        console.log('Analyzing with model:', {
+            modelId,
+            isCustomModel,
+            type
+        });
+        
+        const result = await ipcRenderer.invoke(
+            'analyze-image',
+            imageData,
+            type,
+            isCustomModel,
+            modelId
+        );
+        
+        return result;
+    } catch (error) {
+        console.error('Error analyzing image:', error);
+        throw error;
+    }
 }
 
 // Obsługa przycisku analizy
-analyzeButton.addEventListener('click', () => analyzeImage(false));
+analyzeButton.addEventListener('click', () => analyzeImage(selectedImage, analysisSource));
 
 // Obsługa przycisku Regenerate Detailed
 regenerateDetailedButton.addEventListener('click', () => {
@@ -107,7 +144,7 @@ regenerateDetailedButton.addEventListener('click', () => {
             <span>Analyzing...</span>
         </div>
     `;
-    analyzeImage(true);
+    analyzeImage(selectedImage, analysisSource, true);
 });
 
 // Zaktualizuj obsługę zwykłego przycisku Regenerate
@@ -118,7 +155,7 @@ regenerateButton.addEventListener('click', () => {
             <span>Analyzing...</span>
         </div>
     `;
-    analyzeImage(false);
+    analyzeImage(selectedImage, analysisSource, false);
 });
 
 // Obsługa przycisku użycia wyniku
@@ -147,4 +184,12 @@ function handleImageSelection(file) {
         analyzeButton.style.display = 'block';
     };
     reader.readAsDataURL(file);
-} 
+}
+
+// Dodaj wywołanie loadAvailableModels przy starcie
+document.addEventListener('DOMContentLoaded', loadAvailableModels);
+
+// Dodaj obsługę zmiany modelu
+modelSelect.addEventListener('change', () => {
+    analyzeButton.disabled = !selectedImage || !modelSelect.value;
+}); 
