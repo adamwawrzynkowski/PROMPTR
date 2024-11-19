@@ -2,43 +2,64 @@
 <html>
 <head>
     <title>Ollama Configuration</title>
-    <link rel="stylesheet" href="config.css">
+    <link rel="stylesheet" href="config-window.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
-    <div class="title-bar">
-        <div class="title">Ollama Configuration</div>
-        <div class="close-button">×</div>
+    <div class="titlebar">
+        <div class="titlebar-title">Ollama Configuration</div>
+        <button class="close-button">
+            <i class="fas fa-times"></i>
+        </button>
     </div>
-    
-    <div class="container">
+    <div class="config-container">
         <div class="status-section">
-            <div class="status-indicator">
-                <i class="fas fa-plug"></i>
-                <span class="status-text">Checking connection...</span>
+            <div class="status-header">
+                <h3>Connection Status</h3>
+                <button class="refresh-btn">
+                    <i class="fas fa-sync-alt"></i>
+                </button>
             </div>
-            <button id="refresh-btn">
-                <i class="fas fa-sync-alt"></i>
-                Refresh
-            </button>
+            <div class="status-content">
+                <div class="status-item">
+                    <i class="fas fa-circle"></i>
+                    <span class="status-text">Checking connection...</span>
+                </div>
+            </div>
         </div>
 
-        <div class="config-section">
-            <h3>Text Generation Model</h3>
-            <select id="model-select" class="model-select">
-                <option value="">Select a model</option>
-            </select>
-            
-            <h3>Vision Model</h3>
-            <select id="vision-model-select" class="model-select">
-                <option value="">Select a vision model</option>
-            </select>
-            
-            <div class="buttons">
-                <button id="save-btn" class="save-btn" disabled>
-                    <i class="fas fa-save"></i>
-                    Save Configuration
-                </button>
+        <div class="models-section">
+            <div class="section-header">
+                <h3>Available Models</h3>
+                <div class="model-actions">
+                    <button class="refresh-models-btn">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                </div>
+            </div>
+            <div class="models-list">
+                <!-- Template dla modelu -->
+                <template id="model-item-template">
+                    <div class="model-item" data-model="">
+                        <div class="model-info">
+                            <span class="model-name"></span>
+                            <span class="model-tag"></span>
+                        </div>
+                        <div class="model-progress" style="display: none;">
+                            <div class="progress-bar">
+                                <div class="progress-fill"></div>
+                            </div>
+                            <div class="progress-text">0%</div>
+                            <div class="model-status"></div>
+                        </div>
+                        <div class="model-action">
+                            <button class="download-button">
+                                <i class="fas fa-download"></i>
+                                Download
+                            </button>
+                        </div>
+                    </div>
+                </template>
             </div>
         </div>
     </div>

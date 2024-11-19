@@ -1245,3 +1245,122 @@ input, button, textarea, [role="button"] {
     from { opacity: 0; transform: translateY(-10px); }
     to { opacity: 1; transform: translateY(0); }
 }
+
+/* Style dla paska postępu modelu */
+.model-progress {
+    margin-top: 10px;
+    background: var(--button-background);
+    border-radius: 4px;
+    overflow: hidden;
+    height: 4px;
+}
+
+.model-progress .progress-fill {
+    height: 100%;
+    background: var(--accent-color);
+    width: 0;
+    transition: width 0.3s ease;
+}
+
+.model-status {
+    margin-top: 5px;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.model-status.error {
+    color: var(--error-color);
+}
+
+.progress-text {
+    font-size: 12px;
+    color: var(--text-secondary);
+    text-align: right;
+    margin-top: 2px;
+}
+
+.status-details {
+    font-size: 12px;
+    color: var(--text-secondary);
+    margin-top: 5px;
+}
+
+.status-details.error {
+    color: var(--error-color);
+}
+
+/* Style dla okna postępu pobierania modelu */
+.model-progress-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 9999;
+}
+
+.model-progress-content {
+    background: var(--card-background);
+    border-radius: 12px;
+    padding: 24px;
+    width: 400px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+    border: 1px solid var(--border);
+}
+
+.model-progress-header {
+    margin-bottom: 20px;
+    text-align: center;
+}
+
+.model-progress-header h3 {
+    margin: 0;
+    color: var(--text);
+    font-size: 18px;
+    font-weight: 500;
+}
+
+.model-name {
+    color: var(--text-secondary);
+    font-size: 14px;
+    margin-top: 4px;
+}
+
+.model-progress-bar {
+    height: 6px;
+    background: var(--button-background);
+    border-radius: 3px;
+    overflow: hidden;
+    margin: 20px 0;
+}
+
+.model-progress-bar .progress-fill {
+    height: 100%;
+    background: var(--accent-color);
+    width: 0;
+    transition: width 0.3s ease;
+}
+
+.model-progress-details {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    color: var(--text-secondary);
+    font-size: 14px;
+    margin-bottom: 12px;
+}
+
+.model-status-message {
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 14px;
+    margin-top: 12px;
+}
+
+.download-status {
+    font-size: 12px;
+}

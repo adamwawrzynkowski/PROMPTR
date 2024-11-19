@@ -660,4 +660,83 @@ document.addEventListener('DOMContentLoaded', async () => {
             }
         });
     }
+
+    // Dodaj w sekcji event listenerów
+    ipcRenderer.on('model-install-progress', (event, data) => {
+        console.log('Received model install progress:', data);
+        updateModelProgress(data);
+    });
+
+    // Dodaj nasłuchiwanie na zakończenie instalacji
+    ipcRenderer.on('model-install-complete', (event, data) => {
+        console.log('Model installation completed:', data);
+        updateModelProgress({
+            modelName: data.modelName,
+            progress: 100,
+            status: 'Installation completed',
+            downloadedSize: 0,
+            totalSize: 0
+        });
+        showToast('Model installed successfully');
+    });
+
+    // Dodaj nasłuchiwanie na błędy instalacji
+    ipcRenderer.on('model-install-error', (event, error) => {
+        console.error('Model installation error:', error);
+        const modelCard = document.querySelector(`[data-model="${error.modelName}"]`);
+        if (modelCard) {
+            const statusText = modelCard.querySelector('.model-status');
+            if (statusText) {
+                statusText.textContent = `Error: ${error.message || 'Installation failed'}`;
+                statusText.classList.add('error');
+            }
+        }
+        showToast('Model installation failed: ' + (error.message || 'Unknown error'));
+    });
+
+    // Funkcja do aktualizacji postępu pobierania modelu
+    function updateModelProgress(data) {
+        const overlay = document.getElementById('model-progress-overlay');
+        const modelName = overlay.querySelector('.model-name');
+        const progressBar = overlay.querySelector('.progress-fill');
+        const progressPercentage = overlay.querySelector('.progress-percentage');
+        const downloadedSize = overlay.querySelector('.downloaded-size');
+        const totalSize = overlay.querySelector('.total-size');
+        const statusMessage = overlay.querySelector('.model-status-message');
+
+        // Pokaż overlay
+        overlay.style.display = 'flex';
+
+        // Aktualizuj nazwę modelu
+        if (data.modelName) {
+            modelName.textContent = data.modelName;
+        }
+
+        // Aktualizuj pasek postępu
+        if (data.progress !== undefined) {
+            progressBar.style.width = `${data.progress}%`;
+            progressPercentage.textContent = `${Math.round(data.progress)}%`;
+        }
+
+        // Aktualizuj rozmiary
+        if (data.downloadedSize && data.totalSize) {
+            const downloadedGB = (data.downloadedSize / (1024 * 1024 * 1024)).toFixed(2);
+            const totalGB = (data.totalSize / (1024 * 1024 * 1024)).toFixed(2);
+            downloadedSize.textContent = `${downloadedGB} GB`;
+            totalSize.textContent = `${totalGB} GB`;
+        }
+
+        // Aktualizuj status
+        if (data.status) {
+            statusMessage.textContent = data.status;
+        }
+
+        // Jeśli pobieranie zakończone
+        if (data.progress >= 100) {
+            setTimeout(() => {
+                overlay.style.display = 'none';
+                showToast('Model installed successfully');
+            }, 1000);
+        }
+    }
 });

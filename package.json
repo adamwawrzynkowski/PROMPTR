@@ -1,17 +1,49 @@
 {
-  "name": "prompt-enhancer",
-  "version": "1.0.0",
+  "name": "promptr",
+  "version": "0.9.0",
+  "description": "AI-powered prompt editor for Stable Diffusion",
+  "author": {
+    "name": "Adam Wawrzynkowski"
+  },
   "main": "main.js",
   "scripts": {
-    "start": "webpack --mode development && electron .",
-    "dev": "concurrently \"webpack --watch --mode development\" \"electron .\"",
-    "build": "webpack --mode production && electron-builder"
+    "start": "electron .",
+    "dev": "electron .",
+    "build": "electron-builder",
+    "pack": "electron-builder --dir",
+    "dist": "electron-builder"
+  },
+  "build": {
+    "appId": "com.promptr.app",
+    "productName": "PROMPTR",
+    "mac": {
+      "category": "public.app-category.graphics-design",
+      "icon": "assets/icon.icns",
+      "target": ["dmg", "zip"],
+      "darkModeSupport": true
+    },
+    "files": [
+      "**/*",
+      "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
+      "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}",
+      "!**/node_modules/*.d.ts",
+      "!**/node_modules/.bin",
+      "!**/*.{iml,o,hprof,orig,pyc,pyo,rbc,swp,csproj,sln,xproj}",
+      "!.editorconfig",
+      "!**/._*",
+      "!**/{.DS_Store,.git,.hg,.svn,CVS,RCS,SCCS,.gitignore,.gitattributes}",
+      "!**/{__pycache__,thumbs.db,.flowconfig,.idea,.vs,.nyc_output}",
+      "!**/{appveyor.yml,.travis.yml,circle.yml}",
+      "!**/{npm-debug.log,yarn.lock,.yarn-integrity,.yarn-metadata.json}"
+    ],
+    "directories": {
+      "buildResources": "assets"
+    }
   },
   "dependencies": {
     "@emotion/react": "^11.11.0",
     "@emotion/styled": "^11.11.0",
     "@heroicons/react": "^2.1.5",
-    "electron": "^28.1.0",
     "framer-motion": "^10.12.16",
     "node-fetch": "^2.6.1",
     "onnxruntime-node": "^1.16.0",
@@ -26,9 +58,12 @@
     "babel-loader": "^9.1.2",
     "concurrently": "^8.0.1",
     "css-loader": "^6.8.1",
+    "electron": "^28.1.0",
     "electron-builder": "^24.4.0",
+    "electron-reload": "^2.0.0-alpha.1",
     "style-loader": "^3.3.3",
     "webpack": "^5.85.0",
     "webpack-cli": "^5.1.1"
-  }
+  },
+  "license": "MIT"
 }

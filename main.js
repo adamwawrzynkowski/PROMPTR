@@ -22,6 +22,7 @@ const { PythonShell } = require('python-shell');
 const ort = require('onnxruntime-node');
 const { spawn } = require('child_process');
 const https = require('https');
+const dependenciesWindow = require('./dependencies-window');
 
 // Usuń niepotrzebne importy
 // const ort = require('onnxruntime-node');
@@ -272,43 +273,71 @@ async function checkOllamaConnection() {
     }
 }
 
+// Dodaj funkcję sprawdzania zależności
+async function checkDependencies() {
+    const dependencies = {
+        ollama: false,
+        python: false
+    };
+
+    // Sprawdź Ollama
+    try {
+        const ollamaEndpoint = await findOllamaPort();
+        dependencies.ollama = !!ollamaEndpoint;
+    } catch (error) {
+        console.error('Error checking Ollama:', error);
+    }
+
+    // Sprawdź Python
+    try {
+        await new Promise((resolve, reject) => {
+            exec('python3 --version', (error, stdout, stderr) => {
+                if (error) {
+                    reject(error);
+                } else {
+                    resolve(stdout);
+                }
+            });
+        });
+        dependencies.python = true;
+    } catch (error) {
+        console.error('Error checking Python:', error);
+    }
+
+    return dependencies;
+}
+
+// Zmodyfikuj funkcję createWindow
 async function createWindow() {
     console.log('Creating main window...');
     const startup = startupWindow.create();
     
-    mainWindow = new BrowserWindow({
-        width: 1200,
-        height: 800,
-        webPreferences: {
-            nodeIntegration: true,
-            contextIsolation: false,
-            enableRemoteModule: true,
-            backgroundThrottling: false,
-            offscreen: false,
-            enableHardwareAcceleration: true
-        },
-        frame: false,
-        transparent: true,
-        titleBarStyle: 'hidden',
-        backgroundColor: '#00000000',
-        show: false,
-        paintWhenInitiallyHidden: true
-    });
-
-    // Załaduj główne okno od razu
-    mainWindow.loadFile('index.html');
-
-    // Wyślij wersję do okna startowego po załadowaniu
     startup.webContents.on('did-finish-load', () => {
         startup.webContents.send('app-version', APP_VERSION);
         startup.webContents.send('startup-progress', { 
             step: 0,
-            status: 'Initializing...' 
+            status: 'Checking dependencies...' 
         });
     });
 
     try {
-        // Próba połączenia z Ollamą
+        // Sprawdź zależności
+        const dependencies = await checkDependencies();
+        console.log('Dependencies check result:', dependencies);
+        
+        if (!dependencies.ollama || !dependencies.python) {
+            console.log('Missing dependencies:', dependencies);
+            startup.close();
+            
+            const depWindow = dependenciesWindow.create();
+            depWindow.webContents.on('did-finish-load', () => {
+                depWindow.webContents.send('dependencies-status', dependencies);
+            });
+            
+            return;
+        }
+
+        // Kontynuuj normalne uruchamianie aplikacji
         startup.webContents.send('startup-progress', { 
             step: 1,
             status: 'Connecting to Ollama...' 
@@ -317,69 +346,81 @@ async function createWindow() {
         const status = await checkOllamaConnection();
         console.log('Ollama connection status:', status);
 
-        // Kontynuuj niezależnie od statusu połączenia
+        if (!status.isConnected) {
+            console.log('Ollama not connected, showing config window');
+            startup.close();
+            configWindow.create();
+            return;
+        }
+
         startup.webContents.send('startup-progress', { 
             step: 2,
             status: 'Starting application...' 
         });
 
-        // Krótkie opóźnienie dla pokazania komunikatu
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // Utwórz główne okno tylko jeśli wszystkie zależności są dostępne i Ollama jest połączone
+        if (!mainWindow) {
+            mainWindow = new BrowserWindow({
+                width: 1200,
+                height: 800,
+                webPreferences: {
+                    nodeIntegration: true,
+                    contextIsolation: false,
+                    enableRemoteModule: true,
+                    backgroundThrottling: false
+                },
+                frame: false,
+                transparent: true,
+                titleBarStyle: 'hidden',
+                backgroundColor: '#00000000'
+            });
 
-        // Zastosuj ustawienia
-        const currentSettings = settingsManager.getSettings();
-        if (currentSettings && currentSettings.theme) {
-            await themeManager.applyTheme(currentSettings.theme, mainWindow);
+            // Załaduj główne okno
+            await mainWindow.loadFile('index.html');
+
+            // Zastosuj ustawienia
+            const currentSettings = settingsManager.getSettings();
+            if (currentSettings && currentSettings.theme) {
+                await themeManager.applyTheme(currentSettings.theme, mainWindow);
+            }
+
+            // Rozpocznij okresowe sprawdzanie połączenia
+            connectionCheckInterval = setInterval(async () => {
+                try {
+                    const status = await checkOllamaConnection();
+                    const serializedStatus = {
+                        isConnected: !!status.isConnected,
+                        currentModel: status.currentModel || null,
+                        error: status.error || null
+                    };
+
+                    BrowserWindow.getAllWindows().forEach(window => {
+                        if (!window.isDestroyed()) {
+                            try {
+                                window.webContents.send('ollama-status', serializedStatus);
+                            } catch (error) {
+                                console.error('Error sending status to window:', error);
+                            }
+                        }
+                    });
+                } catch (error) {
+                    console.error('Error in connection check interval:', error);
+                }
+            }, 5000);
         }
 
         // Pokaż główne okno i zamknij startowe
         mainWindow.show();
         startup.close();
 
-        // Natychmiast sprawdź i wyślij status Ollama
-        const initialStatus = await checkOllamaConnection();
-        const serializedStatus = {
-            isConnected: !!initialStatus.isConnected,
-            currentModel: initialStatus.currentModel || null,
-            error: initialStatus.error || null
-        };
-        mainWindow.webContents.send('ollama-status', serializedStatus);
-
-        // Rozpocznij okresowe sprawdzanie połączenia
-        connectionCheckInterval = setInterval(async () => {
-            try {
-                const status = await checkOllamaConnection();
-                const serializedStatus = {
-                    isConnected: !!status.isConnected,
-                    currentModel: status.currentModel || null,
-                    error: status.error || null
-                };
-
-                BrowserWindow.getAllWindows().forEach(window => {
-                    if (!window.isDestroyed()) {
-                        try {
-                            window.webContents.send('ollama-status', serializedStatus);
-                        } catch (error) {
-                            console.error('Error sending status to window:', error);
-                        }
-                    }
-                });
-            } catch (error) {
-                console.error('Error in connection check interval:', error);
-            }
-        }, 5000);
-
     } catch (error) {
         console.error('Error during startup:', error);
-        
-        // W przypadku błędu, pokaż komunikat i kontynuuj
         startup.webContents.send('startup-error', error.message);
         
         // Krótkie opóźnienie na pokazanie błędu
         await new Promise(resolve => setTimeout(resolve, 2000));
         
-        // Mimo błędu, uruchom aplikację
-        mainWindow.show();
+        // Zamknij okno startowe w przypadku błędu
         startup.close();
     }
 }
@@ -1177,7 +1218,22 @@ ipcMain.handle('refresh-ollama-status', async () => {
 
 ipcMain.handle('delete-model', async (event, modelName) => {
     try {
-        await ollamaManager.deleteModel(modelName);
+        console.log('Deleting model:', modelName);
+        const response = await fetch(`${ollamaManager.getBaseUrl()}/api/delete`, {
+            method: 'DELETE',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                name: modelName
+            })
+        });
+
+        if (!response.ok) {
+            const errorData = await response.json().catch(() => ({}));
+            throw new Error(`Failed to delete model: ${response.status} - ${errorData.error || 'Unknown error'}`);
+        }
+
         return true;
     } catch (error) {
         console.error('Error deleting model:', error);
@@ -1796,5 +1852,134 @@ ipcMain.on('cancel-generation', async () => {
         await ollamaManager.cancelCurrentGeneration();
     } catch (error) {
         console.error('Error cancelling generation:', error);
+    }
+});
+
+// Dodaj handler do restartu aplikacji
+ipcMain.on('restart-app', () => {
+    app.relaunch();
+    app.exit();
+});
+
+// Dodaj nowy handler do instalacji modelu
+ipcMain.handle('install-model', async (event, modelName) => {
+    try {
+        console.log('Starting model installation:', modelName);
+        
+        // Sprawdź czy model jest już zainstalowany
+        const isAvailable = await ollamaManager.checkModelAvailability(modelName);
+        if (isAvailable) {
+            console.log('Model already installed:', modelName);
+            event.sender.send('model-install-progress', {
+                progress: 100,
+                status: 'Model already installed',
+                downloadedSize: 0,
+                totalSize: 0
+            });
+            return true;
+        }
+
+        // Wyślij żądanie instalacji do Ollama z obsługą streamu
+        const baseUrl = ollamaManager.getBaseUrl();
+        console.log('Sending pull request to:', baseUrl);
+
+        const response = await fetch(`${baseUrl}/api/pull`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                name: modelName,
+                stream: true
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to install model: ${response.status} ${response.statusText}`);
+        }
+
+        console.log('Pull request successful, starting download...');
+
+        // Czytaj stream odpowiedzi
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let downloadedSize = 0;
+        let totalSize = 0;
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) {
+                console.log('Download completed');
+                event.sender.send('model-install-complete', {
+                    message: 'Model installed successfully'
+                });
+                break;
+            }
+
+            // Dekoduj chunk i podziel na linie
+            const chunk = decoder.decode(value, { stream: true });
+            const lines = chunk.split('\n').filter(line => line.trim());
+
+            for (const line of lines) {
+                try {
+                    const data = JSON.parse(line);
+                    console.log('Progress data:', data);
+                    
+                    // Aktualizuj postęp
+                    if (data.total) {
+                        totalSize = data.total;
+                    }
+                    if (data.completed) {
+                        downloadedSize = data.completed;
+                    }
+
+                    // Wyślij aktualizację postępu do interfejsu
+                    if (totalSize > 0) {
+                        const progress = Math.round((downloadedSize / totalSize) * 100);
+                        event.sender.send('model-install-progress', {
+                            modelName,
+                            progress,
+                            status: data.status,
+                            downloadedSize,
+                            totalSize,
+                            digest: data.digest
+                        });
+                        console.log('Sent progress update:', progress);
+                    }
+                } catch (error) {
+                    console.error('Error parsing progress data:', error);
+                }
+            }
+        }
+
+        return true;
+
+    } catch (error) {
+        console.error('Error installing model:', error);
+        event.sender.send('model-install-error', {
+            modelName,
+            message: error.message
+        });
+        return false;
+    }
+});
+
+// Dodaj handler do sprawdzania dostępności modelu
+ipcMain.handle('check-model-availability', async (event, modelName) => {
+    try {
+        return await ollamaManager.checkModelAvailability(modelName);
+    } catch (error) {
+        console.error('Error checking model availability:', error);
+        throw error;
+    }
+});
+
+// Dodaj handler do pobierania listy zainstalowanych modeli
+ipcMain.handle('get-installed-models', async () => {
+    try {
+        return await ollamaManager.getInstalledModels();
+    } catch (error) {
+        console.error('Error getting installed models:', error);
+        throw error;
     }
 }); 

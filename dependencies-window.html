@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Missing Dependencies</title>
+    <link rel="stylesheet" href="dependencies-window.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <div class="titlebar">
+        <div class="titlebar-title">Missing Dependencies</div>
+        <button class="close-button">
+            <i class="fas fa-times"></i>
+        </button>
+    </div>
+    <div class="dependencies-container">
+        <div class="status-section">
+            <div class="status-item" id="ollama-status">
+                <i class="fas fa-circle"></i>
+                <span class="status-text">Ollama</span>
+                <button class="install-btn" data-url="https://ollama.ai">
+                    <i class="fas fa-download"></i>
+                    Download
+                </button>
+            </div>
+            <div class="status-item" id="python-status">
+                <i class="fas fa-circle"></i>
+                <span class="status-text">Python 3</span>
+                <button class="install-btn" data-url="https://www.python.org/downloads/">
+                    <i class="fas fa-download"></i>
+                    Download
+                </button>
+            </div>
+        </div>
+        <div class="instructions">
+            <h3>Installation Instructions</h3>
+            <div class="instruction-section">
+                <h4>Ollama</h4>
+                <ol>
+                    <li>Download Ollama from the official website</li>
+                    <li>Run the installer</li>
+                    <li>Follow the installation wizard</li>
+                    <li>Start Ollama after installation</li>
+                </ol>
+            </div>
+            <div class="instruction-section">
+                <h4>Python</h4>
+                <ol>
+                    <li>Download Python 3 from python.org</li>
+                    <li>Run the installer</li>
+                    <li>Make sure to check "Add Python to PATH"</li>
+                    <li>Complete the installation</li>
+                </ol>
+            </div>
+        </div>
+        <div class="actions">
+            <button id="check-again-btn" class="action-button primary">
+                <i class="fas fa-sync-alt"></i>
+                Check Again
+            </button>
+        </div>
+    </div>
+    <script src="dependencies-renderer.js"></script>
+</body>
+</html> 

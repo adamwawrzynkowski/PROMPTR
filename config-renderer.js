@@ -335,4 +335,79 @@ async function deleteCustomModel(modelName) {
         }
     }
 }
+
+// Funkcja do aktualizacji postępu pobierania modelu
+function updateModelProgress(modelName, progress, status) {
+    console.log('Updating progress for model:', modelName, progress, status);
+    
+    const modelItem = document.querySelector(`[data-model="${modelName}"]`);
+    if (!modelItem) {
+        console.error('Model item not found:', modelName);
+        return;
+    }
+
+    const progressSection = modelItem.querySelector('.model-progress');
+    const progressFill = modelItem.querySelector('.progress-fill');
+    const progressText = modelItem.querySelector('.progress-text');
+    const statusText = modelItem.querySelector('.model-status');
+    const downloadButton = modelItem.querySelector('.download-button');
+
+    // Pokaż sekcję postępu
+    if (progressSection) {
+        progressSection.style.display = 'block';
+    }
+
+    // Aktualizuj pasek postępu
+    if (progressFill) {
+        progressFill.style.width = `${progress}%`;
+    }
+
+    // Aktualizuj tekst procentowy
+    if (progressText) {
+        progressText.textContent = `${Math.round(progress)}%`;
+    }
+
+    // Aktualizuj status
+    if (statusText && status) {
+        statusText.textContent = status;
+    }
+
+    // Wyłącz przycisk podczas pobierania
+    if (downloadButton) {
+        downloadButton.disabled = progress > 0 && progress < 100;
+    }
+
+    // Jeśli pobieranie zakończone
+    if (progress >= 100) {
+        setTimeout(() => {
+            refreshModels(); // Odśwież listę modeli
+        }, 1000);
+    }
+}
+
+// Nasłuchiwanie na postęp instalacji
+ipcRenderer.on('model-install-progress', (event, data) => {
+    console.log('Model installation progress:', data);
+    if (data.modelName) {
+        const progress = Math.round((data.downloadedSize / data.totalSize) * 100);
+        const status = `Downloading: ${(data.downloadedSize / 1024 / 1024 / 1024).toFixed(2)}GB / ${(data.totalSize / 1024 / 1024 / 1024).toFixed(2)}GB`;
+        updateModelProgress(data.modelName, progress, status);
+    }
+});
+
+// Nasłuchiwanie na zakończenie instalacji
+ipcRenderer.on('model-install-complete', (event, data) => {
+    console.log('Model installation completed:', data);
+    if (data.modelName) {
+        updateModelProgress(data.modelName, 100, 'Installation completed');
+    }
+});
+
+// Nasłuchiwanie na błędy instalacji
+ipcRenderer.on('model-install-error', (event, error) => {
+    console.error('Model installation error:', error);
+    if (error.modelName) {
+        updateModelProgress(error.modelName, 0, `Error: ${error.message}`);
+    }
+});
  
