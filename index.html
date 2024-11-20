@@ -5,24 +5,46 @@
     <title>Prompt Editor</title>
     <link rel="stylesheet" href="styles.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     <link rel="stylesheet" href="history.css">
 </head>
 <body>
-    <div class="titlebar">
-        <div class="titlebar-logo">
+    <div class="title-bar">
+        <div class="window-controls">
+            <button class="window-control close" id="close-btn">
+                <i class="fas fa-times"></i>
+            </button>
+            <button class="window-control minimize" id="minimize-btn">
+                <i class="fas fa-minus"></i>
+            </button>
+            <button class="window-control maximize" id="maximize-btn">
+                <i class="fas fa-expand"></i>
+            </button>
+        </div>
+        <div class="title-bar-logo">
             PROMPTR
             <span class="titlebar-version">v0.9 Beta</span>
+            <div class="title-bar-support">
+                <div class="coffee-button" title="Buy me a coffee">
+                    <i class="fas fa-coffee"></i>
+                    <div class="tooltip">Buy me a coffee</div>
+                </div>
+                <div class="credits-button" title="Credits">
+                    <i class="fas fa-info-circle"></i>
+                    <div class="tooltip">Credits</div>
+                </div>
+            </div>
         </div>
-        <div class="titlebar-items">
-            <div class="titlebar-item connection-status" id="connection-btn">
+        <div class="title-bar-items">
+            <div class="title-bar-item connection-status" id="connection-btn">
                 <i class="fas fa-plug"></i>
                 <div class="tooltip">Disconnected</div>
             </div>
-            <div class="titlebar-item history" id="history-btn">
+            <div class="title-bar-item history" id="history-btn">
                 <i class="fas fa-clock-rotate-left"></i>
                 <div class="tooltip">History</div>
             </div>
-            <div class="titlebar-item settings" id="settings-btn">
+            <div class="title-bar-item settings" id="settings-btn">
                 <i class="fas fa-gear"></i>
                 <div class="tooltip">Settings</div>
             </div>

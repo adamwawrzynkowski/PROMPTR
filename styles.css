@@ -36,12 +36,14 @@ html, body {
     width: 100%;
     height: 100%;
     background: var(--background);
-    border-radius: 10px;
+    border-radius: 0;
     display: flex;
     flex-direction: column;
     padding: 1rem;
     overflow: hidden;
     isolation: isolate;
+    margin-top: 38px;
+    height: calc(100vh - 38px);
 }
 
 .app-container::before {
@@ -133,27 +135,27 @@ html, body {
 }
 
 .titlebar-item {
-    width: 28px;
-    height: 28px;
+    width: 32px;
+    height: 32px;
     display: flex;
     align-items: center;
     justify-content: center;
     border-radius: 6px;
     cursor: pointer;
-    transition: all 0.2s ease;
     color: var(--text-secondary);
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     position: relative;
 }
 
 .titlebar-item:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--button-hover);
     color: var(--text);
     transform: translateY(-1px);
 }
 
 .titlebar-item i {
-    font-size: 14px;
-    transition: transform 0.2s ease;
+    font-size: 16px;
+    transition: transform 0.3s ease;
 }
 
 .titlebar-item:hover i {
@@ -191,10 +193,10 @@ html, body {
 
 /* Animacja dla historii */
 .history:hover i {
-    animation: spin 0.5s ease;
+    animation: rotate 0.5s ease;
 }
 
-@keyframes spin {
+@keyframes rotate {
     0% {
         transform: rotate(0deg);
     }
@@ -205,7 +207,7 @@ html, body {
 
 /* Animacja dla ustawień */
 .settings:hover i {
-    animation: gear 3s linear infinite;
+    animation: gear 2s linear infinite;
 }
 
 @keyframes gear {
@@ -552,23 +554,26 @@ input, button, textarea, [role="button"] {
 
 .tooltip {
     position: absolute;
-    top: 100%;
+    top: calc(100% + 5px);
     left: 50%;
     transform: translateX(-50%);
-    background: var(--tooltip-background);
-    color: var(--tooltip-text);
-    padding: 4px 8px;
+    background: var(--card-background);
+    color: var(--text);
+    padding: 6px 10px;
     border-radius: 4px;
     font-size: 12px;
     white-space: nowrap;
-    pointer-events: none;
     opacity: 0;
-    transition: opacity 0.2s ease;
-    margin-top: 5px;
+    visibility: hidden;
+    transition: all 0.2s ease;
+    border: 1px solid var(--border);
+    pointer-events: none;
+    z-index: 1000;
 }
 
-.titlebar-item:hover .tooltip {
+.title-bar-item:hover .tooltip {
     opacity: 1;
+    visibility: visible;
 }
 
 /* Dodaj do istniejących styli */
@@ -1363,4 +1368,226 @@ input, button, textarea, [role="button"] {
 
 .download-status {
     font-size: 12px;
+}
+
+/* Dodaj nowe style */
+.coffee-button {
+    -webkit-app-region: no-drag;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    margin-right: 8px;
+    cursor: pointer;
+    color: var(--text-color);
+    opacity: 0.8;
+    transition: opacity 0.2s ease;
+}
+
+.coffee-button:hover {
+    opacity: 1;
+}
+
+.coffee-button i {
+    font-size: 16px;
+}
+
+/* Zaktualizuj style title-bar */
+.title-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 38px;
+    background: var(--background);
+    display: flex;
+    align-items: center;
+    padding: 0;
+    -webkit-app-region: drag;
+    z-index: 1000;
+    border-bottom: 1px solid var(--border);
+}
+
+/* Style dla kontrolek okna - przesuń bardziej w lewo */
+.window-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-left: 5px;
+    -webkit-app-region: no-drag;
+}
+
+/* Style dla logo - ustaw za przyciskami */
+.title-bar-logo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text);
+    letter-spacing: 2px;
+    user-select: none;
+    margin-left: 25px;
+}
+
+/* Style dla prawej strony title bara */
+.title-bar-items {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    margin-left: auto;
+    margin-right: 15px;
+    -webkit-app-region: no-drag;
+}
+
+/* Style dla sekcji wsparcia - teraz obok logo */
+.title-bar-support {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    margin-left: 12px;
+    -webkit-app-region: no-drag;
+}
+
+/* Style dla przycisków kawy i credits */
+.coffee-button, .credits-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    cursor: pointer;
+    color: var(--text-color);
+    opacity: 0.7;
+    transition: all 0.2s ease;
+    position: relative;
+}
+
+.coffee-button:hover, .credits-button:hover {
+    opacity: 1;
+    background: var(--button-hover);
+}
+
+.coffee-button i, .credits-button i {
+    font-size: 14px;
+}
+
+/* Zaktualizuj style dla tooltipów przycisków kawy i credits */
+.coffee-button .tooltip, .credits-button .tooltip {
+    position: absolute;
+    top: 45px; /* Ustaw pozycję nad polem promptu */
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--card-background);
+    color: var(--text);
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.2s ease;
+    border: 1px solid var(--border);
+    pointer-events: none;
+    z-index: 1000;
+}
+
+.coffee-button:hover .tooltip, .credits-button:hover .tooltip {
+    opacity: 1;
+    visibility: visible;
+    top: 40px; /* Lekko przesuń w górę przy hover dla efektu */
+}
+
+/* Dodaj strzałkę do tooltipa */
+.coffee-button .tooltip::after, .credits-button .tooltip::after {
+    content: '';
+    position: absolute;
+    top: -4px;
+    left: 50%;
+    transform: translateX(-50%) rotate(45deg);
+    width: 8px;
+    height: 8px;
+    background: var(--card-background);
+    border-left: 1px solid var(--border);
+    border-top: 1px solid var(--border);
+}
+
+/* Napraw nakładanie się history panel na title bar */
+.history-panel {
+    position: fixed;
+    right: 0;
+    top: 0;
+    height: 100vh;
+    width: 300px;
+    background: var(--background);
+    border-left: 1px solid var(--border);
+    transform: translateX(100%);
+    transition: transform 0.3s ease;
+    z-index: 899;
+    box-shadow: -2px 0 10px rgba(0, 0, 0, 0.2);
+    display: flex;
+    flex-direction: column;
+}
+
+.history-panel.open {
+    transform: translateX(0);
+}
+
+/* Dodaj style dla nagłówka historii */
+.history-header {
+    height: 38px;
+    min-height: 38px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 15px;
+    border-bottom: 1px solid var(--border);
+    background: var(--background);
+    margin-top: 38px;
+}
+
+/* Style dla zawartości historii */
+.history-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 15px;
+}
+
+/* Specjalne animacje dla poszczególnych przycisków */
+.title-bar-item.connection-status:hover i {
+    animation: pulse 1s infinite;
+}
+
+.title-bar-item.history:hover i {
+    animation: rotate 0.5s ease;
+}
+
+.title-bar-item.settings:hover i {
+    animation: gear 2s linear infinite;
+}
+
+/* Animacje */
+@keyframes pulse {
+    0% { transform: scale(1); }
+    50% { transform: scale(1.1); }
+    100% { transform: scale(1); }
+}
+
+@keyframes rotate {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+@keyframes gear {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Specyficzne style dla przycisków funkcyjnych */
+.title-bar-item.connection-status,
+.title-bar-item.history,
+.title-bar-item.settings {
+    cursor: pointer;
 }

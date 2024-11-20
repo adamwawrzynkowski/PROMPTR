@@ -1,0 +1,129 @@
+.credits-container {
+    background: var(--background);
+    border-radius: 10px;
+    overflow: hidden;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.credits-header {
+    padding: 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 1px solid var(--border);
+    -webkit-app-region: drag;
+}
+
+.credits-header h2 {
+    margin: 0;
+    font-size: 18px;
+    color: var(--text);
+}
+
+.credits-content {
+    padding: 20px;
+    overflow-y: auto;
+    flex: 1;
+}
+
+.credits-section {
+    margin-bottom: 25px;
+}
+
+.credits-section h3 {
+    color: var(--text);
+    margin-bottom: 10px;
+    font-size: 16px;
+}
+
+.credits-section p {
+    color: var(--text-secondary);
+    margin: 5px 0;
+    font-size: 14px;
+}
+
+.support-link {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px;
+    background: var(--button-background);
+    border-radius: 6px;
+    color: var(--text);
+    text-decoration: none;
+    transition: all 0.2s ease;
+}
+
+.support-link:hover {
+    background: var(--button-hover);
+    transform: translateY(-1px);
+}
+
+.credits-section ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.credits-section ul li {
+    color: var(--text-secondary);
+    padding: 5px 0;
+    font-size: 14px;
+}
+
+.testers-section {
+    text-align: center;
+}
+
+.heart-container {
+    margin: 15px 0;
+    font-size: 24px;
+    color: #ff4f8b;
+}
+
+.heart-container i {
+    animation: heartbeat 1.5s ease infinite;
+}
+
+.testers-list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 10px;
+}
+
+.testers-list li {
+    color: var(--text-secondary);
+    padding: 8px;
+    border-radius: 6px;
+    background: var(--button-background);
+    transition: all 0.3s ease;
+}
+
+.testers-list li:hover {
+    color: var(--text);
+    background: var(--button-hover);
+    transform: translateY(-2px);
+}
+
+@keyframes heartbeat {
+    0% {
+        transform: scale(1);
+    }
+    25% {
+        transform: scale(1.1);
+    }
+    50% {
+        transform: scale(1);
+    }
+    75% {
+        transform: scale(1.1);
+    }
+    100% {
+        transform: scale(1);
+    }
+} 

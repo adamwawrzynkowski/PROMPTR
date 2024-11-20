@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
 const http = require('http');
 const ollamaManager = require('./ollama');
@@ -23,6 +23,7 @@ const ort = require('onnxruntime-node');
 const { spawn } = require('child_process');
 const https = require('https');
 const dependenciesWindow = require('./dependencies-window');
+const creditsWindow = require('./credits-window');
 
 // Usuń niepotrzebne importy
 // const ort = require('onnxruntime-node');
@@ -367,11 +368,13 @@ async function createWindow() {
                     nodeIntegration: true,
                     contextIsolation: false,
                     enableRemoteModule: true,
-                    backgroundThrottling: false
+                    backgroundThrottling: false,
+                    allowRunningInsecureContent: true
                 },
                 frame: false,
                 transparent: true,
                 titleBarStyle: 'hidden',
+                trafficLightPosition: { x: -100, y: -100 },
                 backgroundColor: '#00000000'
             });
 
@@ -423,6 +426,14 @@ async function createWindow() {
         // Zamknij okno startowe w przypadku błędu
         startup.close();
     }
+
+    mainWindow.on('maximize', () => {
+        mainWindow.webContents.send('window-state-change', true);
+    });
+
+    mainWindow.on('unmaximize', () => {
+        mainWindow.webContents.send('window-state-change', false);
+    });
 }
 
 // Event handlers
@@ -1982,4 +1993,33 @@ ipcMain.handle('get-installed-models', async () => {
         console.error('Error getting installed models:', error);
         throw error;
     }
+});
+
+// Dodaj nowy handler IPC
+ipcMain.on('open-credits', () => {
+    creditsWindow.create();
+});
+
+// Dodaj nowe handlery IPC
+ipcMain.on('minimize-window', () => {
+    const win = BrowserWindow.getFocusedWindow();
+    if (win) win.minimize();
+});
+
+ipcMain.on('maximize-window', () => {
+    const win = BrowserWindow.getFocusedWindow();
+    if (win) {
+        if (win.isMaximized()) {
+            win.unmaximize();
+            win.webContents.send('window-state-change', false);
+        } else {
+            win.maximize();
+            win.webContents.send('window-state-change', true);
+        }
+    }
+});
+
+ipcMain.on('close-window', () => {
+    const win = BrowserWindow.getFocusedWindow();
+    if (win) win.close();
 }); 

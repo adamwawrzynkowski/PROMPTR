@@ -1,6 +1,28 @@
 const { ipcRenderer } = require('electron');
 
 document.addEventListener('DOMContentLoaded', async () => {
+    // Dodaj obsługę przycisków kontrolnych okna
+    document.getElementById('minimize-btn').addEventListener('click', () => {
+        ipcRenderer.send('minimize-window');
+    });
+
+    document.getElementById('maximize-btn').addEventListener('click', () => {
+        ipcRenderer.send('maximize-window');
+    });
+
+    document.getElementById('close-btn').addEventListener('click', () => {
+        ipcRenderer.send('close-window');
+    });
+
+    // Aktualizuj ikonę maximize/restore
+    ipcRenderer.on('window-state-change', (event, isMaximized) => {
+        const maximizeBtn = document.getElementById('maximize-btn');
+        if (maximizeBtn) {
+            maximizeBtn.querySelector('i').className = isMaximized ? 
+                'fas fa-compress' : 'fas fa-expand';
+        }
+    });
+
     // Zmienne globalne
     const tagsContainer = document.getElementById('tags-container');
     const mainPromptInput = document.getElementById('prompt-input');
@@ -739,4 +761,14 @@ document.addEventListener('DOMContentLoaded', async () => {
             }, 1000);
         }
     }
+
+    // Zaktualizuj obsługę przycisku kawy
+    document.querySelector('.coffee-button').addEventListener('click', () => {
+        require('electron').shell.openExternal('https://buymeacoffee.com/a_wawrzynkowski');
+    });
+
+    // Dodaj w sekcji event listenerów
+    document.querySelector('.credits-button').addEventListener('click', () => {
+        ipcRenderer.send('open-credits');
+    });
 });
