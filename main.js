@@ -30,7 +30,7 @@ const creditsWindow = require('./credits-window');
 // const { InferenceSession, Tensor } = ort;
 
 // Zmień wersję aplikacji
-const APP_VERSION = 'v0.9 Beta';
+const APP_VERSION = 'v1.0';
 
 // Dodaj na początku pliku, gdzie są inne stałe
 const DRAW_THINGS_PATH = '/Applications/Draw Things.app';
@@ -132,65 +132,18 @@ async function checkDrawThingsStatus(port = null) {
     });
 }
 
-// Zmodyfikuj funkcję findOllamaPort
+// Zoptymalizuj funkcję findOllamaPort
 async function findOllamaPort() {
-    // Najpierw sprawdź czy proces Ollamy działa
-    return new Promise((resolve) => {
-        exec('pgrep ollama', async (error, stdout, stderr) => {
-            if (error || !stdout.trim()) {
-                console.log('Ollama process is not running');
-                resolve(null);
-                return;
-            }
-
-            console.log('Ollama process found, checking ports...');
-
-            // Sprawdź który port jest używany przez Ollama
-            exec('lsof -i -P | grep ollama', async (error, stdout, stderr) => {
-                if (error || !stdout.trim()) {
-                    console.log('No Ollama ports found');
-                    resolve(null);
-                    return;
-                }
-
-                // Przeanalizuj wynik aby znaleźć port
-                const lines = stdout.split('\n');
-                for (const line of lines) {
-                    // Szukaj linii zawierającej LISTEN i IPv4
-                    if (line.includes('LISTEN') && line.includes('TCP')) {
-                        const match = line.match(/:(\d+)/);
-                        if (match && match[1]) {
-                            const port = parseInt(match[1]);
-                            console.log(`Found Ollama listening on port ${port}`);
-                            resolve({ host: '127.0.0.1', port });
-                            return;
-                        }
-                    }
-                }
-
-                // Jeśli nie znaleziono portu w lsof, spróbuj domyślne porty
-                const defaultPorts = [11434, 8080, 3000];
-                const localhost = '127.0.0.1';
-
-                for (const port of defaultPorts) {
-                    try {
-                        const isAvailable = await checkPort(port);
-                        if (isAvailable) {
-                            console.log(`Found Ollama on default port ${port}`);
-                            resolve({ host: localhost, port });
-                            return;
-                        }
-                    } catch (error) {
-                        console.log(`Port ${port} check failed:`, error.message);
-                        continue;
-                    }
-                }
-
-                console.log('No available Ollama ports found');
-                resolve(null);
-            });
-        });
-    });
+    const defaultPort = 11434;
+    try {
+        const isAvailable = await checkPort(defaultPort);
+        if (isAvailable) {
+            return { host: '127.0.0.1', port: defaultPort };
+        }
+    } catch (error) {
+        console.error('Error checking default port:', error);
+    }
+    return null;
 }
 
 // Dodaj funkcję pomocniczą do sprawdzania portu
@@ -225,7 +178,49 @@ function checkPort(port) {
     });
 }
 
-// Zmodyfikuj funkcję checkOllamaConnection
+// Zoptymalizuj funkcję sprawdzania zależności
+async function checkDependencies() {
+    const dependencies = {
+        ollama: false,
+        python: false
+    };
+
+    // Sprawdź Ollama i Python równolegle
+    const [ollamaCheck, pythonCheck] = await Promise.all([
+        new Promise(resolve => {
+            exec('pgrep ollama', (error, stdout) => {
+                resolve(!error && stdout.trim());
+            });
+        }),
+        new Promise(resolve => {
+            exec('python3 --version', (error, stdout) => {
+                resolve(!error && stdout.trim());
+            });
+        })
+    ]);
+
+    dependencies.ollama = ollamaCheck;
+    dependencies.python = pythonCheck;
+
+    return dependencies;
+}
+
+// Dodaj na początku pliku
+app.disableHardwareAcceleration();
+
+// Funkcja do tworzenia okna z odpowiednimi ustawieniami
+function createWindowWithAcceleration(options) {
+    return new BrowserWindow({
+        ...options,
+        webPreferences: {
+            ...options.webPreferences,
+            accelerator: 'gpu',
+            enableHardwareAcceleration: true
+        }
+    });
+}
+
+// Dodaj funkcję checkOllamaConnection
 async function checkOllamaConnection() {
     try {
         console.log('Starting Ollama connection check...');
@@ -257,7 +252,6 @@ async function checkOllamaConnection() {
         const status = ollamaManager.getStatus();
         console.log('Final Ollama status:', status);
         
-        // Zwróć tylko podstawowe informacje
         return {
             isConnected: status.isConnected,
             currentModel: status.currentModel,
@@ -274,44 +268,15 @@ async function checkOllamaConnection() {
     }
 }
 
-// Dodaj funkcję sprawdzania zależności
-async function checkDependencies() {
-    const dependencies = {
-        ollama: false,
-        python: false
-    };
-
-    // Sprawdź Ollama
-    try {
-        const ollamaEndpoint = await findOllamaPort();
-        dependencies.ollama = !!ollamaEndpoint;
-    } catch (error) {
-        console.error('Error checking Ollama:', error);
-    }
-
-    // Sprawdź Python
-    try {
-        await new Promise((resolve, reject) => {
-            exec('python3 --version', (error, stdout, stderr) => {
-                if (error) {
-                    reject(error);
-                } else {
-                    resolve(stdout);
-                }
-            });
-        });
-        dependencies.python = true;
-    } catch (error) {
-        console.error('Error checking Python:', error);
-    }
-
-    return dependencies;
-}
-
 // Zmodyfikuj funkcję createWindow
 async function createWindow() {
     console.log('Creating main window...');
     const startup = startupWindow.create();
+    
+    if (!startup) {
+        console.error('Failed to create startup window');
+        return;
+    }
     
     startup.webContents.on('did-finish-load', () => {
         startup.webContents.send('app-version', APP_VERSION);
@@ -331,9 +296,11 @@ async function createWindow() {
             startup.close();
             
             const depWindow = dependenciesWindow.create();
-            depWindow.webContents.on('did-finish-load', () => {
-                depWindow.webContents.send('dependencies-status', dependencies);
-            });
+            if (depWindow) {
+                depWindow.webContents.on('did-finish-load', () => {
+                    depWindow.webContents.send('dependencies-status', dependencies);
+                });
+            }
             
             return;
         }
@@ -359,9 +326,9 @@ async function createWindow() {
             status: 'Starting application...' 
         });
 
-        // Utwórz główne okno tylko jeśli wszystkie zależności są dostępne i Ollama jest połączone
+        // Utwórz główne okno
         if (!mainWindow) {
-            mainWindow = new BrowserWindow({
+            mainWindow = createWindowWithAcceleration({
                 width: 1200,
                 height: 800,
                 webPreferences: {
@@ -378,8 +345,16 @@ async function createWindow() {
                 backgroundColor: '#00000000'
             });
 
-            // Załaduj główne okno
             await mainWindow.loadFile('index.html');
+
+            // Dodaj event listenery dla stanu okna
+            mainWindow.on('maximize', () => {
+                mainWindow.webContents.send('window-state-change', true);
+            });
+
+            mainWindow.on('unmaximize', () => {
+                mainWindow.webContents.send('window-state-change', false);
+            });
 
             // Zastosuj ustawienia
             const currentSettings = settingsManager.getSettings();
@@ -418,22 +393,15 @@ async function createWindow() {
 
     } catch (error) {
         console.error('Error during startup:', error);
-        startup.webContents.send('startup-error', error.message);
-        
-        // Krótkie opóźnienie na pokazanie błędu
-        await new Promise(resolve => setTimeout(resolve, 2000));
-        
-        // Zamknij okno startowe w przypadku błędu
-        startup.close();
+        if (startup && !startup.isDestroyed()) {
+            startup.webContents.send('startup-error', error.message);
+            
+            // Krótkie opóźnienie na pokazanie błędu
+            await new Promise(resolve => setTimeout(resolve, 2000));
+            
+            startup.close();
+        }
     }
-
-    mainWindow.on('maximize', () => {
-        mainWindow.webContents.send('window-state-change', true);
-    });
-
-    mainWindow.on('unmaximize', () => {
-        mainWindow.webContents.send('window-state-change', false);
-    });
 }
 
 // Event handlers

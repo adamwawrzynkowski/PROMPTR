@@ -121,55 +121,76 @@ document.addEventListener('DOMContentLoaded', async () => {
                     `).join('');
 
                 addCardEventListeners();
+                handleCardHover();
             }
         } catch (error) {
             console.error('Error loading styles:', error);
         }
     }
 
-    // Funkcja generowania promptów
+    // Zmodyfikuj funkcję generowania promptów
     async function generateAllPrompts(basePrompt) {
         if (!basePrompt.trim() || isGenerating) return;
 
         isGenerating = true;
-        const cards = document.querySelectorAll('.option-card');
+        const cards = Array.from(document.querySelectorAll('.option-card'));
+        const inputSection = document.querySelector('.input-section');
         const settings = await ipcRenderer.invoke('get-settings');
         
-        cards.forEach(card => {
-            const suggestionArea = card.querySelector('.suggestion-area');
-            if (suggestionArea) {
-                suggestionArea.innerHTML = '<p class="loading">Generating...</p>';
-            }
-        });
+        // Dodaj klasę generating do input-section
+        inputSection.classList.add('generating');
+        
+        // Podziel karty na grupy po 4
+        const cardGroups = [];
+        for (let i = 0; i < cards.length; i += 4) {
+            cardGroups.push(cards.slice(i, i + 4));
+        }
 
         try {
-            for (const card of Array.from(cards)) {
-                const styleId = card.dataset.styleId;
-                const suggestionArea = card.querySelector('.suggestion-area');
-                
-                try {
-                    const improvedPrompt = await ipcRenderer.invoke('generate-prompt', basePrompt, styleId);
+            // Generuj prompty dla każdej grupy kart
+            for (const group of cardGroups) {
+                // Przygotuj karty do generowania
+                group.forEach(card => {
+                    const suggestionArea = card.querySelector('.suggestion-area');
                     if (suggestionArea) {
-                        suggestionArea.textContent = improvedPrompt;
-                        const applyBtn = card.querySelector('.apply-btn');
-                        if (applyBtn) {
-                            applyBtn.disabled = false;
-                        }
+                        suggestionArea.innerHTML = '<p class="loading">Generating...</p>';
+                        card.classList.add('generating');
                     }
+                });
 
-                    if (settings.slowMode) {
-                        await new Promise(resolve => setTimeout(resolve, settings.slowModeDelay));
+                // Generuj prompty równolegle dla grupy (max 4)
+                await Promise.all(group.map(async (card) => {
+                    const styleId = card.dataset.styleId;
+                    const suggestionArea = card.querySelector('.suggestion-area');
+                    
+                    try {
+                        const improvedPrompt = await ipcRenderer.invoke('generate-prompt', basePrompt, styleId);
+                        if (suggestionArea) {
+                            suggestionArea.textContent = improvedPrompt;
+                            const applyBtn = card.querySelector('.apply-btn');
+                            if (applyBtn) {
+                                applyBtn.disabled = false;
+                            }
+                        }
+                    } catch (error) {
+                        if (suggestionArea) {
+                            suggestionArea.innerHTML = `<p class="error">Error: ${error.message}</p>`;
+                        }
+                    } finally {
+                        card.classList.remove('generating');
                     }
-                } catch (error) {
-                    if (suggestionArea) {
-                        suggestionArea.innerHTML = `<p class="error">Error: ${error.message}</p>`;
-                    }
+                }));
+
+                // Dodaj opóźnienie między grupami jeśli włączony slow mode
+                if (settings.slowMode && cardGroups.indexOf(group) < cardGroups.length - 1) {
+                    await new Promise(resolve => setTimeout(resolve, settings.slowModeDelay));
                 }
             }
         } catch (error) {
             console.error('Error generating prompts:', error);
         } finally {
             isGenerating = false;
+            inputSection.classList.remove('generating');
         }
     }
 
@@ -339,50 +360,53 @@ document.addEventListener('DOMContentLoaded', async () => {
         }
     }
 
-    // Zmodyfikuj event listener dla input
-    if (mainPromptInput) {
-        mainPromptInput.addEventListener('input', async (e) => {
-            const text = e.target.value.trim();
-            clearTimeout(tagGenerationTimeout);
+    // Zoptymalizuj obsługę zdarzeń
+    function debounce(func, wait) {
+        let timeout;
+        return function executedFunction(...args) {
+            const later = () => {
+                clearTimeout(timeout);
+                func(...args);
+            };
+            clearTimeout(timeout);
+            timeout = setTimeout(later, wait);
+        };
+    }
 
+    // Zastosuj debouncing do obsługi zdarzeń
+    if (mainPromptInput) {
+        mainPromptInput.addEventListener('input', debounce(async (e) => {
+            const text = e.target.value.trim();
             if (text) {
-                // Pokaż status oczekiwania
                 displayTags('waiting');
                 document.querySelectorAll('.suggestion-area').forEach(area => {
                     area.innerHTML = '<p class="loading">Waiting for input...</p>';
                 });
-
-                tagGenerationTimeout = setTimeout(async () => {
-                    try {
-                        // Najpierw przetłumacz tekst
-                        const translatedText = await handleTranslation(text);
-                        
-                        if (translatedText) {
-                            const settings = await ipcRenderer.invoke('get-settings');
-                            if (settings.tagGeneration) {
-                                displayTags('generating');
-                                const tags = await ipcRenderer.invoke('generate-tags', translatedText);
-                                displayTags(tags);
-                            }
-                            
-                            // Generuj prompty dla stylów
-                            if (!isGenerating) {
-                                generateAllPrompts(translatedText);
-                            }
+                try {
+                    const translatedText = await handleTranslation(text);
+                    if (translatedText) {
+                        const settings = await ipcRenderer.invoke('get-settings');
+                        if (settings.tagGeneration) {
+                            displayTags('generating');
+                            const tags = await ipcRenderer.invoke('generate-tags', translatedText);
+                            displayTags(tags);
                         }
-                    } catch (error) {
-                        console.error('Error:', error);
-                        displayTags([]);
-                        showToast('Error: ' + error.message);
+                        if (!isGenerating) {
+                            generateAllPrompts(translatedText);
+                        }
                     }
-                }, 1000);
+                } catch (error) {
+                    console.error('Error:', error);
+                    displayTags([]);
+                    showToast('Error: ' + error.message);
+                }
             } else {
                 displayTags([]);
                 document.querySelectorAll('.suggestion-area').forEach(area => {
                     area.innerHTML = '';
                 });
             }
-        });
+        }, 500));
     }
 
     // Dodaj pozostałe event listenery i funkcje...
@@ -771,4 +795,31 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.querySelector('.credits-button').addEventListener('click', () => {
         ipcRenderer.send('open-credits');
     });
+
+    // Dodaj funkcję do oczyszczenia pamięci
+    function cleanupMemory() {
+        if (window.gc) window.gc();
+    }
+
+    // Dodaj okresowe czyszczenie pamięci
+    setInterval(cleanupMemory, 30000);
+
+    // Dodaj na początku pliku, po deklaracji zmiennych
+    function handleCardHover() {
+        document.querySelectorAll('.option-card').forEach(card => {
+            card.addEventListener('mousemove', (e) => {
+                const rect = card.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                
+                card.style.setProperty('--mouse-x', `${x}px`);
+                card.style.setProperty('--mouse-y', `${y}px`);
+            });
+            
+            card.addEventListener('mouseleave', () => {
+                card.style.setProperty('--mouse-x', '50%');
+                card.style.setProperty('--mouse-y', '50%');
+            });
+        });
+    }
 });
