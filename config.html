@@ -22,19 +22,111 @@
                 </div>
             </div>
 
+            <div class="installed-models-section">
+                <div class="installed-models-group">
+                    <h3>Text Models</h3>
+                    <div class="model-tiles" id="text-model-tiles"></div>
+                </div>
+                <div class="installed-models-group">
+                    <h3>Vision Models</h3>
+                    <div class="model-tiles" id="vision-model-tiles"></div>
+                </div>
+            </div>
+
+            <div class="collapsible-section">
+                <div class="section-header">
+                    <h3><i class="fas fa-chevron-down"></i> Model Selection</h3>
+                </div>
+                <div class="section-content expanded">
+                    <div class="model-select-wrapper">
+                        <h4>Text Generation Model</h4>
+                        <select id="model-select" class="model-select">
+                            <option value="">Select a model</option>
+                            <optgroup label="SFW Models">
+                                <!-- Będzie wypełnione przez JavaScript -->
+                            </optgroup>
+                            <optgroup label="NSFW Models">
+                                <!-- Będzie wypełnione przez JavaScript -->
+                            </optgroup>
+                            <optgroup label="Other Models">
+                                <!-- Będzie wypełnione przez JavaScript -->
+                            </optgroup>
+                        </select>
+                    </div>
+
+                    <div class="model-select-wrapper">
+                        <h4>Vision Model</h4>
+                        <select id="vision-model-select" class="model-select">
+                            <option value="">Select a vision model</option>
+                            <optgroup label="Vision Models">
+                                <!-- Będzie wypełnione przez JavaScript -->
+                            </optgroup>
+                        </select>
+                    </div>
+                </div>
+            </div>
+
             <div class="models-section">
-                <div class="model-group">
-                    <h3>Text Generation Model</h3>
-                    <select id="model-select" class="model-select">
-                        <option value="">Select a model</option>
-                    </select>
+                <h2 class="models-section-title">Available Models</h2>
+                
+                <!-- SFW Models -->
+                <div class="model-category">
+                    <div class="category-header">
+                        <h3>
+                            <i class="fas fa-shield-alt"></i>
+                            SFW Models
+                        </h3>
+                        <i class="fas fa-chevron-down"></i>
+                    </div>
+                    <div class="category-description">
+                        <p>Standard text models for general use. These models are focused on safe-for-work content generation, including coding assistance, mathematical calculations, and general text analysis.</p>
+                    </div>
+                    <div class="category-content" id="sfw-models"></div>
                 </div>
 
-                <div class="model-group">
-                    <h3>Vision Model</h3>
-                    <select id="vision-model-select" class="model-select">
-                        <option value="">Select a vision model</option>
-                    </select>
+                <!-- NSFW Models -->
+                <div class="model-category">
+                    <div class="category-header">
+                        <h3>
+                            <i class="fas fa-exclamation-triangle"></i>
+                            NSFW Models
+                        </h3>
+                        <i class="fas fa-chevron-down"></i>
+                    </div>
+                    <div class="category-description">
+                        <p>Models specialized in generating mature and explicit content descriptions. These models are designed to handle adult themes and should be used with appropriate content warnings.</p>
+                    </div>
+                    <div class="category-content" id="nsfw-models"></div>
+                </div>
+
+                <!-- Vision Models -->
+                <div class="model-category">
+                    <div class="category-header">
+                        <h3>
+                            <i class="fas fa-eye"></i>
+                            Vision Models
+                        </h3>
+                        <i class="fas fa-chevron-down"></i>
+                    </div>
+                    <div class="category-description">
+                        <p>Specialized models for image analysis and understanding. These models can process images to generate descriptions, analyze content, and understand visual context.</p>
+                    </div>
+                    <div class="category-content" id="vision-models"></div>
+                </div>
+
+                <!-- Other Models -->
+                <div class="model-category">
+                    <div class="category-header">
+                        <h3>
+                            <i class="fas fa-cube"></i>
+                            Other Models
+                        </h3>
+                        <i class="fas fa-chevron-down"></i>
+                    </div>
+                    <div class="category-description">
+                        <p>Additional specialized models with unique capabilities. This category includes experimental models, smaller variants, and models optimized for specific tasks or languages.</p>
+                    </div>
+                    <div class="category-content" id="other-models"></div>
                 </div>
             </div>
 
@@ -47,23 +139,6 @@
                     <i class="fas fa-save"></i>
                     Save Configuration
                 </button>
-            </div>
-
-            <div class="models-container">
-                <h3>Available Models</h3>
-                <div id="models-list" class="models-list">
-                    <!-- Tu będą dynamicznie dodawane modele -->
-                </div>
-            </div>
-
-            <div class="custom-models-section">
-                <h3>Custom Models</h3>
-                <button id="import-model-btn" class="action-button">
-                    <i class="fas fa-plus"></i> Import New Model
-                </button>
-                <div id="custom-models-list" class="models-list">
-                    <!-- Tu będą wyświetlane custom modele -->
-                </div>
             </div>
         </div>
     </div>

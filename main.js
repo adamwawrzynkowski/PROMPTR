@@ -15,7 +15,7 @@ const modelInstallWindow = require('./model-install-window');
 const startupWindow = require('./startup-window');
 const configManager = require('./config-manager');
 const styleEditWindow = require('./style-edit-window');
-const fs = require('fs');
+const fsSync = require('fs');
 const modelImportWindow = require('./model-import-window');
 const sharp = require('sharp');
 const { PythonShell } = require('python-shell');
@@ -24,6 +24,9 @@ const { spawn } = require('child_process');
 const https = require('https');
 const dependenciesWindow = require('./dependencies-window');
 const creditsWindow = require('./credits-window');
+const powerSaveBlocker = require('electron').powerSaveBlocker;
+const fetch = require('node-fetch');
+const fs = require('fs').promises;
 
 // Usuń niepotrzebne importy
 // const ort = require('onnxruntime-node');
@@ -44,6 +47,98 @@ let configWindowInstance = null;
 
 // Dodaj na początku pliku zmienną do śledzenia aktualnego żądania
 let currentGenerationRequest = null;
+
+// Dodaj na początku pliku
+let powerSaveId = null;
+
+// Define the modelImportWindowInstance variable at the top of the file
+let modelImportWindowInstance = null;
+
+// Dodaj na początku pliku
+let lastGC = Date.now();
+
+// Dodaj na początku pliku
+let isLowPowerMode = false;
+
+// Dodaj na początku pliku
+const THROTTLE_INTERVAL = 100; // ms
+let lastThrottleTime = Date.now();
+let throttledTasks = new Set();
+
+// Dodaj funkcję do throttlowania zadań
+function throttle(task) {
+    const now = Date.now();
+    if (now - lastThrottleTime >= THROTTLE_INTERVAL) {
+        lastThrottleTime = now;
+        task();
+        throttledTasks.clear();
+    } else if (!throttledTasks.has(task)) {
+        throttledTasks.add(task);
+        setTimeout(() => {
+            if (throttledTasks.has(task)) {
+                task();
+                throttledTasks.delete(task);
+            }
+        }, THROTTLE_INTERVAL);
+    }
+}
+
+// Dodaj na początku pliku
+const RESOURCE_LIMITS = {
+    maxMemoryUsage: 512 * 1024 * 1024, // 512MB
+    maxCPUUsage: 80 // 80%
+};
+
+// Dodaj monitorowanie zasobów
+let resourceMonitorInterval;
+
+function startResourceMonitoring() {
+    if (resourceMonitorInterval) {
+        clearInterval(resourceMonitorInterval);
+    }
+
+    resourceMonitorInterval = setInterval(() => {
+        const memoryUsage = process.memoryUsage().heapUsed;
+        
+        if (memoryUsage > RESOURCE_LIMITS.maxMemoryUsage) {
+            forceGC();
+            imageProcessingCache.clear();
+        }
+
+        // Sprawdź użycie CPU
+        const startUsage = process.cpuUsage();
+        setTimeout(() => {
+            const endUsage = process.cpuUsage(startUsage);
+            const cpuPercent = (endUsage.user + endUsage.system) / 1000000;
+            
+            if (cpuPercent > RESOURCE_LIMITS.maxCPUUsage) {
+                throttleAllOperations();
+            }
+        }, 100);
+    }, 30000); // Sprawdzaj co 30 sekund
+}
+
+// Dodaj funkcję do throttlowania wszystkich operacji
+function throttleAllOperations() {
+    if (mainWindow) {
+        mainWindow.webContents.setFrameRate(20);
+        mainWindow.webContents.setBackgroundThrottling(true);
+    }
+    
+    // Wyczyść cache
+    imageProcessingCache.clear();
+    
+    // Wymuś GC
+    forceGC();
+}
+
+// Dodaj wywołanie GC przy zamykaniu okien
+app.on('window-all-closed', () => {
+    forceGC();
+    if (process.platform !== 'darwin') {
+        app.quit();
+    }
+});
 
 // Dodaj funkcję sprawdzającą port
 function checkPort(port) {
@@ -75,65 +170,62 @@ function checkPort(port) {
 async function checkDrawThingsStatus(port = null) {
     console.log('Checking Draw Things status...');
     
-    // Użyj portu z parametru lub z ustawień
+    // Use port from parameter or settings
     if (!port) {
         const settings = settingsManager.getSettings();
-        port = settings.drawThingsIntegration.port || 3333;
+        port = settings.drawThingsIntegration?.port || 3333;
     }
     
-    return new Promise(async (resolve) => {
-        // Najpierw sprawdź czy Draw Things jest uruchomione
-        exec('pgrep -f "Draw Things"', async (error, stdout, stderr) => {
-            if (error || !stdout.trim()) {
-                console.log('Draw Things process is not running');
-                resolve(false);
-                return;
-            }
-
-            console.log('Draw Things process found, checking port...');
-
-            // Sprawdź czy port jest używany przez Draw Things
-            exec(`lsof -i :${port}`, (error, stdout, stderr) => {
-                console.log(`Port ${port} check result:`, stdout);
-                
-                if (error || !stdout.trim()) {
-                    console.log(`Port ${port} is not in use`);
-                    resolve(false);
-                    return;
-                }
-
-                // Sprawdź czy port jest aktywny poprzez proste żądanie HTTP
-                const testRequest = http.request({
-                    hostname: '127.0.0.1',
-                    port: port,
-                    path: '/sdapi/v1/txt2img',
-                    method: 'GET',
-                    timeout: 1000
-                }, (res) => {
-                    // Nawet jeśli dostaniemy 404, to znaczy że serwer odpowiada
-                    console.log(`Draw Things API response: ${res.statusCode}`);
-                    resolve(true);
-                });
-
-                testRequest.on('error', (error) => {
-                    console.log('Draw Things API test error:', error.message);
-                    resolve(false);
-                });
-
-                testRequest.on('timeout', () => {
-                    console.log('Draw Things API test timeout');
-                    testRequest.destroy();
-                    resolve(false);
-                });
-
-                testRequest.end();
+    try {
+        // First check if Draw Things process is running
+        const isRunning = await new Promise((resolve) => {
+            exec('pgrep -f "Draw Things"', (error, stdout) => {
+                resolve(!error && stdout.trim().length > 0);
             });
         });
-    });
+
+        if (!isRunning) {
+            console.log('Draw Things process is not running');
+            return false;
+        }
+
+        console.log('Draw Things process found, checking port...');
+
+        // Check if port is in use
+        const portInUse = await new Promise((resolve) => {
+            const socket = new net.Socket();
+            
+            socket.setTimeout(1000);
+            
+            socket.on('connect', () => {
+                socket.destroy();
+                resolve(true);
+            });
+            
+            socket.on('timeout', () => {
+                socket.destroy();
+                resolve(false);
+            });
+            
+            socket.on('error', () => {
+                socket.destroy();
+                resolve(false);
+            });
+            
+            socket.connect(port, '127.0.0.1');
+        });
+
+        return portInUse;
+
+    } catch (error) {
+        console.error('Error checking Draw Things status:', error);
+        return false;
+    }
 }
 
 // Zoptymalizuj funkcję findOllamaPort
 async function findOllamaPort() {
+    console.log('Finding Ollama port...');
     const defaultPort = 11434;
     try {
         const isAvailable = await checkPort(defaultPort);
@@ -180,28 +272,19 @@ function checkPort(port) {
 
 // Zoptymalizuj funkcję sprawdzania zależności
 async function checkDependencies() {
+    console.log('Checking dependencies...');
     const dependencies = {
-        ollama: false,
-        python: false
+        ollama: false
     };
 
-    // Sprawdź Ollama i Python równolegle
-    const [ollamaCheck, pythonCheck] = await Promise.all([
-        new Promise(resolve => {
-            exec('pgrep ollama', (error, stdout) => {
-                resolve(!error && stdout.trim());
-            });
-        }),
-        new Promise(resolve => {
-            exec('python3 --version', (error, stdout) => {
-                resolve(!error && stdout.trim());
-            });
-        })
-    ]);
+    // Sprawdź tylko Ollama
+    const ollamaCheck = await new Promise(resolve => {
+        exec('pgrep ollama', (error, stdout) => {
+            resolve(!error && stdout.trim());
+        });
+    });
 
     dependencies.ollama = ollamaCheck;
-    dependencies.python = pythonCheck;
-
     return dependencies;
 }
 
@@ -214,9 +297,15 @@ function createWindowWithAcceleration(options) {
         ...options,
         webPreferences: {
             ...options.webPreferences,
-            accelerator: 'gpu',
-            enableHardwareAcceleration: true
-        }
+            enablePreferredSizeMode: true,
+            backgroundThrottling: true,
+            offscreen: false,
+            paintWhenInitiallyHidden: false,
+            spellcheck: false,
+        },
+        show: false,
+        backgroundColor: '#000000',
+        transparent: false,
     });
 }
 
@@ -268,6 +357,147 @@ async function checkOllamaConnection() {
     }
 }
 
+// Dodaj funkcję do optymalizacji wydajności okna
+function optimizeWindowPerformance(window) {
+    if (!window) return;
+    
+    // Optymalizuj rendering
+    window.webContents.setZoomFactor(1.0);
+    window.webContents.setVisualZoomLevelLimits(1, 1);
+    
+    // Optymalizuj animacje
+    window.webContents.executeJavaScript(`
+        document.body.style.setProperty('--animation-duration', '0.2s');
+        document.body.style.setProperty('--transition-duration', '0.2s');
+        
+        // Dodaj klasę do optymalizacji
+        document.body.classList.add('hardware-accelerated');
+        
+        // Optymalizuj scroll
+        document.querySelectorAll('.scrollable').forEach(elem => {
+            elem.style.willChange = 'transform';
+            elem.style.transform = 'translateZ(0)';
+        });
+        
+        // Wyłącz płynne przewijanie dla lepszej wydajności
+        document.documentElement.style.scrollBehavior = 'auto';
+    `);
+
+    // Ustaw opcje renderowania
+    window.webContents.setFrameRate(60);
+    window.webContents.setBackgroundThrottling(false);
+}
+
+// Dodaj stałe dla domyślnych modeli
+const DEFAULT_TEXT_MODEL = 'llama3.2:latest';
+const DEFAULT_VISION_MODEL = 'llava:7b';
+
+// Usuń obie funkcje sendStartupProgress i sendStartupProgressWithDelay
+// i zastąp je jedną nową funkcją
+async function sendStatus(startup, data) {
+    if (!startup || startup.isDestroyed()) return;
+    
+    console.log('Sending status:', data);
+    startup.webContents.send('startup-progress', data);
+    // Poczekaj na zakończenie frame
+    await new Promise(resolve => setTimeout(resolve, 100));
+}
+
+// Zaktualizuj funkcję setupDefaultModels
+async function setupDefaultModels(startup) {
+    try {
+        await sendStatus(startup, {
+            step: 2,
+            status: 'Checking Ollama connection...',
+            progress: 20
+        });
+
+        const status = await checkOllamaConnection();
+        if (!status.isConnected) {
+            throw new Error('Could not connect to Ollama');
+        }
+
+        await sendStatus(startup, {
+            step: 3,
+            status: 'Checking installed models...',
+            progress: 30
+        });
+
+        const installedModels = await ollamaManager.getInstalledModels();
+        console.log('Installed models:', installedModels);
+        
+        const settings = settingsManager.getSettings();
+        const needsDefaultSetup = !settings.currentModel || !settings.visionModel;
+
+        // Sprawdź model tekstowy
+        if (!installedModels.includes(DEFAULT_TEXT_MODEL)) {
+            await sendStatus(startup, {
+                step: 4,
+                status: `Installing ${DEFAULT_TEXT_MODEL}...`,
+                progress: 40
+            });
+            
+            await ollamaManager.pullModel(DEFAULT_TEXT_MODEL, async (progress) => {
+                await sendStatus(startup, {
+                    step: 4,
+                    status: `Installing ${DEFAULT_TEXT_MODEL}: ${Math.round(progress)}%`,
+                    progress: 40 + (progress * 0.3)
+                });
+            });
+        }
+
+        // Sprawdź model wizyjny
+        if (!installedModels.includes(DEFAULT_VISION_MODEL)) {
+            await sendStatus(startup, {
+                step: 5,
+                status: `Installing ${DEFAULT_VISION_MODEL}...`,
+                progress: 70
+            });
+            
+            await ollamaManager.pullModel(DEFAULT_VISION_MODEL, async (progress) => {
+                await sendStatus(startup, {
+                    step: 5,
+                    status: `Installing ${DEFAULT_VISION_MODEL}: ${Math.round(progress)}%`,
+                    progress: 70 + (progress * 0.2)
+                });
+            });
+        }
+
+        // Konfiguracja końcowa
+        if (needsDefaultSetup) {
+            await sendStatus(startup, {
+                step: 6,
+                status: 'Configuring default settings...',
+                progress: 90
+            });
+
+            await ollamaManager.setModel(DEFAULT_TEXT_MODEL);
+            await ollamaManager.setVisionModel(DEFAULT_VISION_MODEL);
+
+            settingsManager.updateSettings({
+                ...settings,
+                currentModel: DEFAULT_TEXT_MODEL,
+                visionModel: DEFAULT_VISION_MODEL,
+                initialSetupComplete: true
+            });
+        }
+
+        await sendStatus(startup, {
+            step: 7,
+            status: 'Setup complete',
+            progress: 100
+        });
+
+        return true;
+    } catch (error) {
+        console.error('Error in setupDefaultModels:', error);
+        if (startup && !startup.isDestroyed()) {
+            startup.webContents.send('startup-error', error.message);
+        }
+        throw error;
+    }
+}
+
 // Zmodyfikuj funkcję createWindow
 async function createWindow() {
     console.log('Creating main window...');
@@ -277,22 +507,36 @@ async function createWindow() {
         console.error('Failed to create startup window');
         return;
     }
-    
-    startup.webContents.on('did-finish-load', () => {
-        startup.webContents.send('app-version', APP_VERSION);
-        startup.webContents.send('startup-progress', { 
-            step: 0,
-            status: 'Checking dependencies...' 
-        });
-    });
 
     try {
-        // Sprawdź zależności
+        // Poczekaj na załadowanie okna startowego
+        await new Promise((resolve) => {
+            startup.webContents.once('did-finish-load', async () => {
+                // Wyślij wersję aplikacji
+                startup.webContents.send('app-version', APP_VERSION);
+                
+                // Wyślij początkowy status i poczekaj na jego przetworzenie
+                await sendStatus(startup, {
+                    step: 0,
+                    status: 'Starting PROMPTR...',
+                    progress: 5
+                });
+                resolve();
+            });
+        });
+
+        // Sprawdź Ollama
+        await sendStatus(startup, {
+            step: 1,
+            status: 'Checking dependencies...',
+            progress: 10
+        });
+
         const dependencies = await checkDependencies();
         console.log('Dependencies check result:', dependencies);
         
-        if (!dependencies.ollama || !dependencies.python) {
-            console.log('Missing dependencies:', dependencies);
+        if (!dependencies.ollama) {
+            console.log('Ollama not found:', dependencies);
             startup.close();
             
             const depWindow = dependenciesWindow.create();
@@ -301,104 +545,48 @@ async function createWindow() {
                     depWindow.webContents.send('dependencies-status', dependencies);
                 });
             }
-            
             return;
         }
 
-        // Kontynuuj normalne uruchamianie aplikacji
-        startup.webContents.send('startup-progress', { 
-            step: 1,
-            status: 'Connecting to Ollama...' 
-        });
-
-        const status = await checkOllamaConnection();
-        console.log('Ollama connection status:', status);
-
-        if (!status.isConnected) {
-            console.log('Ollama not connected, showing config window');
-            startup.close();
-            configWindow.create();
-            return;
-        }
-
-        startup.webContents.send('startup-progress', { 
-            step: 2,
-            status: 'Starting application...' 
-        });
+        // Kontynuuj z konfiguracją modeli
+        await setupDefaultModels(startup);
 
         // Utwórz główne okno
-        if (!mainWindow) {
-            mainWindow = createWindowWithAcceleration({
-                width: 1200,
-                height: 800,
-                webPreferences: {
-                    nodeIntegration: true,
-                    contextIsolation: false,
-                    enableRemoteModule: true,
-                    backgroundThrottling: false,
-                    allowRunningInsecureContent: true
-                },
-                frame: false,
-                transparent: true,
-                titleBarStyle: 'hidden',
-                trafficLightPosition: { x: -100, y: -100 },
-                backgroundColor: '#00000000'
-            });
+        mainWindow = createWindowWithAcceleration({
+            width: 1200,
+            height: 800,
+            webPreferences: {
+                nodeIntegration: true,
+                contextIsolation: false,
+                enableRemoteModule: true,
+                backgroundThrottling: true,
+            },
+            frame: false,
+            titleBarStyle: 'hidden',
+            trafficLightPosition: { x: -100, y: -100 },
+            show: false
+        });
 
-            await mainWindow.loadFile('index.html');
+        // Załaduj główne okno
+        await mainWindow.loadFile('index.html');
+        optimizeWindowPerformance(mainWindow);
 
-            // Dodaj event listenery dla stanu okna
-            mainWindow.on('maximize', () => {
-                mainWindow.webContents.send('window-state-change', true);
-            });
-
-            mainWindow.on('unmaximize', () => {
-                mainWindow.webContents.send('window-state-change', false);
-            });
-
-            // Zastosuj ustawienia
-            const currentSettings = settingsManager.getSettings();
-            if (currentSettings && currentSettings.theme) {
-                await themeManager.applyTheme(currentSettings.theme, mainWindow);
-            }
-
-            // Rozpocznij okresowe sprawdzanie połączenia
-            connectionCheckInterval = setInterval(async () => {
-                try {
-                    const status = await checkOllamaConnection();
-                    const serializedStatus = {
-                        isConnected: !!status.isConnected,
-                        currentModel: status.currentModel || null,
-                        error: status.error || null
-                    };
-
-                    BrowserWindow.getAllWindows().forEach(window => {
-                        if (!window.isDestroyed()) {
-                            try {
-                                window.webContents.send('ollama-status', serializedStatus);
-                            } catch (error) {
-                                console.error('Error sending status to window:', error);
-                            }
-                        }
-                    });
-                } catch (error) {
-                    console.error('Error in connection check interval:', error);
+        // Poczekaj na gotowość głównego okna
+        await new Promise((resolve) => {
+            mainWindow.once('ready-to-show', () => {
+                mainWindow.show();
+                if (!startup.isDestroyed()) {
+                    startup.close();
                 }
-            }, 5000);
-        }
-
-        // Pokaż główne okno i zamknij startowe
-        mainWindow.show();
-        startup.close();
+                resolve();
+            });
+        });
 
     } catch (error) {
         console.error('Error during startup:', error);
-        if (startup && !startup.isDestroyed()) {
+        if (!startup.isDestroyed()) {
             startup.webContents.send('startup-error', error.message);
-            
-            // Krótkie opóźnienie na pokazanie błędu
             await new Promise(resolve => setTimeout(resolve, 2000));
-            
             startup.close();
         }
     }
@@ -406,11 +594,13 @@ async function createWindow() {
 
 // Event handlers
 ipcMain.on('refresh-connection', async () => {
+    console.log('Refreshing connection...');
     const status = await checkOllamaConnection();
     configWindow.window.webContents.send('connection-status', ollamaManager.getStatus());
 });
 
 ipcMain.on('save-config', async (event, config) => {
+    console.log('Saving config:', config);
     await ollamaManager.setModel(config.model);
     await ollamaManager.setVisionModel(config.visionModel);
     if (configWindowInstance) {
@@ -423,6 +613,7 @@ ipcMain.on('save-config', async (event, config) => {
 });
 
 ipcMain.on('open-config', () => {
+    console.log('Opening config window...');
     configWindowInstance = configWindow.create();
     // Wyślij aktualny status do nowego okna konfiguracji
     const status = ollamaManager.getStatus();
@@ -435,11 +626,20 @@ ipcMain.on('open-config', () => {
 });
 
 ipcMain.on('toggle-history', () => {
-    console.log('History toggled');
+    if (mainWindow) {
+        // Optymalizuj animację przed przełączeniem
+        mainWindow.webContents.executeJavaScript(`
+            requestAnimationFrame(() => {
+                document.querySelector('.history-panel')?.classList.toggle('visible');
+                document.querySelector('.main-content')?.classList.toggle('shifted');
+            });
+        `);
+    }
 });
 
 // Zaktualizuj handler generate-tags
 ipcMain.handle('generate-tags', async (event, text) => {
+    console.log('Handling generate-tags for text:', text);
     try {
         // Anuluj poprzednie żądanie jeśli istnieje
         if (currentGenerationRequest) {
@@ -455,7 +655,7 @@ ipcMain.handle('generate-tags', async (event, text) => {
         
         console.log('Original text:', text);
 
-        // Sprawdź ustawienia tłumaczenia i przetłumacz jeśli potrzeba
+        // Sprawdź ustawienia tumaczenia i przetłumacz jeśli potrzeba
         const settings = settingsManager.getSettings();
         let textToProcess = text;
 
@@ -525,6 +725,17 @@ ipcMain.handle('generate-tags', async (event, text) => {
 
 // Zaktualizuj handler generate-prompt
 ipcMain.handle('generate-prompt', async (event, basePrompt, styleId) => {
+    if (!mainWindow?.isVisible() || mainWindow.isMinimized()) {
+        return;
+    }
+
+    // Użyj throttle dla aktualizacji UI
+    const updateUI = (data) => {
+        throttle(() => {
+            event.sender.send('translation-status', data);
+        });
+    };
+
     try {
         // Anuluj poprzednie żądanie jeśli istnieje
         if (currentGenerationRequest) {
@@ -538,7 +749,7 @@ ipcMain.handle('generate-prompt', async (event, basePrompt, styleId) => {
             throw new Error('Not connected or no model selected');
         }
 
-        // Sprawdź ustawienia tłumaczenia i przetłumacz jeśli potrzeba
+        // Sprawdź ustawienia tumaczenia i przetłumacz jeśli potrzeba
         const settings = settingsManager.getSettings();
         let promptToProcess = basePrompt;
 
@@ -560,7 +771,7 @@ ipcMain.handle('generate-prompt', async (event, basePrompt, styleId) => {
                         originalLanguage: translationResult.originalLanguage || 'unknown'
                     };
                     
-                    event.sender.send('translation-status', serializedTranslation);
+                    updateUI(serializedTranslation);
                 }
             } catch (translationError) {
                 console.error('Translation error:', translationError);
@@ -717,11 +928,11 @@ ipcMain.handle('save-settings', async (event, newSettings) => {
 });
 
 ipcMain.on('open-settings', () => {
+    handleModalBackground(true);
     const settingsWindowInstance = settingsWindow.create();
-    
-    // Zastosuj aktualny motyw do okna ustawień
-    const currentSettings = settingsManager.getSettings();
-    themeManager.applyTheme(currentSettings.theme, settingsWindowInstance);
+    settingsWindowInstance.on('closed', () => {
+        handleModalBackground(false);
+    });
 });
 
 // Dodaj nowy handler IPC przed app.whenReady()
@@ -881,28 +1092,35 @@ ipcMain.handle('analyze-image', async (event, imageData, analysisType = 'content
 // Dodaj nową funkcję do przetwarzania obrazu
 async function preprocessImage(imageData) {
     try {
-        // Konwertuj base64 na buffer
         const buffer = Buffer.from(imageData.split(',')[1], 'base64');
-
-        // Przetwórz obraz
-        const processedImage = await sharp(buffer)
-            .resize(224, 224) // Standardowy rozmiar dla wielu modeli CV
-            .normalise() // Normalizacja wartości pikseli
-            .raw()
-            .toBuffer({ resolveWithObject: true });
-
-        // Konwertuj do formatu float32 i normalizuj wartości do zakresu [0,1]
-        const float32Data = new Float32Array(processedImage.data.length);
-        for (let i = 0; i < processedImage.data.length; i++) {
-            float32Data[i] = processedImage.data[i] / 255.0;
+        
+        // Użyj cache dla przetworzonych obrazów
+        const cacheKey = buffer.toString('base64').slice(0, 50); // Użyj pierwszych 50 znaków jako klucz
+        const cachedResult = imageProcessingCache.get(cacheKey);
+        
+        if (cachedResult) {
+            return cachedResult;
         }
 
-        return {
-            data: float32Data,
+        const processedImage = await sharp(buffer)
+            .resize(224, 224, {
+                fastShrinkOnLoad: true,
+                kernel: 'nearest',
+                withoutEnlargement: true,
+                fastMode: true
+            })
+            .normalise()
+            .toBuffer({ resolveWithObject: true });
+
+        const result = {
+            data: new Float32Array(processedImage.data.buffer),
             width: processedImage.info.width,
             height: processedImage.info.height,
             channels: 3
         };
+
+        imageProcessingCache.set(cacheKey, result);
+        return result;
     } catch (error) {
         console.error('Error preprocessing image:', error);
         throw error;
@@ -1036,7 +1254,7 @@ ipcMain.handle('set-prompt', async (event, prompt) => {
 // Handler do sprawdzania statusu Ollamy
 ipcMain.handle('check-ollama-status', async () => {
     try {
-        // Zamiast sprawdzać połączenie ponownie, użyj aktualnego statusu
+        // Zamiast sprawdzać poączenie ponownie, użyj aktualnego statusu
         const status = ollamaManager.getStatus();
         console.log('Returning current Ollama status:', status);
         return status;
@@ -1054,69 +1272,177 @@ ipcMain.handle('get-available-models', async () => {
     try {
         console.log('Getting available models...');
         
-        // Lista znanych modeli
-        const knownModels = {
-            'llama2': { name: 'Llama 2', type: 'Text' },
-            'llama3': { name: 'Llama 3', type: 'Text' },
-            'llama3.2': { name: 'Llama 3.2', type: 'Text' },
-            'mistral': { name: 'Mistral', type: 'Text' },
-            'mixtral': { name: 'Mixtral', type: 'Text' },
-            'neural-chat': { name: 'Neural Chat', type: 'Text' },
-            'starling-lm': { name: 'Starling LM', type: 'Text' },
-            'dolphin-llama3': { name: 'Dolphin Llama 3', type: 'Text' },
-            'llava': { name: 'Llava', type: 'Vision' },
-            'bakllava': { name: 'Bakllava', type: 'Vision' }
+        // Zdefiniuj kategorie modeli
+        const modelCategories = {
+            SFW: [
+                // Llama models
+                'llama2:7b', 'llama2:13b', 'llama2:70b',
+                'llama3:8b', 'llama3:70b',
+                'llama3.1:8b', 'llama3.1:70b', 'llama3.1:405b',
+                'llama3.2:1b', 'llama3.2:3b',
+                
+                // Gemma models
+                'gemma:2b', 'gemma:7b',
+                'gemma2:2b', 'gemma2:9b', 'gemma2:27b',
+                
+                // Mistral models
+                'mistral:7b', 'mistral:8x7b',
+                'mistral:latest',
+                'mixtral:7b', 'mixtral:8x7b',
+                'mistral-next:7b', 'mistral-next:8x7b',
+                'mistral-medium:7b', 'mistral-small:7b',
+                'mistral-tiny:7b',
+                
+                // Phi models
+                'phi3:3.8b', 'phi3:14b',
+                
+                // Qwen models
+                'qwen:0.5b', 'qwen:1.8b', 'qwen:4b', 'qwen:7b', 'qwen:14b', 'qwen:32b',
+                
+                // Qwen2 models
+                'qwen2:0.5b', 'qwen2:1.5b', 'qwen2:7b', 'qwen2:72b',
+                
+                // Qwen2.5 models
+                'qwen2.5:0.5b', 'qwen2.5:1.5b', 'qwen2.5:3b', 'qwen2.5:7b', 'qwen2.5:14b', 'qwen2.5:32b'
+            ],
+            NSFW: [
+                // Dolphin-Mixtral model
+                'dolphin-mixtral:8x7b',
+                
+                // Llama Uncensored models
+                'llama2-uncensored:7b', 'llama2-uncensored:70b',
+                
+                // Dolphin-Llama models
+                'dolphin-llama3:8b', 'dolphin-llama3:70b',
+                
+                // Dolphin-Mistral model
+                'dolphin-mistral:7b'
+            ],
+            Vision: [
+                // Llava models
+                'llava:7b', 'llava:13b', 'llava:34b',
+                
+                // Llava-Llama model
+                'llava-llama3:8b',
+                
+                // Llama Vision models
+                'llama3.2-vision:11b', 'llama3.2-vision:90b',
+                
+                // Bakllava models
+                'bakllava:7b', 'bakllava:latest'
+            ],
+            'Other Models': [
+                // Aya models
+                'aya:8b', 'aya:35b',
+                
+                // WizardLM models
+                'wizardlm2:7b', 'wizardlm2:8x22b',
+                
+                // Vicuna models
+                'vicuna:7b', 'vicuna:13b', 'vicuna:33b',
+                
+                // Yi models
+                'yi:6b', 'yi:9b', 'yi:34b'
+            ]
         };
 
-        // Pobierz listę zainstalowanych modeli
+        // Lista wykluczających się prefiksów dla modeli NSFW
+        const nsfwPrefixes = ['dolphin-', 'uncensored'];
+
+        // Pobierz zainstalowane modele
         const installedModels = await ollamaManager.getInstalledModels();
         console.log('Installed models:', installedModels);
 
-        // Przygotuj listę wszystkich modeli
-        const allModels = [];
+        // Set do śledzenia już skategoryzowanych modeli
+        const categorizedModelIds = new Set();
 
-        // Dodaj zainstalowane modele
-        for (const installedModel of installedModels) {
-            // Wyciągnij podstawową nazwę modelu (bez tagów)
-            const baseModelName = installedModel.split(':')[0].toLowerCase();
-            
-            // Jeśli model jest znany, użyj jego konfiguracji
-            if (knownModels[baseModelName]) {
-                allModels.push({
-                    id: installedModel,
-                    name: `${knownModels[baseModelName].name} (${installedModel})`,
-                    type: knownModels[baseModelName].type,
-                    installed: true
-                });
-            } else {
-                // Dla nieznanych modeli, określ typ na podstawie nazwy
-                const type = installedModel.includes('llava') ? 'Vision' : 'Text';
-                allModels.push({
-                    id: installedModel,
-                    name: installedModel,
-                    type: type,
-                    installed: true
-                });
-            }
+        // Przygotuj kategoryzowane modele
+        const categorizedModels = {};
+        
+        // Inicjalizuj każdą kategorię
+        Object.keys(modelCategories).forEach(category => {
+            categorizedModels[category] = [];
+        });
+
+        // Jeśli mamy listę zainstalowanych modeli
+        if (Array.isArray(installedModels)) {
+            // Kategoryzuj modele
+            installedModels.forEach(model => {
+                // Pomijamy jeśli model został już skategoryzowany
+                if (categorizedModelIds.has(model.toLowerCase())) {
+                    return;
+                }
+
+                const modelName = model.toLowerCase();
+                let categorized = false;
+
+                // Najpierw sprawdź czy to model NSFW
+                if (nsfwPrefixes.some(prefix => modelName.startsWith(prefix))) {
+                    categorizedModels['NSFW'].push({
+                        id: model,
+                        name: model,
+                        installed: true,
+                        category: 'NSFW'
+                    });
+                    categorizedModelIds.add(modelName);
+                    categorized = true;
+                } else {
+                    // Jeśli nie NSFW, sprawdź pozostałe kategorie
+                    Object.entries(modelCategories).forEach(([category, modelList]) => {
+                        if (!categorized && category !== 'NSFW' && 
+                            modelList.some(m => modelName === m.toLowerCase())) {
+                            categorizedModels[category].push({
+                                id: model,
+                                name: model,
+                                installed: true,
+                                category: category
+                            });
+                            categorizedModelIds.add(modelName);
+                            categorized = true;
+                        }
+                    });
+                }
+
+                // Jeśli model nie pasuje do żadnej kategorii, dodaj do Other Models
+                if (!categorized) {
+                    categorizedModels['Other Models'].push({
+                        id: model,
+                        name: model,
+                        installed: true,
+                        category: 'Other Models'
+                    });
+                    categorizedModelIds.add(modelName);
+                }
+            });
         }
 
-        // Dodaj nieznane modele jako dostępne do pobrania
-        Object.entries(knownModels).forEach(([modelId, modelInfo]) => {
-            if (!installedModels.some(installed => installed.startsWith(modelId))) {
-                allModels.push({
-                    id: modelId,
-                    name: modelInfo.name,
-                    type: modelInfo.type,
-                    installed: false
-                });
-            }
+        // Dodaj dostępne ale niezainstalowane modele
+        Object.entries(modelCategories).forEach(([category, modelList]) => {
+            modelList.forEach(modelName => {
+                const modelNameLower = modelName.toLowerCase();
+                // Sprawdź czy model nie został już dodany
+                if (!categorizedModelIds.has(modelNameLower)) {
+                    categorizedModels[category].push({
+                        id: modelName,
+                        name: modelName,
+                        installed: false,
+                        category: category
+                    });
+                    categorizedModelIds.add(modelNameLower);
+                }
+            });
         });
-        
-        console.log('Final models list:', allModels);
-        return allModels;
+
+        console.log('Categorized models:', categorizedModels);
+        return categorizedModels;
     } catch (error) {
         console.error('Error getting available models:', error);
-        return [];
+        return {
+            SFW: [],
+            NSFW: [],
+            Vision: [],
+            'Other Models': []
+        };
     }
 });
 
@@ -1377,274 +1703,58 @@ ipcMain.handle('install-custom-model', async (event, modelUrl) => {
 
 // Dodaj handler
 ipcMain.on('open-model-import', () => {
-    modelImportWindow.create();
-});
-
-// Dodaj nowe handlery
-ipcMain.handle('get-custom-models', async () => {
-    return await ollamaManager.getCustomModels();
-});
-
-ipcMain.handle('delete-custom-model', async (event, modelName) => {
-    return await ollamaManager.deleteCustomModel(modelName);
-});
-
-// Dodaj funkcję do sprawdzania i instalacji zależności Pythona
-async function checkAndInstallPythonDependencies() {
-    return new Promise((resolve, reject) => {
-        const requirements = [
-            'torch',
-            'safetensors',
-            'numpy'
-        ];
-
-        // Najpierw sprawdź czy Python jest zainstalowany
-        const checkPython = spawn('python3', ['--version']);
-        
-        checkPython.on('error', () => {
-            dialog.showErrorBox(
-                'Python Not Found',
-                'Python 3 is required but not found. Please install Python 3 from python.org'
-            );
-            reject(new Error('Python not found'));
+    if (!modelImportWindowInstance) {
+        modelImportWindowInstance = modelImportWindow.create();
+        modelImportWindowInstance.on('closed', () => {
+            modelImportWindowInstance = null;
         });
-
-        checkPython.on('close', (code) => {
-            if (code === 0) {
-                console.log('Python found, checking dependencies...');
-                
-                // Sprawdź zainstalowane pakiety
-                const pip = spawn('pip3', ['list']);
-                let installedPackages = '';
-
-                pip.stdout.on('data', (data) => {
-                    installedPackages += data.toString();
-                });
-
-                pip.on('close', async () => {
-                    const missingPackages = requirements.filter(pkg => 
-                        !installedPackages.includes(pkg)
-                    );
-
-                    if (missingPackages.length > 0) {
-                        console.log('Installing missing packages:', missingPackages);
-                        
-                        // Pokaż dialog informujący o instalacji
-                        dialog.showMessageBox({
-                            type: 'info',
-                            title: 'Installing Dependencies',
-                            message: `Installing required Python packages: ${missingPackages.join(', ')}`
-                        });
-
-                        // Instaluj brakujące pakiety
-                        const install = spawn('pip3', ['install', ...missingPackages]);
-                        
-                        install.stdout.on('data', (data) => {
-                            console.log('pip install output:', data.toString());
-                        });
-
-                        install.stderr.on('data', (data) => {
-                            console.error('pip install error:', data.toString());
-                        });
-
-                        install.on('close', (code) => {
-                            if (code === 0) {
-                                console.log('Dependencies installed successfully');
-                                resolve();
-                            } else {
-                                const error = new Error('Failed to install dependencies');
-                                dialog.showErrorBox(
-                                    'Installation Failed',
-                                    'Failed to install required Python packages. Please install them manually:\n' +
-                                    missingPackages.map(pkg => `pip3 install ${pkg}`).join('\n')
-                                );
-                                reject(error);
-                            }
-                        });
-                    } else {
-                        console.log('All dependencies already installed');
-                        resolve();
-                    }
-                });
-            } else {
-                reject(new Error('Python check failed'));
-            }
-        });
-    });
-}
-
-// Dodaj funkcję do pobierania ścieżki aplikacji
-function getAppDataPath() {
-    if (process.platform === 'darwin') { // macOS
-        return path.join(app.getPath('userData'), 'PROMPTR');
-    } else if (process.platform === 'win32') { // Windows
-        return path.join(app.getPath('userData'), 'PROMPTR');
-    } else { // Linux
-        return path.join(app.getPath('userData'), 'PROMPTR');
     }
-}
+});
 
-// Dodaj funkcję do pobierania ścieżki virtual env
-function getVenvPath() {
-    return path.join(getAppDataPath(), 'venv');
-}
-
-// Zmodyfikuj funkcję runPythonScript
-function runPythonScript(scriptPath, args = []) {
-    return new Promise((resolve, reject) => {
-        // Najpierw uruchom skrypt używając systemowego Pythona do utworzenia venv
-        if (scriptPath.endsWith('python_env_manager.py')) {
-            const pythonProcess = spawn('python3', [scriptPath, ...args]);
-            
-            let output = '';
-            let errorOutput = '';
-            
-            pythonProcess.stdout.on('data', (data) => {
-                output += data.toString();
-                console.log('Python output:', data.toString());
-            });
-            
-            pythonProcess.stderr.on('data', (data) => {
-                errorOutput += data.toString();
-                console.error('Python error:', data.toString());
-            });
-            
-            pythonProcess.on('close', (code) => {
-                if (code === 0) {
-                    resolve(output);
-                } else {
-                    reject(new Error(errorOutput || 'Python script failed'));
-                }
-            });
-        } else {
-            // Dla innych skryptów użyj Pythona z venv
-            const venvPython = path.join(getVenvPath(), 
-                process.platform === 'win32' ? 'Scripts\\python.exe' : 'bin/python');
-            
-            console.log('Using Python path:', venvPython);
-            console.log('Running script:', scriptPath);
-            console.log('With args:', args);
-
-            const pythonProcess = spawn(venvPython, [scriptPath, ...args]);
-            
-            let output = '';
-            let errorOutput = '';
-            
-            pythonProcess.stdout.on('data', (data) => {
-                output += data.toString();
-                console.log('Python output:', data.toString());
-            });
-            
-            pythonProcess.stderr.on('data', (data) => {
-                errorOutput += data.toString();
-                console.error('Python error:', data.toString());
-            });
-            
-            pythonProcess.on('error', (error) => {
-                console.error('Failed to start Python process:', error);
-                reject(new Error(`Failed to start Python process: ${error.message}`));
-            });
-            
-            pythonProcess.on('close', (code) => {
-                if (code === 0) {
-                    resolve(output);
-                } else {
-                    reject(new Error(errorOutput || 'Python script failed'));
-                }
-            });
-        }
-    });
-}
-
-// Zmodyfikuj obsługę importu modelu
+// Dodaj handler dla rozpoczęcia importu modelu
 ipcMain.on('start-model-import', async (event, modelUrl) => {
     const sender = event.sender;
-    let downloadResult = null;
-    
     try {
-        // Step 1: Download
-        sender.send('import-status', {
-            step: 'download',
-            message: 'Starting download...',
-            isActive: true
-        });
-
-        downloadResult = await ollamaManager.installCustomModel(modelUrl, 
-            (progress, downloadedSize, totalSize, fileName) => {
-                sender.send('import-progress', { progress });
-                sender.send('import-status', {
-                    step: 'download',
-                    message: `Downloading ${fileName} (${(downloadedSize / 1024 / 1024).toFixed(1)}MB / ${(totalSize / 1024 / 1024).toFixed(1)}MB)`,
-                    isActive: true
-                });
-            }
-        );
-
-        if (!downloadResult.success) {
-            throw new Error(downloadResult.error || 'Download failed');
-        }
-
-        sender.send('import-status', {
-            step: 'download',
-            message: 'Download complete',
-            isComplete: true
-        });
-
-        // Step 2: Setup Python Environment
-        sender.send('import-status', {
-            step: 'dependencies',
-            message: 'Setting up Python environment...',
-            isActive: true
-        });
-
-        try {
-            // Uruchom setup środowiska Python
-            const envSetupPath = path.join(__dirname, 'python_env_manager.py');
-            await runPythonScript(envSetupPath);
+        // Wyczyść i sparsuj URL
+        const cleanUrl = modelUrl.trim()
+            .replace('https://huggingface.co/', '')
+            .replace('/tree/main', '')
+            .replace(/^\/+|\/+$/g, '');
             
-            sender.send('import-status', {
-                step: 'dependencies',
-                message: 'Dependencies installed successfully',
-                isComplete: true
-            });
-        } catch (envError) {
-            throw new Error(`Failed to setup Python environment: ${envError.message}`);
+        const urlParts = cleanUrl.split('/');
+        const owner = urlParts[0];
+        const repo = urlParts[1];
+
+        if (!owner || !repo) {
+            throw new Error('Invalid model URL format');
         }
 
-        // Step 3: Convert
+        console.log('Importing model from:', { owner, repo });
+
+        // Utwórz katalog docelowy
+        const targetDir = path.join(app.getPath('userData'), 'PROMPTR', 'custom-models', `${owner}_${repo}`);
+        await fs.mkdir(targetDir, { recursive: true });
+
         sender.send('import-status', {
-            step: 'convert',
-            message: 'Converting to ONNX...',
+            step: 'initialize',
+            message: 'Preparing to download model files...',
             isActive: true
         });
 
-        try {
-            const convertScriptPath = path.join(__dirname, 'convert.py');
-            await runPythonScript(convertScriptPath, [downloadResult.path, path.join(downloadResult.path, 'model.onnx')]);
-            
-            sender.send('import-status', {
-                step: 'convert',
-                message: 'Conversion complete',
-                isComplete: true
-            });
+        await downloadRepositoryContents(owner, repo, '', targetDir, sender);
 
-            sender.send('import-complete');
-        } catch (convError) {
-            throw new Error(`Conversion failed: ${convError.message}`);
-        }
+        sender.send('import-status', {
+            step: 'complete',
+            message: 'Model import completed successfully',
+            isActive: false
+        });
 
     } catch (error) {
-        console.error('Import error:', error);
-        sender.send('import-error', error.message);
-        
-        // Cleanup if needed
-        if (downloadResult && downloadResult.path) {
-            try {
-                fs.rmSync(downloadResult.path, { recursive: true, force: true });
-            } catch (cleanupError) {
-                console.error('Cleanup error:', cleanupError);
-            }
-        }
+        console.error('Error in model import:', error);
+        sender.send('import-error', {
+            message: error.message,
+            details: error.stack
+        });
     }
 });
 
@@ -1663,13 +1773,20 @@ app.whenReady().then(async () => {
 app.whenReady().then(createWindow);
 
 app.on('window-all-closed', () => {
-    clearInterval(connectionCheckInterval);
+    console.log('All windows closed');
+    if (connectionCheckInterval) {
+        clearInterval(connectionCheckInterval);
+    }
+    if (powerSaveId !== null) {
+        powerSaveBlocker.stop(powerSaveId);
+    }
     if (process.platform !== 'darwin') {
         app.quit();
     }
 });
 
 app.on('activate', () => {
+    console.log('App activated');
     if (BrowserWindow.getAllWindows().length === 0) {
         createWindow();
     }
@@ -1677,7 +1794,7 @@ app.on('activate', () => {
 
 async function downloadHuggingFaceFiles(repoId, targetDir, progressCallback) {
     try {
-        // Usuń przedrostek URL i wyczyść ścieżkę
+        // Usuń przedrostek URL i wyczyś ścieżkę
         repoId = repoId
             .replace('https://huggingface.co/', '')
             .replace('/tree/main', '')
@@ -1692,8 +1809,8 @@ async function downloadHuggingFaceFiles(repoId, targetDir, progressCallback) {
         console.log('Target directory:', targetDir);
 
         // Utwórz folder docelowy
-        if (!fs.existsSync(targetDir)) {
-            fs.mkdirSync(targetDir, { recursive: true });
+        if (!fsSync.existsSync(targetDir)) {
+            fsSync.mkdirSync(targetDir, { recursive: true });
             console.log('Created target directory');
         }
 
@@ -1762,6 +1879,7 @@ async function downloadHuggingFaceFiles(repoId, targetDir, progressCallback) {
 
 // Dodaj nową funkcję pomocniczą do pobierania pojedynczego pliku
 async function downloadFile(repoId, filePath, targetPath, progressCallback) {
+    console.log(`Starting download for file: ${filePath}`);
     const fileUrl = `https://huggingface.co/${repoId}/resolve/main/${filePath}`;
     console.log(`Downloading: ${filePath}`);
     console.log(`From: ${fileUrl}`);
@@ -1772,23 +1890,48 @@ async function downloadFile(repoId, filePath, targetPath, progressCallback) {
         throw new Error(`Failed to download ${filePath}: ${response.status} ${response.statusText}`);
     }
 
-    const fileStream = fs.createWriteStream(targetPath);
+    const fileStream = fsSync.createWriteStream(targetPath);
     const reader = response.body.getReader();
     const contentLength = parseInt(response.headers.get('content-length') || '0');
     let downloadedLength = 0;
 
-    while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
+    // Helper function to format size
+    const formatSize = (bytes) => {
+        if (bytes === 0) return '0 B';
+        const k = 1024;
+        const sizes = ['B', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return `${parseFloat((bytes / Math.pow(k, i)).toFixed(2))} ${sizes[i]}`;
+    };
 
-        downloadedLength += value.length;
-        fileStream.write(Buffer.from(value));
+    return new Promise((resolve, reject) => {
+        response.body.on('data', (chunk) => {
+            downloadedLength += chunk.length;
+            fileStream.write(chunk);
 
-        if (contentLength > 0) {
-            const progress = (downloadedLength / contentLength) * 100;
-            progressCallback(progress, downloadedLength, contentLength, filePath);
-        }
-    }
+            if (contentLength > 0) {
+                const progress = (downloadedLength / contentLength) * 100;
+                progressCallback(progress, downloadedLength, contentLength, filePath);
+            } else {
+                progressCallback(0, downloadedLength, contentLength, filePath);
+            }
+        });
+
+        response.body.on('end', () => {
+            fileStream.end();
+            console.log(`Successfully downloaded ${filePath}`);
+            resolve();
+        });
+
+        response.body.on('error', (error) => {
+            fileStream.destroy();
+            reject(error);
+        });
+
+        fileStream.on('error', (error) => {
+            reject(error);
+        });
+    });
 
     fileStream.end();
     console.log(`Successfully downloaded ${filePath}`);
@@ -1803,191 +1946,241 @@ process.on('unhandledRejection', (reason, promise) => {
     console.error('Unhandled Rejection at:', promise, 'reason:', reason);
 });
 
-// Dodaj nową funkcję pomocniczą do sprawdzania statusu Ollama
-async function checkOllamaAvailability() {
-    const status = ollamaManager.getStatus();
-    if (!status.isConnected) {
-        throw new Error('Ollama is not connected');
+// Dodaj na początku pliku
+let modalBackgroundTimeout;
+
+// Dodaj funkcję do zarządzania tłem podczas otwierania okien modalnych
+function handleModalBackground(show) {
+    if (!mainWindow) return;
+    
+    clearTimeout(modalBackgroundTimeout);
+    
+    if (show) {
+        mainWindow.webContents.send('set-background-state', 'dimmed');
+    } else {
+        // Małe opóźnienie przy przywracaniu, aby uniknąć migotania
+        modalBackgroundTimeout = setTimeout(() => {
+            mainWindow.webContents.send('set-background-state', 'normal');
+        }, 100);
     }
-    if (!status.currentModel) {
-        throw new Error('No model selected');
-    }
-    return true;
 }
 
-// Dodaj nowy handler do sprawdzania statusu przed generowaniem
-ipcMain.handle('check-ollama-before-generation', async () => {
-    try {
-        return await checkOllamaAvailability();
-    } catch (error) {
-        console.error('Ollama availability check failed:', error);
-        throw error;
-    }
+// Zmodyfikuj handlery otwierania okien
+ipcMain.on('open-settings', () => {
+    handleModalBackground(true);
+    const settingsWindowInstance = settingsWindow.create();
+    settingsWindowInstance.on('closed', () => {
+        handleModalBackground(false);
+    });
 });
 
-// Dodaj obsługę anulowania generowania
-ipcMain.on('cancel-generation', async () => {
-    try {
-        await ollamaManager.cancelCurrentGeneration();
-    } catch (error) {
-        console.error('Error cancelling generation:', error);
-    }
+ipcMain.on('open-config', () => {
+    handleModalBackground(true);
+    configWindowInstance = configWindow.create();
+    configWindowInstance.on('closed', () => {
+        configWindowInstance = null;
+        handleModalBackground(false);
+    });
 });
 
-// Dodaj handler do restartu aplikacji
-ipcMain.on('restart-app', () => {
-    app.relaunch();
-    app.exit();
+// Podobnie dla innych okien modalnych
+ipcMain.on('open-styles', () => {
+    handleModalBackground(true);
+    const stylesWindowInstance = stylesWindow.create();
+    stylesWindowInstance.on('closed', () => {
+        handleModalBackground(false);
+        mainWindow.webContents.send('refresh-styles');
+    });
 });
 
-// Dodaj nowy handler do instalacji modelu
-ipcMain.handle('install-model', async (event, modelName) => {
+// Dodaj handler dla get-custom-models
+ipcMain.handle('get-custom-models', async () => {
     try {
-        console.log('Starting model installation:', modelName);
-        
-        // Sprawdź czy model jest już zainstalowany
-        const isAvailable = await ollamaManager.checkModelAvailability(modelName);
-        if (isAvailable) {
-            console.log('Model already installed:', modelName);
-            event.sender.send('model-install-progress', {
-                progress: 100,
-                status: 'Model already installed',
-                downloadedSize: 0,
-                totalSize: 0
-            });
-            return true;
+        const customModelsPath = path.join(app.getPath('userData'), 'PROMPTR', 'custom-models');
+        if (!fsSync.existsSync(customModelsPath)) {
+            await fs.mkdir(customModelsPath, { recursive: true });
+            return [];
         }
 
-        // Wyślij żądanie instalacji do Ollama z obsługą streamu
-        const baseUrl = ollamaManager.getBaseUrl();
-        console.log('Sending pull request to:', baseUrl);
+        const models = await fs.readdir(customModelsPath);
+        return models.map(modelName => ({
+            name: modelName,
+            type: 'Custom',
+            path: path.join(customModelsPath, modelName)
+        }));
+    } catch (error) {
+        console.error('Error getting custom models:', error);
+        return [];
+    }
+});
 
-        const response = await fetch(`${baseUrl}/api/pull`, {
+// Dodaj nowy handler dla get-model-info
+ipcMain.handle('get-model-info', async (event, modelId) => {
+    try {
+        // Najpierw sprawdź czy model jest zainstalowany
+        const installedModels = await ollamaManager.getInstalledModels();
+        const isInstalled = installedModels.includes(modelId);
+
+        if (!isInstalled) {
+            // Jeśli model nie jest zainstalowany, zwróć podstawowe informacje z nazwy
+            const sizeMatch = modelId.match(/[:\-](\d+(?:\.\d+)?[bB])/);
+            const size = sizeMatch ? sizeMatch[1].toUpperCase() : null;
+            
+            return {
+                id: modelId,
+                name: modelId,
+                size: size,
+                parameters: size,
+                isInstalled: false
+            };
+        }
+
+        // Jeśli model jest zainstalowany, pobierz szczegółowe informacje
+        const response = await fetch(`${ollamaManager.getBaseUrl()}/api/show`, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
             },
             body: JSON.stringify({
-                name: modelName,
+                name: modelId
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`Failed to get model info: ${response.status}`);
+        }
+
+        const data = await response.json();
+        
+        // Wyciągnij rozmiar parametrów z nazwy jeśli nie ma w danych
+        const sizeMatch = modelId.match(/[:\-](\d+(?:\.\d+)?[bB])/);
+        const parameterSize = sizeMatch ? sizeMatch[1].toUpperCase() : null;
+
+        return {
+            id: modelId,
+            name: modelId,
+            size: data.size || null,
+            parameters: parameterSize || data.parameter_size || null,
+            template: data.template || null,
+            system: data.system || null,
+            families: data.families || [],
+            isInstalled: true,
+            details: {
+                format: data.format || null,
+                families: data.families || [],
+                parameter_size: parameterSize || data.parameter_size || null,
+                quantization_level: data.quantization_level || null
+            }
+        };
+    } catch (error) {
+        console.error('Error getting model info:', error);
+        // Spróbuj wyciągnąć rozmiar z nazwy modelu
+        const sizeMatch = modelId.match(/[:\-](\d+(?:\.\d+)?[bB])/);
+        return {
+            id: modelId,
+            name: modelId,
+            size: null,
+            parameters: sizeMatch ? sizeMatch[1].toUpperCase() : null,
+            isInstalled: false
+        };
+    }
+});
+
+// Dodaj też handler dla get-model-size (jako backup)
+ipcMain.handle('get-model-size', async (event, modelId) => {
+    try {
+        const modelInfo = await ipcMain.handle('get-model-info', event, modelId);
+        return modelInfo.size;
+    } catch (error) {
+        console.error('Error getting model size:', error);
+        return null;
+    }
+});
+
+// Zaktualizuj handler install-model
+ipcMain.handle('install-model', async (event, modelId) => {
+    try {
+        console.log('Installing model:', modelId);
+        
+        const response = await fetch(`${ollamaManager.getBaseUrl()}/api/pull`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                name: modelId,
                 stream: true
             })
         });
 
         if (!response.ok) {
-            throw new Error(`Failed to install model: ${response.status} ${response.statusText}`);
+            throw new Error(`Failed to install model: ${response.status}`);
         }
 
-        console.log('Pull request successful, starting download...');
-
-        // Czytaj stream odpowiedzi
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
         let downloadedSize = 0;
         let totalSize = 0;
 
-        while (true) {
-            const { done, value } = await reader.read();
-            if (done) {
-                console.log('Download completed');
-                event.sender.send('model-install-complete', {
-                    message: 'Model installed successfully'
-                });
-                break;
-            }
-
-            // Dekoduj chunk i podziel na linie
-            const chunk = decoder.decode(value, { stream: true });
-            const lines = chunk.split('\n').filter(line => line.trim());
-
+        // Użyj response.body jako strumienia
+        for await (const chunk of response.body) {
+            const lines = chunk.toString().split('\n').filter(line => line.trim());
+            
             for (const line of lines) {
                 try {
                     const data = JSON.parse(line);
-                    console.log('Progress data:', data);
                     
-                    // Aktualizuj postęp
                     if (data.total) {
                         totalSize = data.total;
                     }
+                    
                     if (data.completed) {
                         downloadedSize = data.completed;
                     }
 
-                    // Wyślij aktualizację postępu do interfejsu
+                    // Wyślij aktualizację postępu do okna
                     if (totalSize > 0) {
-                        const progress = Math.round((downloadedSize / totalSize) * 100);
                         event.sender.send('model-install-progress', {
-                            modelName,
-                            progress,
-                            status: data.status,
+                            modelName: modelId,
                             downloadedSize,
                             totalSize,
-                            digest: data.digest
+                            progress: (downloadedSize / totalSize) * 100
                         });
-                        console.log('Sent progress update:', progress);
                     }
                 } catch (error) {
-                    console.error('Error parsing progress data:', error);
+                    console.error('Error parsing stream data:', error);
                 }
             }
         }
+
+        // Poczekaj chwilę aby upewnić się, że model jest gotowy
+        await new Promise(resolve => setTimeout(resolve, 1000));
+
+        // Sprawdź czy model został zainstalowany
+        const installedModels = await ollamaManager.getInstalledModels();
+        if (!installedModels.includes(modelId)) {
+            throw new Error('Model installation failed');
+        }
+
+        // Wyślij informację o zakończeniu instalacji
+        event.sender.send('model-install-complete', {
+            modelName: modelId,
+            success: true
+        });
 
         return true;
 
     } catch (error) {
         console.error('Error installing model:', error);
         event.sender.send('model-install-error', {
-            modelName,
-            message: error.message
+            modelName: modelId,
+            error: error.message
         });
-        return false;
-    }
-});
-
-// Dodaj handler do sprawdzania dostępności modelu
-ipcMain.handle('check-model-availability', async (event, modelName) => {
-    try {
-        return await ollamaManager.checkModelAvailability(modelName);
-    } catch (error) {
-        console.error('Error checking model availability:', error);
         throw error;
     }
 });
 
-// Dodaj handler do pobierania listy zainstalowanych modeli
-ipcMain.handle('get-installed-models', async () => {
-    try {
-        return await ollamaManager.getInstalledModels();
-    } catch (error) {
-        console.error('Error getting installed models:', error);
-        throw error;
+// Dodaj na początku pliku
+function forceGC() {
+    if (global.gc) {
+        global.gc();
     }
-});
-
-// Dodaj nowy handler IPC
-ipcMain.on('open-credits', () => {
-    creditsWindow.create();
-});
-
-// Dodaj nowe handlery IPC
-ipcMain.on('minimize-window', () => {
-    const win = BrowserWindow.getFocusedWindow();
-    if (win) win.minimize();
-});
-
-ipcMain.on('maximize-window', () => {
-    const win = BrowserWindow.getFocusedWindow();
-    if (win) {
-        if (win.isMaximized()) {
-            win.unmaximize();
-            win.webContents.send('window-state-change', false);
-        } else {
-            win.maximize();
-            win.webContents.send('window-state-change', true);
-        }
-    }
-});
-
-ipcMain.on('close-window', () => {
-    const win = BrowserWindow.getFocusedWindow();
-    if (win) win.close();
-}); 
+}

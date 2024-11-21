@@ -1680,3 +1680,144 @@ input, button, textarea, [role="button"] {
     transform: none;
     margin-left: 8px;
 }
+
+/* Dodaj style dla przycisku importu modelu */
+.model-import-button {
+    background: var(--button-background);
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    color: var(--text);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    width: 100%;
+    margin-top: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.model-import-button:not(:disabled) {
+    background: var(--accent-color-1, #4CAF50);
+    color: white;
+}
+
+.model-import-button:not(:disabled):hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.model-import-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    background: var(--button-background);
+}
+
+.model-import-button i {
+    font-size: 16px;
+}
+
+/* Dodaj animację dla przycisku podczas ładowania */
+.model-import-button.loading {
+    position: relative;
+    pointer-events: none;
+}
+
+.model-import-button.loading::after {
+    content: '';
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    border: 2px solid transparent;
+    border-top-color: currentColor;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-left: 8px;
+}
+
+/* Dodaj style dla kontenera przycisku */
+.model-import-actions {
+    position: sticky;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    padding: 20px;
+    background: var(--background);
+    border-top: 1px solid var(--border);
+    z-index: 10;
+}
+
+/* Dodaj/zmodyfikuj style dla przycisku pobierania modelu */
+.download-model-button {
+    background: var(--accent-color-1, #4CAF50);
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    color: white;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    width: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.download-model-button:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    background: var(--accent-color-1, #5DBF60);
+}
+
+.download-model-button i {
+    font-size: 16px;
+}
+
+/* Usuń style dla coming-soon */
+.coming-soon {
+    display: none;
+}
+
+#available-models {
+    margin: 20px;
+}
+
+#toggle-models {
+    background-color: #007BFF;
+    color: white;
+    border: none;
+    padding: 10px;
+    cursor: pointer;
+}
+
+#models-list {
+    margin-top: 10px;
+    border: 1px solid #ccc;
+    padding: 10px;
+    background-color: #f9f9f9;
+}
+
+/* Dodaj style dla przyciemnionego tła */
+.dimmed {
+    filter: brightness(0.3);
+    transition: filter 0.2s ease-out;
+}
+
+/* Optymalizacje renderowania */
+.hardware-accelerated {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+}
+
+/* Optymalizacje dla scrollowanych elementów */
+.scrollable {
+    -webkit-overflow-scrolling: touch;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}

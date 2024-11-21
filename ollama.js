@@ -203,16 +203,14 @@ class OllamaManager {
             const response = await this.makeRequest(`${this.getBaseUrl()}/api/version`);
             console.log('Ollama connection response:', response);
             
-            if (!response.ok) {
-                this.isConnected = false;
-                return false;
-            }
+            this.isConnected = response.ok;
+            this.lastError = response.ok ? null : 'Failed to connect to Ollama';
             
-            this.isConnected = true;
-            return true;
+            return this.isConnected;
         } catch (error) {
             console.error('Ollama connection error:', error);
             this.isConnected = false;
+            this.lastError = error.message;
             return false;
         }
     }
@@ -1141,6 +1139,41 @@ except Exception as e:
             } catch (error) {
                 console.error('Error cancelling generation:', error);
             }
+        }
+    }
+
+    // Zaktualizuj metodę pullModel
+    async pullModel(modelName, progressCallback) {
+        try {
+            const response = await this.makeRequest(`${this.getBaseUrl()}/api/pull`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    name: modelName,
+                    stream: true
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`Failed to pull model: ${response.status}`);
+            }
+
+            // Przetwarzaj odpowiedzi strumieniowe
+            for (const data of response.responses) {
+                if (data.total && data.completed) {
+                    const progress = (data.completed / data.total) * 100;
+                    if (progressCallback) {
+                        progressCallback(progress);
+                    }
+                }
+            }
+
+            return true;
+        } catch (error) {
+            console.error('Error pulling model:', error);
+            throw error;
         }
     }
 }

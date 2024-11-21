@@ -1,34 +1,33 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>PROMPTR</title>
+    <title>PROMPTR Setup</title>
     <link rel="stylesheet" href="startup.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <style>
-        .version {
-            position: absolute;
-            bottom: 10px;
-            right: 10px;
-            color: #666;
-            font-size: 12px;
-        }
-    </style>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
 </head>
 <body>
     <div class="container">
-        <button class="close-button" id="close-btn">×</button>
-        <div class="logo">
-            <span class="logo-text">PROMPTR</span>
-            <div id="version" class="version"></div>
+        <div class="title-bar">
+            <div class="title">PROMPTR Setup</div>
         </div>
-        
-        <div class="status-container">
-            <div class="status-icon">
-                <i class="fas fa-plug"></i>
+        <div class="content">
+            <div class="logo-section">
+                <div class="logo">
+                    <i class="fas fa-robot"></i>
+                    <span class="logo-text">PROMPTR</span>
+                </div>
+                <div class="version-info">
+                    <span id="version">v1.0</span>
+                </div>
             </div>
-            <div class="status-text">Connecting to Ollama...</div>
-            <div class="progress-bar">
-                <div class="progress" id="progress"></div>
+            <div class="status-section">
+                <div class="progress-text">Initializing...</div>
+                <div class="progress-container">
+                    <div class="progress-bar">
+                        <div class="progress-fill" style="width: 0%"></div>
+                    </div>
+                </div>
+                <div class="progress-status">Checking dependencies...</div>
             </div>
         </div>
     </div>

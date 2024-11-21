@@ -1,1 +1,23 @@
-{}
+{
+  "custom_1732109739705": {
+    "name": "Funny Shit",
+    "description": "Characterized by wildly exaggerated proportions where objects and figures are either comically oversized or hilariously tiny, with vibrant, clashing colors creating a visual cacophony, surreal combinations of unrelated elements that defy logic, chaotic and unpredictable compositions that feel deliberately nonsensical, and an overarching sense of playful absurdity designed to elicit laughter, confusion, and sheer delight in its unapologetically over-the-top ridiculousness",
+    "icon": "eye",
+    "fixedTags": [
+      "absurd overload",
+      "exaggeration madness",
+      "playful chaos",
+      "ridiculous artistry"
+    ]
+  },
+  "custom_1732173392178": {
+    "name": "Typography",
+    "description": "Merging bold typography with vibrant, retro-inspired illustrations, it creates a visually striking narrative where text and imagery seamlessly intertwine. Overlapping layers, geometric shapes, and a nostalgic yet modern color palette evoke a sense of depth and movement. The composition is dynamic and complex, with every element—from the characters to symbols—working together to form a cohesive, story-driven design. Playful yet sophisticated, it balances intricate details with bold, impactful visuals",
+    "icon": "feather",
+    "fixedTags": [
+      "typographic art",
+      "retroIl iustration",
+      "bold design"
+    ]
+  }
+}

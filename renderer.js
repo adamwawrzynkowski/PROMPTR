@@ -466,19 +466,22 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     // Obsługa statusu połączenia
     ipcRenderer.on('ollama-status', (event, status) => {
-        const connectionBtn = document.getElementById('connection-btn');
-        const tooltip = connectionBtn?.querySelector('.tooltip');
+        console.log('Received Ollama status:', status);
         
-        if (connectionBtn && tooltip) {
-            if (status.isConnected) {
-                connectionBtn.classList.add('connected');
-                connectionBtn.classList.remove('disconnected');
-                tooltip.textContent = `Connected (${status.currentModel || 'No model selected'})`;
-            } else {
-                connectionBtn.classList.add('disconnected');
-                connectionBtn.classList.remove('connected');
-                tooltip.textContent = status.error || 'Disconnected';
-            }
+        const statusIndicator = document.querySelector('.status-indicator');
+        const statusIcon = statusIndicator.querySelector('i');
+        const statusText = statusIndicator.querySelector('.status-text');
+        
+        if (status.isConnected) {
+            statusIndicator.classList.add('connected');
+            statusIndicator.classList.remove('error');
+            statusIcon.className = 'fas fa-plug';
+            statusText.textContent = 'Connected to Ollama';
+        } else {
+            statusIndicator.classList.remove('connected');
+            statusIndicator.classList.add('error');
+            statusIcon.className = 'fas fa-exclamation-triangle';
+            statusText.textContent = status.error || 'Not connected to Ollama';
         }
     });
 
@@ -792,9 +795,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     // Dodaj w sekcji event listenerów
-    document.querySelector('.credits-button').addEventListener('click', () => {
-        ipcRenderer.send('open-credits');
-    });
+    const creditsButton = document.getElementById('credits-btn');
+    if (creditsButton) {
+        creditsButton.addEventListener('click', () => {
+            ipcRenderer.send('open-credits');
+        });
+    }
 
     // Dodaj funkcję do oczyszczenia pamięci
     function cleanupMemory() {
@@ -822,4 +828,54 @@ document.addEventListener('DOMContentLoaded', async () => {
             });
         });
     }
+
+    // Dodaj w sekcji event listenerów
+    document.getElementById('import-model-btn')?.addEventListener('click', () => {
+        ipcRenderer.send('open-model-import');
+    });
+
+    // Dodaj obsługę statusu importu
+    ipcRenderer.on('import-status', (event, data) => {
+        const statusElement = document.querySelector('.import-status');
+        if (statusElement) {
+            statusElement.textContent = data.message;
+            statusElement.className = `import-status ${data.isActive ? 'active' : ''} ${data.isComplete ? 'complete' : ''}`;
+        }
+    });
+
+    // Dodaj obsługę postępu importu
+    ipcRenderer.on('import-progress', (event, data) => {
+        const progressBar = document.querySelector('.import-progress');
+        if (progressBar) {
+            progressBar.style.width = `${data.progress}%`;
+        }
+    });
+
+    // Dodaj obsługę błędów importu
+    ipcRenderer.on('import-error', (event, error) => {
+        showToast(`Import error: ${error}`);
+    });
+
+    // Dodaj obsługę zakończenia importu
+    ipcRenderer.on('import-complete', () => {
+        showToast('Model imported successfully');
+    });
+
+    // Dodaj optymalizacje renderowania
+    document.addEventListener('visibilitychange', () => {
+        if (document.hidden) {
+            // Zatrzymaj niepotrzebne animacje gdy okno jest niewidoczne
+            document.body.classList.add('no-animations');
+        } else {
+            document.body.classList.remove('no-animations');
+        }
+    });
+
+    // Zoptymalizuj obsługę zdarzeń
+    const optimizedEventHandler = debounce((e) => {
+        // ... istniejąca logika obsługi zdarzeń ...
+    }, 100);
+
+    // Użyj zoptymalizowanego handlera
+    mainPromptInput.addEventListener('input', optimizedEventHandler);
 });

@@ -1,83 +1,186 @@
+/* Importuj te same zmienne co w config.css */
+:root {
+    --background: rgb(30, 27, 46);
+    --card-background: rgb(40, 37, 56);
+    --accent-color: #7c4dff;
+    --accent-color-hover: #9969ff;
+    --text-color: #ffffff;
+    --text-secondary: rgba(255, 255, 255, 0.7);
+    --border-color: rgba(255, 255, 255, 0.1);
+    --success-color: #4CAF50;
+    --error-color: #f44336;
+}
+
 body {
-    background: transparent;
     margin: 0;
     padding: 0;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    background: var(--background);
+    color: var(--text-color);
+    height: 100vh;
+    overflow: hidden;
 }
 
 .container {
-    background: rgba(28, 27, 34, 0.95);
-    border-radius: 12px;
-    padding: 20px;
-    width: 100%;
-    height: 100vh;
-    box-sizing: border-box;
+    width: 500px;
+    height: 400px;
+    margin: 0;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
     display: flex;
     flex-direction: column;
+    background: var(--background);
+    border-radius: 12px;
+    overflow: hidden;
+    border: 1px solid var(--border-color);
+}
+
+.title-bar {
+    -webkit-app-region: drag;
+    background: var(--card-background);
+    padding: 12px 24px;
+    display: flex;
+    justify-content: space-between;
     align-items: center;
-    justify-content: center;
-    color: white;
-    position: relative;
+    border-bottom: 1px solid var(--border-color);
 }
 
-.logo {
-    margin-bottom: 30px;
-    text-align: center;
+.title {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text-color);
 }
 
-.logo-text {
-    font-size: 32px;
-    font-weight: bold;
-    letter-spacing: 2px;
+.content {
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
+    flex-grow: 1;
 }
 
-.status-container {
-    width: 80%;
-    text-align: center;
+.status-section {
+    margin: 0 24px;
+    margin-top: auto;
+    background: var(--card-background);
+    padding: 24px;
+    border-radius: 12px;
+    border: 1px solid var(--border-color);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
 }
 
-.status-icon {
-    margin-bottom: 15px;
-    font-size: 24px;
-    color: #4CAF50;
-}
-
-.status-text {
-    margin-bottom: 15px;
-    color: #ccc;
+.progress-container {
+    width: 100%;
+    padding: 0;
 }
 
 .progress-bar {
     width: 100%;
-    height: 4px;
+    height: 8px;
     background: rgba(255, 255, 255, 0.1);
-    border-radius: 2px;
+    border-radius: 12px;
     overflow: hidden;
+    margin: 12px 0;
 }
 
-.progress {
-    width: 0%;
+.progress-fill {
     height: 100%;
-    background: #4CAF50;
+    background: var(--accent-color);
     transition: width 0.3s ease;
+    border-radius: 12px;
 }
 
-.close-button {
-    position: absolute;
-    top: 10px;
-    right: 10px;
-    background: none;
-    border: none;
-    color: #666;
-    font-size: 20px;
-    cursor: pointer;
-    padding: 5px 10px;
+.progress-text {
+    font-size: 14px;
+    color: var(--text-color);
+    text-align: center;
+    font-weight: 500;
 }
 
-.close-button:hover {
-    color: #fff;
+.progress-status {
+    font-size: 13px;
+    color: var(--text-secondary);
+    text-align: center;
 }
 
-.error {
-    color: #ff4444;
+.version-info {
+    font-size: 14px;
+    color: var(--text-secondary);
+    padding: 4px 12px;
+    background: rgba(124, 77, 255, 0.1);
+    border-radius: 12px;
+    border: 1px solid var(--accent-color);
+}
+
+.error-message {
+    color: var(--error-color);
+    background: rgba(244, 67, 54, 0.1);
+    padding: 12px;
+    border-radius: 6px;
+    margin-top: 12px;
+    font-size: 14px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.error-message i {
+    font-size: 16px;
+}
+
+/* Scrollbar styles */
+.container::-webkit-scrollbar,
+.content::-webkit-scrollbar,
+*::-webkit-scrollbar {
+    width: 10px;
+}
+
+.container::-webkit-scrollbar-track,
+.content::-webkit-scrollbar-track,
+*::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.container::-webkit-scrollbar-thumb,
+.content::-webkit-scrollbar-thumb,
+*::-webkit-scrollbar-thumb {
+    background: var(--accent-color);
+    border-radius: 5px;
+}
+
+.container::-webkit-scrollbar-thumb:hover,
+.content::-webkit-scrollbar-thumb:hover,
+*::-webkit-scrollbar-thumb:hover {
+    background: var(--accent-color-hover);
+}
+
+.logo-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 32px 0;
+    gap: 16px;
+}
+
+.logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.logo i {
+    font-size: 48px;
+    color: var(--accent-color);
+}
+
+.logo-text {
+    font-size: 36px;
+    font-weight: 700;
+    color: var(--text-color);
+    letter-spacing: 2px;
 } 

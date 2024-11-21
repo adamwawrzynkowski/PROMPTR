@@ -1,51 +1,64 @@
 const { ipcRenderer } = require('electron');
 
-// Elementy UI
-const progressBar = document.getElementById('progress');
-const statusText = document.querySelector('.status-text');
-const closeBtn = document.getElementById('close-btn');
-const versionElement = document.getElementById('version');
+document.addEventListener('DOMContentLoaded', () => {
+    const statusElement = document.getElementById('status');
+    const progressBar = document.getElementById('progress');
+    const versionElement = document.getElementById('version');
 
-// Obsługa zamykania
-closeBtn.addEventListener('click', () => {
-    ipcRenderer.send('quit-app');
-});
+    // Funkcja do aktualizacji interfejsu
+    function updateUI(data) {
+        console.log('Updating UI with data:', data);
+        
+        if (!data) return;
 
-// Obsługa wersji
-ipcRenderer.on('app-version', (event, version) => {
-    versionElement.textContent = version;
-});
+        // Natychmiast aktualizuj status
+        if (statusElement && data.status) {
+            requestAnimationFrame(() => {
+                statusElement.textContent = data.status;
+                // Dodaj klasę dla animacji
+                statusElement.classList.remove('status-update');
+                void statusElement.offsetWidth; // Force reflow
+                statusElement.classList.add('status-update');
+            });
+        }
 
-// Obsługa postępu
-ipcRenderer.on('startup-progress', (event, data) => {
-    console.log('Received startup progress:', data);
-    
-    // Aktualizuj pasek postępu
-    const progress = ((data.step + 1) / 3) * 100;
-    progressBar.style.width = `${progress}%`;
-    
-    // Aktualizuj tekst statusu
-    if (data.status) {
-        statusText.textContent = data.status;
+        // Natychmiast aktualizuj pasek postępu
+        if (progressBar && typeof data.progress === 'number') {
+            requestAnimationFrame(() => {
+                progressBar.value = data.progress;
+            });
+        }
     }
-});
 
-// Obsługa błędów
-ipcRenderer.on('startup-error', (event, error) => {
-    console.error('Startup error:', error);
-    statusText.textContent = error;
-    statusText.classList.add('error');
-    progressBar.classList.add('error');
-});
+    // Ustaw początkowy status
+    updateUI({
+        status: 'Initializing...',
+        progress: 0
+    });
 
-// Dodaj style dla błędów
-const style = document.createElement('style');
-style.textContent = `
-    .error {
-        color: #ff4444 !important;
-    }
-    .progress-bar .error {
-        background-color: #ff4444 !important;
-    }
-`;
-document.head.appendChild(style); 
+    // Nasłuchuj na komunikaty o postępie
+    ipcRenderer.on('startup-progress', (event, data) => {
+        console.log('Received startup progress:', data);
+        updateUI(data);
+    });
+
+    // Nasłuchuj na błędy
+    ipcRenderer.on('startup-error', (event, error) => {
+        console.error('Startup error:', error);
+        if (statusElement) {
+            requestAnimationFrame(() => {
+                statusElement.textContent = `Error: ${error}`;
+                statusElement.classList.add('error');
+            });
+        }
+    });
+
+    // Nasłuchuj na wersję aplikacji
+    ipcRenderer.on('app-version', (event, version) => {
+        if (versionElement) {
+            requestAnimationFrame(() => {
+                versionElement.textContent = version;
+            });
+        }
+    });
+}); 

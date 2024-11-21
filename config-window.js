@@ -10,8 +10,8 @@ function create() {
     }
 
     window = new BrowserWindow({
-        width: 500,
-        height: 400,
+        width: 1000,
+        height: 800,
         webPreferences: {
             nodeIntegration: true,
             contextIsolation: false

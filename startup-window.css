@@ -1,0 +1,21 @@
+.status-update {
+    animation: fadeInOut 0.3s ease-in-out;
+}
+
+@keyframes fadeInOut {
+    0% { opacity: 0.7; }
+    50% { opacity: 1; }
+    100% { opacity: 0.9; }
+}
+
+#status {
+    transition: color 0.3s ease;
+}
+
+#status.error {
+    color: #ff4444;
+}
+
+#progress {
+    transition: width 0.3s ease;
+} 

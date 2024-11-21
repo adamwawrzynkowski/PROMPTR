@@ -173,14 +173,29 @@ body {
 }
 
 .action-button.primary {
-    background: var(--accent-color);
+    background: var(--accent-color-1, #4CAF50);
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
     color: white;
-    min-width: 120px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    width: 100%;
+    display: flex;
+    align-items: center;
     justify-content: center;
+    gap: 8px;
 }
 
 .action-button.primary:hover {
-    background: var(--accent-hover);
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    background: var(--accent-color-1, #5DBF60);
+}
+
+.action-button.primary i {
+    font-size: 16px;
 }
 
 .action-button:disabled {
@@ -359,12 +374,7 @@ body {
 }
 
 .beta-tag {
-    font-size: 12px;
-    background: rgba(255, 255, 255, 0.1);
-    padding: 2px 6px;
-    border-radius: 4px;
-    margin-left: 8px;
-    color: rgba(255, 255, 255, 0.7);
+    display: none;
 }
 
 .action-button.primary:disabled {
