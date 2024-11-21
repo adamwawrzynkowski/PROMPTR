@@ -511,18 +511,17 @@ async function createWindow() {
     try {
         // Poczekaj na załadowanie okna startowego
         await new Promise((resolve) => {
-            startup.webContents.once('did-finish-load', async () => {
-                // Wyślij wersję aplikacji
+            startup.webContents.once('did-finish-load', () => {
                 startup.webContents.send('app-version', APP_VERSION);
-                
-                // Wyślij początkowy status i poczekaj na jego przetworzenie
-                await sendStatus(startup, {
-                    step: 0,
-                    status: 'Starting PROMPTR...',
-                    progress: 5
-                });
                 resolve();
             });
+        });
+
+        // Wyślij początkowy status
+        await sendStatus(startup, {
+            step: 0,
+            status: 'Starting PROMPTR...',
+            progress: 5
         });
 
         // Sprawdź Ollama
@@ -537,7 +536,9 @@ async function createWindow() {
         
         if (!dependencies.ollama) {
             console.log('Ollama not found:', dependencies);
-            startup.close();
+            if (!startup.isDestroyed()) {
+                startup.close();
+            }
             
             const depWindow = dependenciesWindow.create();
             if (depWindow) {
@@ -551,7 +552,7 @@ async function createWindow() {
         // Kontynuuj z konfiguracją modeli
         await setupDefaultModels(startup);
 
-        // Utwórz główne okno
+        // Utwórz główne okno przed zamknięciem okna startowego
         mainWindow = createWindowWithAcceleration({
             width: 1200,
             height: 800,
@@ -567,27 +568,55 @@ async function createWindow() {
             show: false
         });
 
-        // Załaduj główne okno
-        await mainWindow.loadFile('index.html');
+        // Załaduj główne okno i poczekaj na jego załadowanie
+        await new Promise((resolve, reject) => {
+            mainWindow.loadFile('index.html');
+            mainWindow.webContents.once('did-finish-load', resolve);
+            mainWindow.webContents.once('did-fail-load', reject);
+        });
+
+        // Zoptymalizuj wydajność
         optimizeWindowPerformance(mainWindow);
 
-        // Poczekaj na gotowość głównego okna
-        await new Promise((resolve) => {
-            mainWindow.once('ready-to-show', () => {
-                mainWindow.show();
-                if (!startup.isDestroyed()) {
-                    startup.close();
-                }
-                resolve();
-            });
+        // Pokaż główne okno i zamknij startowe
+        mainWindow.show();
+        if (!startup.isDestroyed()) {
+            startup.close();
+        }
+
+        // Dodaj obsługę błędów dla głównego okna
+        mainWindow.webContents.on('render-process-gone', (event, details) => {
+            console.error('Main window render process gone:', details);
+            // Spróbuj zrestartować aplikację
+            app.relaunch();
+            app.exit(0);
         });
 
     } catch (error) {
         console.error('Error during startup:', error);
-        if (!startup.isDestroyed()) {
+        if (startup && !startup.isDestroyed()) {
             startup.webContents.send('startup-error', error.message);
             await new Promise(resolve => setTimeout(resolve, 2000));
             startup.close();
+        }
+        
+        // W przypadku błędu, spróbuj mimo wszystko utworzyć główne okno
+        if (!mainWindow) {
+            mainWindow = createWindowWithAcceleration({
+                width: 1200,
+                height: 800,
+                webPreferences: {
+                    nodeIntegration: true,
+                    contextIsolation: false,
+                    enableRemoteModule: true,
+                },
+                frame: false,
+                titleBarStyle: 'hidden',
+                show: false
+            });
+
+            await mainWindow.loadFile('index.html');
+            mainWindow.show();
         }
     }
 }

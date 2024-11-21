@@ -4,6 +4,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const statusElement = document.getElementById('status');
     const progressBar = document.getElementById('progress');
     const versionElement = document.getElementById('version');
+    let currentStatus = 'Initializing...';
 
     // Funkcja do aktualizacji interfejsu
     function updateUI(data) {
@@ -11,30 +12,29 @@ document.addEventListener('DOMContentLoaded', () => {
         
         if (!data) return;
 
-        // Natychmiast aktualizuj status
-        if (statusElement && data.status) {
+        // Aktualizuj status tylko jeśli jest nowy
+        if (statusElement && data.status && data.status !== currentStatus) {
+            currentStatus = data.status;
             requestAnimationFrame(() => {
-                statusElement.textContent = data.status;
-                // Dodaj klasę dla animacji
-                statusElement.classList.remove('status-update');
-                void statusElement.offsetWidth; // Force reflow
-                statusElement.classList.add('status-update');
+                statusElement.style.opacity = '0';
+                setTimeout(() => {
+                    statusElement.textContent = data.status;
+                    statusElement.style.opacity = '1';
+                    // Dodaj klasę dla animacji
+                    statusElement.classList.remove('status-update');
+                    void statusElement.offsetWidth; // Force reflow
+                    statusElement.classList.add('status-update');
+                }, 150);
             });
         }
 
-        // Natychmiast aktualizuj pasek postępu
+        // Aktualizuj pasek postępu
         if (progressBar && typeof data.progress === 'number') {
             requestAnimationFrame(() => {
                 progressBar.value = data.progress;
             });
         }
     }
-
-    // Ustaw początkowy status
-    updateUI({
-        status: 'Initializing...',
-        progress: 0
-    });
 
     // Nasłuchuj na komunikaty o postępie
     ipcRenderer.on('startup-progress', (event, data) => {
