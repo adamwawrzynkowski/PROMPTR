@@ -19,5 +19,15 @@
       "retroIl iustration",
       "bold design"
     ]
+  },
+  "custom_1732185184860": {
+    "name": "Video Game",
+    "description": "A video game-inspired style features slightly angular 3D models with geometric details, blending nostalgic low-poly aesthetics with a modern, minimalist twist. Models showcase simplified edges and visible polygons reminiscent of early 3D games, enhanced with high-resolution textures and subtle gradients. The color palette is vibrant and contrasting, often incorporating lighting effects like neon glows and reflections to create a dynamic, immersive atmosphere. This style captures a mix of retro charm and futuristic design, focusing on visual clarity and playability",
+    "icon": "diamond",
+    "fixedTags": [
+      "polygon aesthetic",
+      "retro futurism",
+      "game inspired design"
+    ]
   }
 }

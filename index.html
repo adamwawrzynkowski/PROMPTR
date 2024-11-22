@@ -4,8 +4,7 @@
     <meta charset="UTF-8">
     <title>Prompt Editor</title>
     <link rel="stylesheet" href="styles.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="stylesheet" href="history.css">
 </head>
 <body>
@@ -50,51 +49,53 @@
         </div>
     </div>
     <div class="app-container">
-        <div class="input-section">
-            <div class="input-wrapper">
-                <textarea id="prompt-input" class="prompt-input" placeholder="Enter your prompt here..."></textarea>
-                <div class="input-buttons">
-                    <button class="input-btn draw-things-btn" id="draw-things-btn">
-                        <i class="fas fa-arrow-right"></i>
-                        <div class="tooltip">Send to Draw Things</div>
-                    </button>
-                    <button class="input-btn vision-btn" id="vision-btn">
-                        <i class="fas fa-image"></i>
-                        <div class="tooltip">Analyze Image</div>
-                    </button>
-                    <button class="input-btn" id="copy-prompt">
-                        <i class="fas fa-copy"></i>
-                        <div class="tooltip">Copy</div>
-                    </button>
-                    <button class="input-btn" id="clear-prompt">
-                        <i class="fas fa-times"></i>
-                        <div class="tooltip">Clear</div>
-                    </button>
+        <div class="main-content">
+            <div class="prompt-input-container">
+                <div class="prompt-input-wrapper">
+                    <textarea id="promptInput" placeholder="Enter your prompt here..."></textarea>
+                    <div class="input-buttons">
+                        <button id="visionBtn" class="tool-button" title="Prompt from Image">
+                            <i class="fas fa-image"></i>
+                        </button>
+                        <button id="copyPromptBtn" class="tool-button" title="Copy Prompt">
+                            <i class="fas fa-copy"></i>
+                        </button>
+                        <button id="clearPromptBtn" class="tool-button" title="Clear Prompt">
+                            <i class="fas fa-times"></i>
+                        </button>
+                    </div>
+                </div>
+                <div id="tags-container" class="tags-container"></div>
+            </div>
+
+            <div class="styles-container">
+                <div class="styles-header">
+                    <h2>Styles</h2>
+                    <div class="styles-actions">
+                        <button id="generatePrompts" class="action-button">
+                            <i class="fas fa-wand-magic-sparkles"></i>
+                            Generate Prompts
+                        </button>
+                        <button id="manageStyles" class="secondary-button">
+                            <i class="fas fa-cog"></i>
+                            Manage Styles
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="styles-scroll-container">
+                    <div class="active-styles" id="activeStyles">
+                        <!-- Style cards will be inserted here -->
+                    </div>
+
+                    <div class="inactive-styles-header">
+                        <h3>Inactive Styles</h3>
+                    </div>
+                    <div class="inactive-styles" id="inactiveStyles">
+                        <!-- Inactive style cards will be moved here -->
+                    </div>
                 </div>
             </div>
-            <div id="tags-container" class="tags-container"></div>
-        </div>
-        
-        <div class="style-selector">
-            <div class="style-selector-header">Active Styles</div>
-            <div class="style-tags">
-                <!-- Style będą dodawane dynamicznie -->
-            </div>
-        </div>
-        
-        <div class="styles-header">
-            <button class="refresh-all-btn" id="refresh-all-btn">
-                <i class="fas fa-sync-alt"></i>
-                Refresh All
-            </button>
-            <button class="manage-styles-btn" id="manage-styles-btn">
-                <i class="fas fa-paint-brush"></i>
-                Manage Styles
-            </button>
-        </div>
-        
-        <div class="options-grid">
-            <!-- Kafelki będą dodawane tutaj dynamicznie -->
         </div>
     </div>
     <div class="history-panel">

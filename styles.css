@@ -10,6 +10,8 @@
     --input-background: rgba(0, 0, 0, 0.2);
     --success: #4CAF50;
     --error: #f44336;
+    --accent-color: #4CAF50;
+    --accent-color-hover: #45a049;
 }
 
 /* Resetowanie domyślnych styli */
@@ -34,16 +36,23 @@ html, body {
 .app-container {
     position: relative;
     width: 100%;
-    height: 100%;
-    background: var(--background);
-    border-radius: 0;
+    height: 100vh;
+    padding: 20px;
     display: flex;
     flex-direction: column;
-    padding: 1rem;
+    gap: 20px;
+    overflow-y: auto;
+    background: var(--background);
+    padding-top: 58px;
+}
+
+.main-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
     overflow: hidden;
-    isolation: isolate;
-    margin-top: 38px;
-    height: calc(100vh - 38px);
+    min-height: 0; /* ważne dla prawidłowego scrollowania */
 }
 
 .app-container::before {
@@ -87,10 +96,10 @@ html, body {
     top: 0;
     left: 0;
     right: 0;
-    height: 32px;
-    -webkit-app-region: drag;
-    background: transparent;
+    height: 38px;
+    background: var(--background);
     z-index: 1000;
+    border-bottom: 1px solid var(--border);
     display: flex;
     justify-content: space-between;
     padding: 0 15px;
@@ -248,8 +257,11 @@ input, button, textarea, [role="button"] {
 
 /* Nowe style */
 .input-section {
+    position: sticky;
+    bottom: 20px;
     margin-top: 30px;
-    margin-bottom: 40px;
+    margin-bottom: 0;
+    z-index: 10;
     flex-shrink: 0;
     height: 120px;
     position: relative;
@@ -327,11 +339,8 @@ input, button, textarea, [role="button"] {
     gap: 25px;
     padding: 5px;
     margin: 0 auto;
-    overflow-y: auto;
-    overflow-x: hidden;
-    flex: 1;
-    max-width: 1400px;
     width: 100%;
+    max-width: 1400px;
 }
 
 .options-grid::-webkit-scrollbar {
@@ -398,13 +407,17 @@ input, button, textarea, [role="button"] {
 }
 
 .option-card h2 {
+    display: flex;
+    align-items: center;
+    gap: 10px;
     font-size: 20px;
     font-weight: 600;
     color: var(--text);
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    gap: 8px;
+}
+
+.option-card h2 i {
+    font-size: 20px;
+    opacity: 0.8;
 }
 
 .option-card p {
@@ -578,37 +591,48 @@ input, button, textarea, [role="button"] {
 
 /* Style dla kontenera tagów */
 .tags-container {
-    margin: 10px 0;
     display: flex;
-    gap: 6px;
-    height: 32px;
+    flex-wrap: nowrap;
+    gap: 8px;
+    min-height: 32px;
+    padding: 5px 0;
+    margin-top: 10px;
     overflow-x: auto;
     overflow-y: hidden;
-    padding: 0 5px;
-    position: relative;
-    z-index: 1;
     white-space: nowrap;
-    -webkit-mask-image: linear-gradient(to right, 
-        transparent, 
-        black 20px, 
-        black calc(100% - 20px), 
-        transparent
-    );
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+    padding-bottom: 10px;
+}
+
+/* Ukryj scrollbar ale zachowaj funkcjonalność */
+.tags-container::-webkit-scrollbar {
+    height: 6px;
+}
+
+.tags-container::-webkit-scrollbar-track {
+    background: var(--input-background);
+    border-radius: 3px;
+}
+
+.tags-container::-webkit-scrollbar-thumb {
+    background: var(--button-background);
+    border-radius: 3px;
+}
+
+.tags-container::-webkit-scrollbar-thumb:hover {
+    background: var(--button-hover);
 }
 
 /* Style dla pojedynczego taga */
 .tag {
     background: var(--button-background);
-    padding: 0 12px;
+    padding: 4px 12px;
     border-radius: 6px;
     color: var(--text);
+    font-size: 13px;
     cursor: pointer;
     transition: all 0.2s ease;
-    user-select: none;
-    font-size: 13px;
-    height: 28px;
-    display: inline-flex;
-    align-items: center;
     white-space: nowrap;
     flex-shrink: 0;
 }
@@ -618,48 +642,14 @@ input, button, textarea, [role="button"] {
     transform: translateY(-1px);
 }
 
-/* Ukryj scrollbar ale zachowaj funkcjonalność */
-.tags-container::-webkit-scrollbar {
-    display: none;
-}
-
-.tags-container {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
-}
-
-.style-tag {
+.tag.default-tag {
     background: var(--button-background);
-    padding: 8px 16px;
-    border-radius: 20px;
-    color: var(--text);
-    cursor: pointer;
-    transition: all 0.2s ease;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    user-select: none;
+    opacity: 0.7;
 }
 
-.style-tag i {
-    font-size: 14px;
-    opacity: 0.8;
-}
-
-.style-tag:hover {
+.tag.default-tag:hover {
+    opacity: 1;
     background: var(--button-hover);
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-}
-
-.style-tag.active {
-    background: rgba(76, 175, 80, 0.2);
-    border: 1px solid rgba(76, 175, 80, 0.3);
-    color: #4CAF50;
-}
-
-.style-tag.active i {
-    color: #4CAF50;
 }
 
 /* Style dla przycisków input */
@@ -773,10 +763,17 @@ input, button, textarea, [role="button"] {
 /* Dodaj nowe style */
 .styles-header {
     display: flex;
-    justify-content: flex-end;
+    justify-content: flex-start;
+    align-items: center;
     padding: 0 10px;
     margin-bottom: 20px;
-    gap: 10px;
+}
+
+.styles-header h2 {
+    margin-right: auto;
+    color: var(--text);
+    font-size: 20px;
+    font-weight: 500;
 }
 
 .manage-styles-btn {
@@ -900,11 +897,29 @@ input, button, textarea, [role="button"] {
 /* Zmodyfikuj style dla input-buttons */
 .input-buttons {
     position: absolute;
-    right: 10px;
-    top: 16px;
+    top: 50%;
+    right: 15px;
+    transform: translateY(-50%);
     display: flex;
     gap: 8px;
-    z-index: 2;
+    height: 32px;
+    align-items: center;
+    padding: 0;
+}
+
+.tool-button {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--button-background);
+    border: none;
+    border-radius: 6px;
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    padding: 0;
 }
 
 /* Dodaj style dla przycisku vision w input-buttons */
@@ -1017,7 +1032,7 @@ input, button, textarea, [role="button"] {
     display: flex;
     flex-direction: column;
     height: 100vh;
-    max-width: 400px; /* Ustaw maksymalną szerokość */
+    max-width: 400px; /* Ustaw maksymaln szerokość */
     margin: 0 auto; /* Wycentruj okno */
 }
 
@@ -1820,4 +1835,986 @@ input, button, textarea, [role="button"] {
     -webkit-overflow-scrolling: touch;
     overflow-y: auto;
     overscroll-behavior: contain;
+}
+
+/* Style card modifications */
+.style-card {
+    position: relative;
+    transition: all 0.3s ease-in-out;
+}
+
+.style-card .controls {
+    position: absolute;
+    top: 10px;
+    left: 10px;
+    display: flex;
+    gap: 8px;
+}
+
+.style-card .history-controls {
+    display: flex;
+    gap: 4px;
+}
+
+.style-card .action-controls {
+    display: flex;
+    gap: 8px;
+    margin-left: auto;
+}
+
+.style-switch {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    z-index: 1;
+}
+
+.style-switch input {
+    display: none;
+}
+
+.style-switch .slider {
+    width: 44px;
+    height: 24px;
+    background: var(--button-background);
+    border-radius: 12px;
+    display: block;
+    position: relative;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: 1px solid var(--border);
+}
+
+.style-switch .slider:before {
+    content: '';
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    background: var(--text);
+    border-radius: 50%;
+    top: 2px;
+    left: 2px;
+    transition: all 0.3s ease;
+}
+
+.style-switch input:checked + .slider {
+    background: var(--accent-color);
+    border-color: transparent;
+}
+
+.style-switch input:checked + .slider:before {
+    transform: translateX(20px);
+    background: white;
+}
+
+.inactive-styles {
+    margin-top: 20px;
+    opacity: 0.7;
+}
+
+.inactive-styles .style-card {
+    transform: scale(0.95);
+}
+
+/* Animation classes */
+.style-card.moving {
+    transition: transform 0.3s ease-out, opacity 0.3s ease-out;
+}
+
+.style-card.inactive {
+    opacity: 0.7;
+    transform: translateY(20px);
+}
+
+/* History navigation buttons */
+.history-button {
+    padding: 4px 8px;
+    background: rgba(0, 0, 0, 0.1);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+}
+
+.history-button:hover {
+    opacity: 1;
+}
+
+.history-button:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+/* Action buttons */
+.action-button {
+    padding: 4px 8px;
+    background: var(--accent-color);
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    opacity: 0.8;
+    transition: opacity 0.2s;
+}
+
+.action-button:hover {
+    opacity: 1;
+}
+
+.action-button:disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+}
+
+/* Style dla kontenera promptu */
+.prompt-input-container {
+    position: relative;
+    background: var(--card-background);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+#promptInput {
+    width: 100%;
+    min-height: 80px;
+    background: var(--input-background);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 120px 16px 16px;
+    color: var(--text);
+    font-size: 16px;
+    resize: none;
+    line-height: 1.5;
+}
+
+.tags-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-height: 32px;
+    padding: 5px 0;
+    margin-top: 10px;
+}
+
+.tag {
+    background: var(--button-background);
+    padding: 4px 12px;
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.tag:hover {
+    background: var(--button-hover);
+    transform: translateY(-1px);
+}
+
+/* Style dla kontenera stylów */
+.styles-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: var(--card-background);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    min-height: 0; /* Ważne dla prawidłowego scrollowania */
+}
+
+/* Dodaj style dla kontenera scrollowania */
+.styles-scroll-container {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0; /* Ważne dla prawidłowego scrollowania */
+    padding-right: 5px; /* Miejsce na scrollbar */
+}
+
+/* Style dla scrollbara */
+.styles-scroll-container::-webkit-scrollbar {
+    width: 8px;
+}
+
+.styles-scroll-container::-webkit-scrollbar-track {
+    background: var(--scrollbar-track, rgba(0, 0, 0, 0.1));
+    border-radius: 4px;
+}
+
+.styles-scroll-container::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb, rgba(255, 255, 255, 0.2));
+    border-radius: 4px;
+}
+
+.styles-scroll-container::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover, rgba(255, 255, 255, 0.3));
+}
+
+/* Style dla karty stylu */
+.style-card {
+    background: var(--card-background);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    position: relative;
+    min-height: 350px;
+    display: flex;
+    flex-direction: column;
+    transition: all 0.3s ease;
+    height: 100%;
+}
+
+/* Style dla siatki stylów */
+.active-styles,
+.inactive-styles {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+    gap: 20px;
+    padding: 10px;
+}
+
+/* Style dla kontrolek karty */
+.style-card .controls {
+    position: absolute;
+    top: 15px;
+    left: 15px;
+    right: 15px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 1;
+}
+
+.style-card .left-controls {
+    display: flex;
+    align-items: center;
+}
+
+/* Grupa przycisków historii i refresh */
+.style-card .history-group {
+    display: flex;
+    gap: 4px;
+    margin-right: 20px;
+}
+
+/* Grupa przycisków akcji */
+.style-card .action-controls {
+    display: flex;
+    gap: 8px;
+}
+
+/* Style dla zawartości karty */
+.style-content {
+    margin-top: 45px;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    gap: 15px;
+}
+
+.style-content h3 {
+    font-size: 18px;
+    font-weight: 500;
+    color: var(--text);
+    margin-bottom: 8px;
+}
+
+.style-content p {
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.4;
+    margin-bottom: 15px;
+}
+
+.prompt-output {
+    flex: 1;
+    background: var(--input-background);
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 14px;
+    color: var(--text);
+    min-height: 150px;
+    max-height: 200px;
+    overflow-y: auto;
+    line-height: 1.5;
+    margin-top: auto;
+}
+
+/* Style dla przycisków w karcie */
+.style-card button {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--button-background);
+    border: none;
+    border-radius: 6px;
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.style-card button:hover {
+    background: var(--button-hover);
+    transform: translateY(-1px);
+}
+
+/* Style dla przycisku Draw Things */
+.style-card .draw-things-btn {
+    width: auto;
+    min-width: 200px;
+    height: 32px;
+    padding: 0 16px;
+    white-space: nowrap;
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: 0.2px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between; /* Zmiana z center na space-between */
+    gap: 8px;
+}
+
+.style-card .draw-things-btn i {
+    font-size: 14px;
+    margin-left: 4px; /* Dodaj małą przestrzeń między tekstem a ikoną */
+}
+
+/* Style dla przełącznika */
+.style-switch {
+    position: absolute;
+    top: 15px;
+    right: 15px;
+    z-index: 1;
+}
+
+/* Style dla siatki stylów */
+.active-styles,
+.inactive-styles {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+    gap: 20px;
+    padding: 10px;
+}
+
+/* Style dla nieaktywnych stylów */
+.inactive-styles {
+    margin-top: 20px;
+}
+
+.inactive-styles .style-card {
+    opacity: 0.7;
+    transform: scale(0.98);
+}
+
+.inactive-styles .style-card:hover {
+    opacity: 0.85;
+    transform: scale(1);
+}
+
+/* Animacje */
+.style-card.moving {
+    transform: scale(0.98);
+    opacity: 0.8;
+}
+
+/* Nagłówek nieaktywnych stylów */
+.inactive-styles-header {
+    padding: 20px 10px 10px 10px;
+    border-top: 1px solid var(--border);
+    margin-top: 20px;
+}
+
+.inactive-styles-header h3 {
+    color: var(--text-secondary);
+    font-size: 16px;
+    font-weight: 500;
+}
+
+/* Style dla kontenera stylów */
+.styles-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: var(--card-background);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    min-height: 0; /* Ważne dla prawidłowego scrollowania */
+}
+
+/* Style dla nagłówka stylów */
+.styles-header {
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    padding: 0 10px;
+    margin-bottom: 20px;
+}
+
+.styles-header h2 {
+    margin-right: auto;
+    color: var(--text);
+    font-size: 20px;
+    font-weight: 500;
+}
+
+/* Style dla karty stylu */
+.style-card {
+    background: var(--card-background);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    position: relative;
+    min-height: 350px;
+    display: flex;
+    flex-direction: column;
+    transition: all 0.3s ease;
+    height: 100%;
+}
+
+/* Style dla siatki stylów */
+.active-styles,
+.inactive-styles {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+    gap: 20px;
+    padding: 10px;
+}
+
+/* Style dla przycisków narzędziowych w polu promptu */
+.prompt-input-wrapper {
+    position: relative;
+    width: 100%;
+}
+
+.input-buttons {
+    position: absolute;
+    top: 50%;
+    right: 15px;
+    transform: translateY(-50%);
+    display: flex;
+    gap: 8px;
+    height: 32px;
+    align-items: center;
+    padding: 0;
+}
+
+.tool-button {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--button-background);
+    border: none;
+    border-radius: 6px;
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    padding: 0;
+}
+
+/* Popraw padding dla pola tekstowego */
+#promptInput {
+    width: 100%;
+    min-height: 80px;
+    background: var(--input-background);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 120px 16px 16px;
+    color: var(--text);
+    font-size: 16px;
+    resize: none;
+    line-height: 1.5;
+}
+
+/* Style dla zawartości karty */
+.style-content {
+    margin-top: 45px;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    gap: 15px;
+}
+
+.prompt-output {
+    flex: 1;
+    background: var(--input-background);
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 14px;
+    color: var(--text);
+    min-height: 150px;
+    max-height: 200px;
+    overflow-y: auto;
+    line-height: 1.5;
+    margin-top: auto;
+}
+
+/* Style dla przycisku Draw Things */
+.style-card .draw-things-btn {
+    width: auto;
+    min-width: 200px;
+    height: 32px;
+    padding: 0 16px;
+    white-space: nowrap;
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: 0.2px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between; /* Zmiana z center na space-between */
+    gap: 8px;
+}
+
+.style-card .draw-things-btn i {
+    font-size: 14px;
+    margin-left: 4px; /* Dodaj małą przestrzeń między tekstem a ikoną */
+}
+
+/* Style dla przycisku Generate Prompts */
+.styles-header .action-button {
+    background: linear-gradient(
+        45deg,
+        rgba(123, 31, 162, 0.8),
+        rgba(103, 58, 183, 0.8),
+        rgba(156, 39, 176, 0.8)
+    );
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    color: white;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.styles-header .action-button::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 200%;
+    height: 100%;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(255, 255, 255, 0.2),
+        transparent
+    );
+    animation: shimmer 2s infinite;
+}
+
+.styles-header .action-button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 15px rgba(123, 31, 162, 0.3);
+}
+
+@keyframes shimmer {
+    0% {
+        left: -100%;
+    }
+    100% {
+        left: 100%;
+    }
+}
+
+/* Style dla nagłówka stylów */
+.styles-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 10px;
+    margin-bottom: 20px;
+}
+
+.styles-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.secondary-button {
+    background: var(--button-background);
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    color: var(--text);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.secondary-button:hover {
+    background: var(--button-hover);
+    transform: translateY(-1px);
+}
+
+/* Popraw style dla credits button */
+#credits-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+}
+
+#credits-btn:hover {
+    color: var(--text);
+    background: var(--button-hover);
+}
+
+/* Dodaj style dla scrollowania */
+.main-container {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden; /* Zapobiega podwójnemu scrollowaniu */
+}
+
+.content-area {
+    flex: 1;
+    display: flex;
+    overflow: hidden; /* Zapobiega podwójnemu scrollowaniu */
+}
+
+.chat-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden; /* Zapobiega podwójnemu scrollowaniu */
+}
+
+.chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 20px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+/* Style dla scrollbara */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--scrollbar-track);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
+}
+
+/* Dodaj style dla elementów scrollowanych */
+.scrollable {
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+    -webkit-overflow-scrolling: touch; /* Dla lepszego scrollowania na macOS */
+}
+
+/* Zapewnij, że elementy z fixed position nie będą scrollowane */
+.titlebar,
+.toolbar,
+.input-container {
+    position: sticky;
+    z-index: 100;
+    background: var(--background);
+}
+
+.titlebar {
+    top: 0;
+}
+
+.toolbar {
+    top: var(--titlebar-height);
+}
+
+.input-container {
+    bottom: 0;
+}
+
+/* Optymalizacja wydajności dla elementów scrollowanych */
+.scrollable {
+    will-change: transform;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+}
+
+/* Zaktualizuj style dla głównego kontenera */
+.app-container {
+    position: relative;
+    width: 100%;
+    height: 100vh;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    overflow-y: auto;
+    background: var(--background);
+    padding-top: 58px;
+}
+
+/* Zaktualizuj style dla siatki opcji */
+.options-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 25px;
+    padding: 5px;
+    margin: 0 auto;
+    width: 100%;
+    max-width: 1400px;
+}
+
+/* Dodaj style dla ikon stylów */
+.style-card h2 {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 15px;
+}
+
+.style-card h2 i {
+    font-size: 18px;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--button-background);
+    border-radius: 6px;
+    padding: 12px;
+    color: var(--text);
+    transition: all 0.2s ease;
+}
+
+/* Efekt hover dla ikony */
+.style-card:hover h2 i {
+    transform: scale(1.1);
+    background: var(--button-hover);
+}
+
+/* Animacja dla ikony podczas generowania */
+.style-card.generating h2 i {
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        opacity: 0.6;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 1;
+        transform: scale(1.1);
+    }
+    100% {
+        opacity: 0.6;
+        transform: scale(1);
+    }
+}
+
+/* Style dla różnych typów ikon */
+.style-card h2 i.fa-palette { color: #ff7f50; }
+.style-card h2 i.fa-image { color: #4CAF50; }
+.style-card h2 i.fa-star { color: #ffd700; }
+.style-card h2 i.fa-dragon { color: #ff4081; }
+.style-card h2 i.fa-robot { color: #2196F3; }
+.style-card h2 i.fa-ghost { color: #9c27b0; }
+.style-card h2 i.fa-shapes { color: #e91e63; }
+.style-card h2 i.fa-user { color: #00bcd4; }
+.style-card h2 i.fa-mountain { color: #8bc34a; }
+.style-card h2 i.fa-building { color: #795548; }
+.style-card h2 i.fa-user-astronaut { color: #3f51b5; }
+.style-card h2 i.fa-lightbulb { color: #ffc107; }
+.style-card h2 i.fa-digital-tachograph { color: #607d8b; }
+.style-card h2 i.fa-camera { color: #9e9e9e; }
+.style-card h2 i.fa-paint-brush { color: #ff5722; }
+.style-card h2 i.fa-pencil-alt { color: #795548; }
+.style-card h2 i.fa-magic { color: #e040fb; }
+.style-card h2 i.fa-brush { color: #ff9800; }
+
+/* Upewnij się, że titlebar jest zawsze na górze */
+.titlebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 38px;
+    background: var(--background);
+    z-index: 1000;
+    border-bottom: 1px solid var(--border);
+}
+
+/* Dodaj style dla kontenera scrollowanego */
+.scrollable-content {
+    flex: 1;
+    overflow-y: auto;
+    padding-right: 5px;
+}
+
+/* Zoptymalizuj scrollowanie */
+.scrollable-content::-webkit-scrollbar {
+    width: 8px;
+}
+
+.scrollable-content::-webkit-scrollbar-track {
+    background: var(--scrollbar-track);
+    border-radius: 4px;
+}
+
+.scrollable-content::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 4px;
+}
+
+.scrollable-content::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
+}
+
+/* Zachowaj stałą pozycję dla input section */
+.input-section {
+    position: sticky;
+    bottom: 20px;
+    margin-top: 30px;
+    margin-bottom: 0;
+    z-index: 10;
+}
+
+/* Popraw style dla kart stylów aby zachować ich wygląd */
+.style-card {
+    background: var(--card-background);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    position: relative;
+    min-height: 350px;
+    display: flex;
+    flex-direction: column;
+    transition: all 0.3s ease;
+    height: 100%;
+}
+
+/* Zachowaj efekt hover dla kart */
+.style-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Zachowaj animację dla kart w trakcie generowania */
+.style-card.generating::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, 
+        var(--accent-color-1, #ff0000), 
+        var(--accent-color-2, #00ff00), 
+        var(--accent-color-1, #ff0000)
+    );
+    background-size: 200% 100%;
+    animation: borderMove 2s linear infinite;
+    z-index: -1;
+    border-radius: 10px;
+    -webkit-mask: 
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+}
+
+/* Style dla kafelków stylów */
+.style-tile {
+    background: var(--background-secondary);
+    border-radius: 8px;
+    padding: 12px;
+    margin: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.style-tile:hover {
+    background: var(--background-tertiary);
+    transform: translateY(-2px);
+}
+
+.style-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.style-icon {
+    font-size: 1.2em;
+    color: var(--text-primary);
+    width: 24px;
+    text-align: center;
+}
+
+.style-name {
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.style-description {
+    font-size: 0.9em;
+    color: var(--text-secondary);
+    margin-top: 4px;
+}
+
+/* Animacja dla ikon */
+.style-icon {
+    transition: transform 0.2s ease;
+}
+
+.style-tile:hover .style-icon {
+    transform: scale(1.1);
+}
+
+/* Dodaj te style dla ikon w kartach stylów */
+.style-content h3 {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 18px;
+    font-weight: 500;
+    color: var(--text);
+    margin-bottom: 8px;
+}
+
+.style-content h3 .style-icon {
+    width: 24px;
+    height: 24px;
+    object-fit: contain;
+}
+
+/* Usuń hover efekt dla ikon */
+.style-card:hover .style-content h3 .style-icon {
+    transform: none;
 }

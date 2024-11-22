@@ -41,6 +41,91 @@ const DRAW_THINGS_PORT = 3333;
 const SAFETENSORS_MODELS_PATH = path.join(app.getPath('userData'), 'models');
 const CUSTOM_MODELS_PATH = path.join(app.getPath('userData'), 'custom-models');
 
+// Dodaj na początku pliku, gdzie są inne stałe
+const STYLE_ICONS = {
+    // Style artystyczne
+    'Artistic': 'fa-palette',
+    'Abstract': 'fa-shapes',
+    'Digital Art': 'fa-microchip',
+    'Painting': 'fa-paint-brush',
+    'Sketch': 'fa-pencil-alt',
+    'Watercolor': 'fa-tint',
+    'Oil Painting': 'fa-fill-drip',
+    
+    // Style realistyczne
+    'Realistic': 'fa-camera',
+    'Photography': 'fa-camera-retro',
+    'Portrait': 'fa-user-circle',
+    'Landscape': 'fa-mountain',
+    'Nature': 'fa-leaf',
+    'Wildlife': 'fa-paw',
+    
+    // Style fantastyczne
+    'Fantasy': 'fa-dragon',
+    'Sci-Fi': 'fa-robot',
+    'Horror': 'fa-ghost',
+    'Mythological': 'fa-hat-wizard',
+    'Magical': 'fa-wand-sparkles',
+    'Steampunk': 'fa-gears',
+    
+    // Style architektoniczne
+    'Architecture': 'fa-building',
+    'Interior': 'fa-couch',
+    'Urban': 'fa-city',
+    'Industrial': 'fa-industry',
+    'Modern': 'fa-building-columns',
+    
+    // Style postaci
+    'Character': 'fa-user-astronaut',
+    'Anime': 'fa-star',
+    'Cartoon': 'fa-child',
+    'Superhero': 'fa-mask',
+    'Warrior': 'fa-shield-halved',
+    
+    // Style koncepcyjne
+    'Concept Art': 'fa-lightbulb',
+    'Product': 'fa-box',
+    'Vehicle': 'fa-car',
+    'Weapon': 'fa-sword',
+    'Prop': 'fa-cube',
+    
+    // Style atmosferyczne
+    'Dark': 'fa-moon',
+    'Light': 'fa-sun',
+    'Atmospheric': 'fa-cloud',
+    'Dramatic': 'fa-bolt',
+    'Peaceful': 'fa-dove',
+    
+    // Style teksturowe
+    'Metallic': 'fa-layer-group',
+    'Glass': 'fa-glasses',
+    'Fabric': 'fa-scissors',
+    'Stone': 'fa-gem',
+    'Wood': 'fa-tree',
+    
+    // Style specjalne
+    'Custom': 'fa-magic',
+    'Experimental': 'fa-flask',
+    'Mixed Media': 'fa-layer-group',
+    'Minimalist': 'fa-minus',
+    'Maximalist': 'fa-plus',
+    
+    // Style techniczne
+    'Technical': 'fa-ruler-combined',
+    'Blueprint': 'fa-drafting-compass',
+    'Diagram': 'fa-sitemap',
+    'Schematic': 'fa-microchip',
+    
+    // Style animowane
+    'Animation': 'fa-film',
+    'Motion': 'fa-wind',
+    'Dynamic': 'fa-bolt',
+    'Kinetic': 'fa-arrows-spin',
+    
+    // Domyślna ikona
+    'default': 'fa-brush'
+};
+
 let mainWindow;
 let connectionCheckInterval;
 let configWindowInstance = null;
@@ -365,7 +450,7 @@ function optimizeWindowPerformance(window) {
     window.webContents.setZoomFactor(1.0);
     window.webContents.setVisualZoomLevelLimits(1, 1);
     
-    // Optymalizuj animacje
+    // Optymalizuj animacje i scrollowanie
     window.webContents.executeJavaScript(`
         document.body.style.setProperty('--animation-duration', '0.2s');
         document.body.style.setProperty('--transition-duration', '0.2s');
@@ -373,19 +458,21 @@ function optimizeWindowPerformance(window) {
         // Dodaj klasę do optymalizacji
         document.body.classList.add('hardware-accelerated');
         
-        // Optymalizuj scroll
+        // Optymalizuj scroll dla wszystkich scrollowanych elementów
         document.querySelectorAll('.scrollable').forEach(elem => {
             elem.style.willChange = 'transform';
             elem.style.transform = 'translateZ(0)';
+            
+            // Dodaj smooth scrolling tylko dla elementów z klasą scrollable
+            elem.style.scrollBehavior = 'smooth';
         });
         
-        // Wyłącz płynne przewijanie dla lepszej wydajności
-        document.documentElement.style.scrollBehavior = 'auto';
+        // Włącz płynne przewijanie dla głównego kontenera
+        document.querySelector('.main-container').style.scrollBehavior = 'smooth';
     `);
 
     // Ustaw opcje renderowania
     window.webContents.setFrameRate(60);
-    window.webContents.setBackgroundThrottling(false);
 }
 
 // Dodaj stałe dla domyślnych modeli
@@ -565,7 +652,10 @@ async function createWindow() {
             frame: false,
             titleBarStyle: 'hidden',
             trafficLightPosition: { x: -100, y: -100 },
-            show: false
+            show: false,
+            // Dodaj minimalny rozmiar okna
+            minWidth: 800,
+            minHeight: 600
         });
 
         // Załaduj główne okno i poczekaj na jego załadowanie
@@ -848,36 +938,32 @@ ipcMain.handle('generate-prompt', async (event, basePrompt, styleId) => {
     }
 });
 
-ipcMain.handle('get-styles', () => {
-    const styles = stylesManager.getAllStyles();
-    // Upewnij się, że zwracamy prosty obiekt JSON
-    return Object.fromEntries(
-        Object.entries(styles).map(([id, style]) => [
-            id,
-            {
-                ...style,
-                // Upewnij się, że wszystkie pola są serializowalne
-                name: String(style.name),
-                description: String(style.description),
-                icon: String(style.icon),
-                fixedTags: Array.isArray(style.fixedTags) ? style.fixedTags.map(String) : []
-            }
-        ])
-    );
+ipcMain.handle('get-styles', async () => {
+    try {
+        const styles = await stylesManager.getStyles();
+        return styles;
+    } catch (error) {
+        console.error('Error getting styles:', error);
+        return {};
+    }
 });
 
-ipcMain.handle('get-style', (event, id) => {
-    const style = stylesManager.getStyle(id);
-    if (!style) return null;
-    
-    // Upewnij się, że zwracamy prosty obiekt JSON
-    return {
-        ...style,
-        name: String(style.name),
-        description: String(style.description),
-        icon: String(style.icon),
-        fixedTags: Array.isArray(style.fixedTags) ? style.fixedTags.map(String) : []
-    };
+ipcMain.handle('get-style', async (event, id) => {
+    try {
+        const style = await stylesManager.getStyle(id);
+        if (!style) return null;
+        
+        return {
+            ...style,
+            name: String(style.name),
+            description: String(style.description),
+            icon: String(style.icon),
+            fixedTags: Array.isArray(style.fixedTags) ? style.fixedTags.map(String) : []
+        };
+    } catch (error) {
+        console.error('Error getting style:', error);
+        return null;
+    }
 });
 
 ipcMain.handle('add-style', (event, style) => {
@@ -896,13 +982,18 @@ ipcMain.handle('delete-style', (event, id) => {
 
 ipcMain.on('open-styles', () => {
     const stylesWindowInstance = stylesWindow.create();
-    stylesWindowInstance.on('closed', () => {
-        mainWindow.webContents.send('refresh-styles');
-    });
+    if (stylesWindowInstance) {
+        stylesWindowInstance.on('closed', () => {
+            if (mainWindow && !mainWindow.isDestroyed()) {
+                mainWindow.webContents.send('refresh-styles');
+            }
+        });
+    }
 });
 
 ipcMain.handle('get-available-styles', () => {
-    return stylesManager.getAllStyles();
+    // Zmiana z getAllStyles() na getStyles()
+    return stylesManager.getStyles();
 });
 
 ipcMain.handle('get-settings', () => {
@@ -1619,7 +1710,7 @@ ipcMain.handle('import-styles', async () => {
             }
 
             // Sprawdź czy styl o takiej nazwie już istnieje
-            const existingStyles = stylesManager.getAllStyles();
+            const existingStyles = await stylesManager.getStyles(); // Zmiana tutaj
             const styleExists = Object.values(existingStyles).some(
                 existing => existing.name.toLowerCase() === style.name.toLowerCase()
             );
@@ -2211,5 +2302,110 @@ ipcMain.handle('install-model', async (event, modelId) => {
 function forceGC() {
     if (global.gc) {
         global.gc();
+    }
+}
+
+// Dodaj handler dla zapisywania stanu stylu
+ipcMain.handle('save-style-state', async (event, { styleId, active }) => {
+    try {
+        const styles = await stylesManager.getStyles();
+        if (styles[styleId]) {
+            styles[styleId].active = active;
+            await stylesManager.saveStyles(styles);
+            return true;
+        }
+        return false;
+    } catch (error) {
+        console.error('Error saving style state:', error);
+        return false;
+    }
+});
+
+// Dodaj handlery dla przycisków okna
+ipcMain.on('minimize-window', () => {
+    const window = BrowserWindow.getFocusedWindow();
+    if (window) window.minimize();
+});
+
+ipcMain.on('maximize-window', () => {
+    const window = BrowserWindow.getFocusedWindow();
+    if (!window) return;
+    
+    if (window.isMaximized()) {
+        window.unmaximize();
+    } else {
+        window.maximize();
+    }
+    
+    // Powiadom renderer o zmianie stanu
+    window.webContents.send('window-state-change', window.isMaximized());
+});
+
+ipcMain.on('close-window', () => {
+    const window = BrowserWindow.getFocusedWindow();
+    if (window) window.close();
+});
+
+// Zmodyfikuj handler dla przycisku credits
+ipcMain.on('open-credits', () => {
+    const existingWindow = BrowserWindow.getAllWindows().find(win => win.getTitle() === 'Credits');
+    if (existingWindow) {
+        existingWindow.focus();
+        return;
+    }
+
+    const creditsWindowInstance = new BrowserWindow({
+        width: 400,
+        height: 500,
+        webPreferences: {
+            nodeIntegration: true,
+            contextIsolation: false
+        },
+        frame: false,
+        resizable: false,
+        show: false,
+        parent: mainWindow,
+        modal: true
+    });
+
+    creditsWindowInstance.loadFile('credits.html');
+    
+    creditsWindowInstance.once('ready-to-show', () => {
+        creditsWindowInstance.show();
+    });
+});
+
+// Dodaj obsługę zmiany stanu okna
+app.whenReady().then(() => {
+    // ... istniejący kod ...
+
+    // Dodaj nasłuchiwanie na zmianę stanu okna
+    mainWindow.on('maximize', () => {
+        mainWindow.webContents.send('window-state-change', true);
+    });
+
+    mainWindow.on('unmaximize', () => {
+        mainWindow.webContents.send('window-state-change', false);
+    });
+});
+
+// Dodaj obsługę błędów dla głównego procesu
+process.on('unhandledRejection', (error) => {
+    console.error('Unhandled rejection:', error);
+});
+
+process.on('uncaughtException', (error) => {
+    console.error('Uncaught exception:', error);
+});
+
+// Dodaj lepszą obsługę błędów dla IPC
+ipcMain.on('error', (event, error) => {
+    console.error('IPC error:', error);
+});
+
+// Dodaj funkcję pomocniczą do bezpiecznego wysyłania wiadomości
+function safeWebContentsCall(webContents, channel, ...args) {
+    if (webContents && !webContents.isDestroyed()) {
+        webContents.send(channel, ...args);
     }
 }

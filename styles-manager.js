@@ -1,127 +1,139 @@
-const { app } = require('electron');
+const fs = require('fs').promises;
 const path = require('path');
-const fs = require('fs');
+const { app } = require('electron');
+
+// Domyślne style z ikonami (teraz używamy ścieżek do własnych ikon)
+const DEFAULT_STYLES = {
+    'realistic': {
+        name: 'Realistic',
+        description: 'Photorealistic style with high attention to detail',
+        icon: 'realistic.png',
+        active: true
+    },
+    'artistic': {
+        name: 'Artistic',
+        description: 'Creative and expressive artistic interpretation',
+        icon: 'artistic.png',
+        active: true
+    },
+    'anime': {
+        name: 'Anime',
+        description: 'Japanese animation style',
+        icon: 'anime.png',
+        active: true
+    },
+    'fantasy': {
+        name: 'Fantasy',
+        description: 'Magical and fantastical elements',
+        icon: 'fantasy.png',
+        active: true
+    },
+    'scifi': {
+        name: 'Sci-Fi',
+        description: 'Futuristic and technological themes',
+        icon: 'scifi.png',
+        active: true
+    },
+    'horror': {
+        name: 'Horror',
+        description: 'Dark and frightening themes',
+        icon: 'horror.png',
+        active: true
+    },
+    'abstract': {
+        name: 'Abstract',
+        description: 'Non-representational and conceptual art',
+        icon: 'abstract.png',
+        active: true
+    },
+    'portrait': {
+        name: 'Portrait',
+        description: 'Focus on character portraits',
+        icon: 'portrait.png',
+        active: true
+    },
+    'landscape': {
+        name: 'Landscape',
+        description: 'Natural and urban landscapes',
+        icon: 'landscape.png',
+        active: true
+    },
+    'architecture': {
+        name: 'Architecture',
+        description: 'Buildings and architectural designs',
+        icon: 'architecture.png',
+        active: true
+    }
+};
 
 class StylesManager {
     constructor() {
-        this.configPath = path.join(__dirname, 'config', 'styles.json');
-        this.customStyles = {};
-        this.defaultStyles = {
-            'realistic': {
-                name: 'Realistic',
-                icon: 'camera',
-                description: 'Professional photography style with realistic details and natural lighting',
-                fixedTags: ['photorealistic', 'detailed', 'professional photography', 'natural lighting']
-            },
-            'cinematic': {
-                name: 'Cinematic',
-                icon: 'film',
-                description: 'Movie-like scenes with dramatic lighting and cinematic composition',
-                fixedTags: ['cinematic', 'movie scene', 'dramatic lighting', 'film grain']
-            },
-            'vintage': {
-                name: 'Vintage',
-                icon: 'clock-rotate-left',
-                description: 'Retro and nostalgic aesthetics with classic photography elements',
-                fixedTags: ['vintage', 'retro', 'old photograph', 'nostalgic', 'film photography']
-            },
-            'artistic': {
-                name: 'Artistic',
-                icon: 'palette',
-                description: 'Fine art style with emphasis on artistic techniques and expression',
-                fixedTags: ['fine art', 'artistic', 'masterpiece', 'expressive']
-            },
-            'abstract': {
-                name: 'Abstract',
-                icon: 'brush',
-                description: 'Non-representational art focusing on shapes, colors, and forms',
-                fixedTags: ['abstract art', 'geometric', 'modern art', 'non-representational']
-            },
-            'poetic': {
-                name: 'Poetic',
-                icon: 'feather',
-                description: 'Dreamy and ethereal imagery with soft, romantic elements',
-                fixedTags: ['ethereal', 'dreamy', 'romantic', 'soft lighting', 'atmospheric']
-            },
-            'anime': {
-                name: 'Anime',
-                icon: 'star',
-                description: 'Japanese animation style with distinctive anime characteristics',
-                fixedTags: ['anime style', 'manga art', 'cel shaded', 'japanese animation']
-            },
-            'cartoon': {
-                name: 'Cartoon',
-                icon: 'pen',
-                description: 'Stylized cartoon art with bold lines and vibrant colors',
-                fixedTags: ['cartoon style', 'stylized', 'bold colors', 'illustration']
-            },
-            'cute': {
-                name: 'Cute',
-                icon: 'heart',
-                description: 'Adorable and kawaii style with charming elements',
-                fixedTags: ['kawaii', 'cute', 'adorable', 'chibi', 'pastel colors']
-            },
-            'scifi': {
-                name: 'Sci-Fi',
-                icon: 'robot',
-                description: 'Futuristic science fiction aesthetics with advanced technology',
-                fixedTags: ['science fiction', 'futuristic', 'cyberpunk', 'technological']
-            }
-        };
-        this.loadStyles();
+        this.stylesPath = path.join(app.getPath('userData'), 'styles.json');
+        this.iconsPath = path.join(__dirname, '..', 'assets', 'stylesicons');
+        this.styles = null;
     }
 
-    loadStyles() {
+    getIconPath(iconName) {
+        return path.join(this.iconsPath, iconName);
+    }
+
+    async loadStyles() {
         try {
-            const configDir = path.dirname(this.configPath);
-            if (!fs.existsSync(configDir)) {
-                fs.mkdirSync(configDir, { recursive: true });
-            }
-            
-            if (fs.existsSync(this.configPath)) {
-                this.customStyles = JSON.parse(fs.readFileSync(this.configPath, 'utf8'));
-            } else {
-                this.customStyles = {};
-                this.saveStyles();
-            }
+            const data = await fs.readFile(this.stylesPath, 'utf8');
+            this.styles = JSON.parse(data);
         } catch (error) {
-            console.error('Error loading custom styles:', error);
-            this.customStyles = {};
+            console.log('No existing styles found, using defaults');
+            this.styles = DEFAULT_STYLES;
+            await this.saveStyles(this.styles);
         }
+        return this.styles;
     }
 
-    saveStyles() {
+    async getStyles() {
+        if (!this.styles) {
+            await this.loadStyles();
+        }
+        return this.styles;
+    }
+
+    async saveStyles(styles) {
         try {
-            const configDir = path.dirname(this.configPath);
-            if (!fs.existsSync(configDir)) {
-                fs.mkdirSync(configDir, { recursive: true });
-            }
-            fs.writeFileSync(this.configPath, JSON.stringify(this.customStyles, null, 2));
+            await fs.writeFile(this.stylesPath, JSON.stringify(styles, null, 2));
+            this.styles = styles;
         } catch (error) {
-            console.error('Error saving custom styles:', error);
+            console.error('Error saving styles:', error);
+            throw error;
         }
-    }
-
-    getAllStyles() {
-        return { ...this.defaultStyles, ...this.customStyles };
     }
 
     getStyle(id) {
-        return this.customStyles[id] || this.defaultStyles[id];
-    }
-
-    addCustomStyle(id, style) {
-        this.customStyles[id] = style;
-        this.saveStyles();
-    }
-
-    removeCustomStyle(id) {
-        delete this.customStyles[id];
-        this.saveStyles();
+        return this.styles ? this.styles[id] : null;
     }
 
     isCustomStyle(id) {
-        return id in this.customStyles;
+        return id.startsWith('custom_');
+    }
+
+    async addCustomStyle(id, style) {
+        if (!this.styles) {
+            await this.loadStyles();
+        }
+        this.styles[id] = {
+            ...style,
+            isCustom: true,
+            icon: style.icon || 'custom.png' // domyślna ikona dla stylów użytkownika
+        };
+        await this.saveStyles(this.styles);
+    }
+
+    async removeCustomStyle(id) {
+        if (!this.styles) {
+            await this.loadStyles();
+        }
+        if (this.styles[id]) {
+            delete this.styles[id];
+            await this.saveStyles(this.styles);
+        }
     }
 }
 
