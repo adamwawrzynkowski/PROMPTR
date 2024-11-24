@@ -2818,3 +2818,24 @@ input, button, textarea, [role="button"] {
 .style-card:hover .style-content h3 .style-icon {
     transform: none;
 }
+
+/* Dodaj style dla trybu oszczędzania energii */
+.low-power-mode {
+    --animation-duration: 0.3s;
+    --transition-duration: 0.3s;
+}
+
+.low-power-mode * {
+    animation-duration: var(--animation-duration) !important;
+    transition-duration: var(--transition-duration) !important;
+}
+
+.low-power-mode .animated {
+    animation: none !important;
+}
+
+.hardware-accelerated {
+    transform: translateZ(0);
+    backface-visibility: hidden;
+    perspective: 1000px;
+}

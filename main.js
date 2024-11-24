@@ -145,15 +145,153 @@ let lastGC = Date.now();
 // Dodaj na początku pliku
 let isLowPowerMode = false;
 
-// Dodaj na początku pliku
-const THROTTLE_INTERVAL = 100; // ms
-let lastThrottleTime = Date.now();
-let throttledTasks = new Set();
+// Zmodyfikuj stałe zasobów na początku pliku
+const RESOURCE_LIMITS = {
+    maxMemoryUsage: 128 * 1024 * 1024, // Zmniejsz do 128MB
+    maxCPUUsage: 30, // Zmniejsz do 30%
+    throttleInterval: 2000, // Zwiększ do 2s
+    gcInterval: 120000, // Zwiększ do 2 minut
+    lowPowerThreshold: 45, // Obniż próg do 45 stopni
+    startupDelay: 1000, // Dodaj opóźnienie przy starcie
+    checkInterval: 10000 // Sprawdzaj co 10s
+};
+
+// Dodaj monitorowanie zasobów
+let resourceMonitorInterval;
+
+// Dodaj cache dla często używanych operacji
+const operationsCache = new Map();
+let isStartupComplete = false;
+
+// Dodaj funkcję do monitorowania temperatury
+async function checkTemperature() {
+    try {
+        const { stdout } = await exec('pmset -g therm');
+        const temp = parseInt(stdout.match(/CPU_Scheduler_Limit=(\d+)/)?.[1] || '0');
+        return temp;
+    } catch (error) {
+        console.error('Error checking temperature:', error);
+        return 0;
+    }
+}
+
+// Zaktualizuj funkcję startResourceMonitoring
+function startResourceMonitoring() {
+    if (resourceMonitorInterval) {
+        clearInterval(resourceMonitorInterval);
+    }
+
+    resourceMonitorInterval = setInterval(async () => {
+        if (!isStartupComplete) return; // Pomijaj sprawdzanie podczas startu
+
+        const temp = await checkTemperature();
+        const wasInLowPowerMode = isLowPowerMode;
+        isLowPowerMode = temp > RESOURCE_LIMITS.lowPowerThreshold;
+
+        if (wasInLowPowerMode !== isLowPowerMode) {
+            if (isLowPowerMode) {
+                enableLowPowerMode();
+            } else {
+                disableLowPowerMode();
+            }
+        }
+
+        // Sprawdzaj zasoby tylko gdy aplikacja jest aktywna
+        if (mainWindow && !mainWindow.isMinimized()) {
+            checkResources();
+        }
+
+    }, RESOURCE_LIMITS.checkInterval);
+}
+
+// Wydziel sprawdzanie zasobów do osobnej funkcji
+async function checkResources() {
+    const memoryUsage = process.memoryUsage().heapUsed;
+    
+    if (memoryUsage > RESOURCE_LIMITS.maxMemoryUsage) {
+        await cleanupResources();
+    }
+
+    const startUsage = process.cpuUsage();
+    setTimeout(() => {
+        const endUsage = process.cpuUsage(startUsage);
+        const cpuPercent = (endUsage.user + endUsage.system) / 1000000;
+        
+        if (cpuPercent > RESOURCE_LIMITS.maxCPUUsage) {
+            throttleAllOperations();
+        }
+    }, 100);
+}
+
+// Dodaj funkcję czyszczenia zasobów
+async function cleanupResources() {
+    // Wymuś garbage collection
+    if (global.gc) {
+        global.gc();
+    }
+    
+    // Wyczyść cache
+    operationsCache.clear();
+    imageProcessingCache.clear();
+    
+    // Zwolnij nieużywane zasoby
+    if (mainWindow && !mainWindow.isDestroyed()) {
+        mainWindow.webContents.send('cleanup-resources');
+    }
+}
+
+// Zmodyfikuj funkcję enableLowPowerMode
+function enableLowPowerMode() {
+    console.log('Enabling low power mode');
+    
+    BrowserWindow.getAllWindows().forEach(window => {
+        if (!window.isDestroyed()) {
+            window.webContents.setFrameRate(30);
+            window.webContents.setBackgroundThrottling(true);
+            
+            // Wyłącz animacje i efekty
+            window.webContents.executeJavaScript(`
+                document.body.classList.add('low-power-mode');
+                document.body.style.setProperty('--animation-duration', '0.3s');
+                document.body.style.setProperty('--transition-duration', '0.3s');
+            `);
+        }
+    });
+}
+
+// Zmodyfikuj funkcję disableLowPowerMode
+function disableLowPowerMode() {
+    console.log('Disabling low power mode');
+    
+    BrowserWindow.getAllWindows().forEach(window => {
+        if (!window.isDestroyed()) {
+            window.webContents.setFrameRate(60);
+            
+            // Przywróć animacje i efekty
+            window.webContents.executeJavaScript(`
+                document.body.classList.remove('low-power-mode');
+                document.body.style.setProperty('--animation-duration', '0.2s');
+                document.body.style.setProperty('--transition-duration', '0.2s');
+            `);
+        }
+    });
+}
+
+// Dodaj nasłuchiwanie na zdarzenia systemu
+app.on('browser-window-blur', () => {
+    enableLowPowerMode();
+});
+
+app.on('browser-window-focus', () => {
+    if (!isLowPowerMode) {
+        disableLowPowerMode();
+    }
+});
 
 // Dodaj funkcję do throttlowania zadań
 function throttle(task) {
     const now = Date.now();
-    if (now - lastThrottleTime >= THROTTLE_INTERVAL) {
+    if (now - lastThrottleTime >= RESOURCE_LIMITS.throttleInterval) {
         lastThrottleTime = now;
         task();
         throttledTasks.clear();
@@ -164,57 +302,8 @@ function throttle(task) {
                 task();
                 throttledTasks.delete(task);
             }
-        }, THROTTLE_INTERVAL);
+        }, RESOURCE_LIMITS.throttleInterval);
     }
-}
-
-// Dodaj na początku pliku
-const RESOURCE_LIMITS = {
-    maxMemoryUsage: 512 * 1024 * 1024, // 512MB
-    maxCPUUsage: 80 // 80%
-};
-
-// Dodaj monitorowanie zasobów
-let resourceMonitorInterval;
-
-function startResourceMonitoring() {
-    if (resourceMonitorInterval) {
-        clearInterval(resourceMonitorInterval);
-    }
-
-    resourceMonitorInterval = setInterval(() => {
-        const memoryUsage = process.memoryUsage().heapUsed;
-        
-        if (memoryUsage > RESOURCE_LIMITS.maxMemoryUsage) {
-            forceGC();
-            imageProcessingCache.clear();
-        }
-
-        // Sprawdź użycie CPU
-        const startUsage = process.cpuUsage();
-        setTimeout(() => {
-            const endUsage = process.cpuUsage(startUsage);
-            const cpuPercent = (endUsage.user + endUsage.system) / 1000000;
-            
-            if (cpuPercent > RESOURCE_LIMITS.maxCPUUsage) {
-                throttleAllOperations();
-            }
-        }, 100);
-    }, 30000); // Sprawdzaj co 30 sekund
-}
-
-// Dodaj funkcję do throttlowania wszystkich operacji
-function throttleAllOperations() {
-    if (mainWindow) {
-        mainWindow.webContents.setFrameRate(20);
-        mainWindow.webContents.setBackgroundThrottling(true);
-    }
-    
-    // Wyczyść cache
-    imageProcessingCache.clear();
-    
-    // Wymuś GC
-    forceGC();
 }
 
 // Dodaj wywołanie GC przy zamykaniu okien
@@ -373,24 +462,100 @@ async function checkDependencies() {
     return dependencies;
 }
 
-// Dodaj na początku pliku
+// Move this line to the very top of the file, before any app.whenReady() calls
 app.disableHardwareAcceleration();
+
+// Dodaj na początku pliku nowe stałe
+const PERFORMANCE_CONFIG = {
+    maxRenderers: 1,          // Ogranicz liczbę rendererów
+    frameRate: 30,           // Zmniejsz FPS
+    gcInterval: 30000,       // GC co 30 sekund
+    batchSize: 5,            // Wielkość paczki dla operacji wsadowych
+    idleTimeout: 1000,       // Czas bezczynności przed throttlingiem
+    throttleTimeout: 100     // Opóźnienie throttlingu
+};
+
+// Dodaj śledzenie rendererów
+const activeRenderers = new Set();
 
 // Funkcja do tworzenia okna z odpowiednimi ustawieniami
 function createWindowWithAcceleration(options) {
-    return new BrowserWindow({
+    // Sprawdź limit rendererów
+    if (activeRenderers.size >= PERFORMANCE_CONFIG.maxRenderers) {
+        const oldestRenderer = Array.from(activeRenderers)[0];
+        if (oldestRenderer && !oldestRenderer.isDestroyed()) {
+            oldestRenderer.destroy();
+            activeRenderers.delete(oldestRenderer);
+        }
+    }
+
+    const window = new BrowserWindow({
         ...options,
         webPreferences: {
             ...options.webPreferences,
-            enablePreferredSizeMode: true,
             backgroundThrottling: true,
+            enablePreferredSizeMode: true,
+            // Wyłącz zbędne funkcje
+            webgl: false,
             offscreen: false,
             paintWhenInitiallyHidden: false,
             spellcheck: false,
+            // Optymalizacje dla Apple Silicon
+            defaultEncoding: 'utf8',
+            v8CacheOptions: 'code',
+            // Wyłącz akcelerację sprzętową
+            disableHardwareAcceleration: true,
+            // Wyłącz animacje
+            enablePreferredSizeMode: true
         },
         show: false,
         backgroundColor: '#000000',
+        // Wyłącz przezroczystość
         transparent: false,
+        // Wyłącz efekty wizualne
+        vibrancy: null,
+        visualEffectState: null,
+    });
+
+    // Dodaj renderer do śledzenia
+    activeRenderers.add(window);
+
+    // Ustaw niski FPS
+    window.webContents.setFrameRate(PERFORMANCE_CONFIG.frameRate);
+
+    return window;
+}
+
+// Dodaj nową funkcję do zarządzania rendererami
+function optimizeRenderers() {
+    activeRenderers.forEach(renderer => {
+        if (!renderer.isDestroyed()) {
+            renderer.webContents.setFrameRate(PERFORMANCE_CONFIG.frameRate);
+            renderer.webContents.setBackgroundThrottling(true);
+            
+            // Wyłącz zbędne procesy
+            renderer.webContents.executeJavaScript(`
+                // Wyłącz wszystkie animacje
+                document.body.style.setProperty('--animation-duration', '0s');
+                document.body.style.setProperty('--transition-duration', '0s');
+                
+                // Zatrzymaj wszystkie animacje
+                document.getAnimations().forEach(animation => animation.pause());
+                
+                // Wyłącz efekty hover
+                document.body.classList.add('no-hover');
+                
+                // Optymalizuj renderowanie
+                document.body.style.willChange = 'auto';
+                document.body.style.backfaceVisibility = 'hidden';
+                
+                // Wyłącz smooth scrolling
+                document.documentElement.style.scrollBehavior = 'auto';
+                
+                // Wyłącz animacje CSS
+                document.body.classList.add('no-animations');
+            `);
+        }
     });
 }
 
@@ -444,35 +609,31 @@ async function checkOllamaConnection() {
 
 // Dodaj funkcję do optymalizacji wydajności okna
 function optimizeWindowPerformance(window) {
-    if (!window) return;
-    
-    // Optymalizuj rendering
-    window.webContents.setZoomFactor(1.0);
-    window.webContents.setVisualZoomLevelLimits(1, 1);
-    
-    // Optymalizuj animacje i scrollowanie
-    window.webContents.executeJavaScript(`
-        document.body.style.setProperty('--animation-duration', '0.2s');
-        document.body.style.setProperty('--transition-duration', '0.2s');
-        
-        // Dodaj klasę do optymalizacji
-        document.body.classList.add('hardware-accelerated');
-        
-        // Optymalizuj scroll dla wszystkich scrollowanych elementów
-        document.querySelectorAll('.scrollable').forEach(elem => {
-            elem.style.willChange = 'transform';
-            elem.style.transform = 'translateZ(0)';
-            
-            // Dodaj smooth scrolling tylko dla elementów z klasą scrollable
-            elem.style.scrollBehavior = 'smooth';
-        });
-        
-        // Włącz płynne przewijanie dla głównego kontenera
-        document.querySelector('.main-container').style.scrollBehavior = 'smooth';
-    `);
+    if (!window || window.isDestroyed()) return;
 
-    // Ustaw opcje renderowania
-    window.webContents.setFrameRate(60);
+    window.webContents.setFrameRate(PERFORMANCE_CONFIG.frameRate);
+    window.webContents.setBackgroundThrottling(true);
+    
+    window.webContents.executeJavaScript(`
+        // Wyłącz wszystkie animacje
+        document.body.classList.add('no-animations');
+        document.body.classList.add('reduced-motion');
+        
+        // Optymalizuj renderowanie
+        document.body.style.willChange = 'auto';
+        document.body.style.backfaceVisibility = 'hidden';
+        document.body.style.transform = 'translateZ(0)';
+        
+        // Wyłącz smooth scrolling
+        CSS.supports('scroll-behavior', 'smooth') && 
+            document.documentElement.style.setProperty('scroll-behavior', 'auto', 'important');
+        
+        // Optymalizuj obrazy
+        document.querySelectorAll('img').forEach(img => {
+            img.loading = 'lazy';
+            img.decoding = 'async';
+        });
+    `);
 }
 
 // Dodaj stałe dla domyślnych modeli
@@ -585,7 +746,7 @@ async function setupDefaultModels(startup) {
     }
 }
 
-// Zmodyfikuj funkcję createWindow
+// Zmodyfikuj funkcję createWindow aby opóźnić heavy operacje
 async function createWindow() {
     console.log('Creating main window...');
     const startup = startupWindow.create();
@@ -596,9 +757,12 @@ async function createWindow() {
     }
 
     try {
+        // Włącz tryb oszczędzania energii od początku
+        enableLowPowerMode();
+
         // Poczekaj na załadowanie okna startowego
         await new Promise((resolve) => {
-            startup.webContents.once('did-finish-load', () => {
+            startup.once('ready-to-show', () => {
                 startup.webContents.send('app-version', APP_VERSION);
                 resolve();
             });
@@ -639,7 +803,20 @@ async function createWindow() {
         // Kontynuuj z konfiguracją modeli
         await setupDefaultModels(startup);
 
-        // Utwórz główne okno przed zamknięciem okna startowego
+        // Inicjalizuj główne okno
+        await initializeMainWindow(startup);
+
+    } catch (error) {
+        console.error('Error during startup:', error);
+        if (startup && !startup.isDestroyed()) {
+            startup.webContents.send('startup-error', error.message);
+        }
+    }
+}
+
+// Wydziel inicjalizację głównego okna do osobnej funkcji
+async function initializeMainWindow(startup) {
+    try {
         mainWindow = createWindowWithAcceleration({
             width: 1200,
             height: 800,
@@ -647,68 +824,107 @@ async function createWindow() {
                 nodeIntegration: true,
                 contextIsolation: false,
                 enableRemoteModule: true,
-                backgroundThrottling: true,
+                backgroundThrottling: true
             },
             frame: false,
-            titleBarStyle: 'hidden',
-            trafficLightPosition: { x: -100, y: -100 },
-            show: false,
-            // Dodaj minimalny rozmiar okna
-            minWidth: 800,
-            minHeight: 600
+            show: false
         });
 
-        // Załaduj główne okno i poczekaj na jego załadowanie
-        await new Promise((resolve, reject) => {
-            mainWindow.loadFile('index.html');
-            mainWindow.webContents.once('did-finish-load', resolve);
-            mainWindow.webContents.once('did-fail-load', reject);
+        // Wyłącz zbędne procesy przed załadowaniem
+        mainWindow.webContents.once('dom-ready', () => {
+            mainWindow.webContents.executeJavaScript(`
+                // Wyłącz animacje
+                document.body.classList.add('no-animations');
+                // Wyłącz efekty
+                document.body.classList.add('reduced-motion');
+            `);
         });
 
-        // Zoptymalizuj wydajność
+        // Załaduj główne okno
+        await mainWindow.loadFile('index.html');
+
+        // Zastosuj optymalizacje
         optimizeWindowPerformance(mainWindow);
+        optimizeRenderers();
 
-        // Pokaż główne okno i zamknij startowe
+        // Pokaż okno
         mainWindow.show();
-        if (!startup.isDestroyed()) {
+
+        if (startup && !startup.isDestroyed()) {
             startup.close();
         }
 
-        // Dodaj obsługę błędów dla głównego okna
-        mainWindow.webContents.on('render-process-gone', (event, details) => {
-            console.error('Main window render process gone:', details);
-            // Spróbuj zrestartować aplikację
-            app.relaunch();
-            app.exit(0);
-        });
+        // Rozpocznij monitorowanie
+        startResourceMonitoring();
+        setupPerformanceMonitoring();
 
     } catch (error) {
-        console.error('Error during startup:', error);
-        if (startup && !startup.isDestroyed()) {
-            startup.webContents.send('startup-error', error.message);
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            startup.close();
-        }
-        
-        // W przypadku błędu, spróbuj mimo wszystko utworzyć główne okno
-        if (!mainWindow) {
-            mainWindow = createWindowWithAcceleration({
-                width: 1200,
-                height: 800,
-                webPreferences: {
-                    nodeIntegration: true,
-                    contextIsolation: false,
-                    enableRemoteModule: true,
-                },
-                frame: false,
-                titleBarStyle: 'hidden',
-                show: false
-            });
-
-            await mainWindow.loadFile('index.html');
-            mainWindow.show();
-        }
+        console.error('Error in initializeMainWindow:', error);
+        throw error;
     }
+}
+
+// Dodaj nową funkcję monitorowania wydajności
+function setupPerformanceMonitoring() {
+    let lastActivity = Date.now();
+    let isThrottled = false;
+
+    // Monitoruj aktywność
+    mainWindow.webContents.on('input', () => {
+        lastActivity = Date.now();
+        if (isThrottled) {
+            isThrottled = false;
+            mainWindow.webContents.setFrameRate(PERFORMANCE_CONFIG.frameRate);
+        }
+    });
+
+    // Okresowo sprawdzaj bezczynność
+    setInterval(() => {
+        const now = Date.now();
+        if (!isThrottled && (now - lastActivity) > PERFORMANCE_CONFIG.idleTimeout) {
+            isThrottled = true;
+            mainWindow.webContents.setFrameRate(10);
+            forceGC();
+        }
+    }, PERFORMANCE_CONFIG.throttleTimeout);
+
+    // Okresowo wymuszaj GC
+    setInterval(() => {
+        forceGC();
+    }, PERFORMANCE_CONFIG.gcInterval);
+}
+
+// Dodaj nową funkcję do konfiguracji nasłuchiwania zdarzeń
+function setupWindowEventListeners() {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+
+    // Optymalizuj przy zmianie rozmiaru
+    mainWindow.on('resize', throttle(() => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            optimizeWindowPerformance(mainWindow);
+        }
+    }));
+
+    // Optymalizuj przy przywracaniu
+    mainWindow.on('restore', () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            optimizeWindowPerformance(mainWindow);
+        }
+    });
+
+    // Zatrzymaj niepotrzebne operacje przy minimalizacji
+    mainWindow.on('minimize', () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.setFrameRate(10);
+        }
+    });
+
+    // Przywróć normalne działanie przy maksymalizacji
+    mainWindow.on('maximize', () => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.setFrameRate(isLowPowerMode ? 30 : 60);
+        }
+    });
 }
 
 // Event handlers
@@ -1878,19 +2094,31 @@ ipcMain.on('start-model-import', async (event, modelUrl) => {
     }
 });
 
-// Dodaj wywołanie sprawdzenia zależności przy starcie aplikacji
+// Update the app.whenReady() calls to be in one place
 app.whenReady().then(async () => {
     try {
+        // First check dependencies
         await checkAndInstallPythonDependencies();
-        createWindow();
+        
+        // Then create window
+        await createWindow();
+        
+        // Add window state change listeners
+        if (mainWindow) {
+            mainWindow.on('maximize', () => {
+                mainWindow.webContents.send('window-state-change', true);
+            });
+
+            mainWindow.on('unmaximize', () => {
+                mainWindow.webContents.send('window-state-change', false);
+            });
+        }
     } catch (error) {
-        console.error('Failed to check/install dependencies:', error);
-        // Kontynuuj uruchamianie aplikacji nawet jeśli instalacja się nie powiedzie
+        console.error('Error during app initialization:', error);
+        // Still create window even if dependency check fails
         createWindow();
     }
 });
-
-app.whenReady().then(createWindow);
 
 app.on('window-all-closed', () => {
     console.log('All windows closed');
@@ -2375,20 +2603,6 @@ ipcMain.on('open-credits', () => {
     });
 });
 
-// Dodaj obsługę zmiany stanu okna
-app.whenReady().then(() => {
-    // ... istniejący kod ...
-
-    // Dodaj nasłuchiwanie na zmianę stanu okna
-    mainWindow.on('maximize', () => {
-        mainWindow.webContents.send('window-state-change', true);
-    });
-
-    mainWindow.on('unmaximize', () => {
-        mainWindow.webContents.send('window-state-change', false);
-    });
-});
-
 // Dodaj obsługę błędów dla głównego procesu
 process.on('unhandledRejection', (error) => {
     console.error('Unhandled rejection:', error);
@@ -2408,4 +2622,46 @@ function safeWebContentsCall(webContents, channel, ...args) {
     if (webContents && !webContents.isDestroyed()) {
         webContents.send(channel, ...args);
     }
+}
+
+// Zaktualizuj funkcję throttleAllOperations
+function throttleAllOperations() {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+
+    // Zmniejsz częstotliwość odświeżania
+    mainWindow.webContents.setFrameRate(20);
+    
+    // Włącz throttling tła
+    mainWindow.webContents.setBackgroundThrottling(true);
+    
+    // Wymuś tryb oszczędzania energii
+    mainWindow.webContents.executeJavaScript(`
+        document.body.classList.add('low-power-mode');
+        document.body.classList.add('reduced-motion');
+        
+        // Zatrzymaj wszystkie animacje
+        document.getAnimations().forEach(animation => {
+            animation.pause();
+        });
+        
+        // Zoptymalizuj scrollowanie
+        document.querySelectorAll('.scrollable').forEach(elem => {
+            elem.style.scrollBehavior = 'auto';
+        });
+    `);
+    
+    // Wyczyść cache
+    operationsCache.clear();
+    imageProcessingCache.clear();
+    
+    // Wymuś GC
+    if (global.gc) {
+        global.gc();
+    }
+}
+
+// Dodaj brakującą funkcję checkAndInstallPythonDependencies
+async function checkAndInstallPythonDependencies() {
+    // Prosta implementacja - możemy rozszerzyć później jeśli potrzeba
+    return true;
 }
