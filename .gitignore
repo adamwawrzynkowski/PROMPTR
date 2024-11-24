@@ -2,3 +2,5 @@ node_modules
 *.app
 *.zip
 *.dmg
+dist/mac-arm64
+.DS_Store
