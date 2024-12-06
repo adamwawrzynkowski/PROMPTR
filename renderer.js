@@ -589,19 +589,32 @@ function displayTags(tags) {
     if (!tagsContainer) return;
     
     if (tags === 'waiting') {
-        tagsContainer.innerHTML = '<span class="tag loading">Waiting for input...</span>';
+        tagsContainer.innerHTML = `
+            <div class="generating-text">
+                <i class="fas fa-hourglass generating-icon"></i>
+                ${Array.from('Waiting for input...').map(char => `<span>${char}</span>`).join('')}
+            </div>`;
         return;
     }
     
     if (tags === 'generating') {
-        tagsContainer.innerHTML = '<span class="tag loading">Generating tags...</span>';
+        tagsContainer.innerHTML = `
+            <div class="generating-text">
+                <i class="fas fa-sparkles generating-icon"></i>
+                ${Array.from('Generating tags...').map(char => 
+                    char === ' ' ? '<span>&nbsp;</span>' : `<span>${char}</span>`
+                ).join('')}
+            </div>`;
         return;
     }
     
     // Jeśli nie ma tagów lub pusty prompt, pokaż domyślne
     if (!Array.isArray(tags) || tags.length === 0) {
         tagsContainer.innerHTML = DEFAULT_TAGS
-            .map(tag => `<span class="tag default-tag" data-tag="${tag}">${tag}</span>`)
+            .map((tag, index) => `
+                <div class="generating-tag" style="animation-delay: ${index * 0.1}s">
+                    <i class="fas fa-tag"></i>${tag}
+                </div>`)
             .join('');
     } else {
         // Sortuj tagi po długości (krótsze pierwsze) i alfabetycznie
@@ -611,20 +624,56 @@ function displayTags(tags) {
         });
         
         tagsContainer.innerHTML = sortedTags
-            .map(tag => `<span class="tag" data-tag="${tag}">${tag}</span>`)
+            .map((tag, index) => `
+                <div class="generating-tag" style="animation-delay: ${index * 0.1}s">
+                    <i class="fas fa-tag"></i>${tag}
+                </div>`)
             .join('');
     }
 
     // Dodaj event listenery do tagów
-    document.querySelectorAll('.tag').forEach(tagElement => {
+    document.querySelectorAll('.generating-tag').forEach(tagElement => {
         tagElement.addEventListener('click', () => {
-            const tag = tagElement.dataset.tag;
+            const tag = tagElement.textContent.trim();
             const promptInput = document.getElementById('promptInput');
             const currentPromptText = promptInput.value.trim();
             promptInput.value = currentPromptText ? `${currentPromptText}, ${tag}` : tag;
             promptInput.dispatchEvent(new Event('input'));
         });
     });
+}
+
+// Zmodyfikuj funkcję generateTagsInBatches
+async function generateTagsInBatches(text, batchSize = 6, totalBatches = 5) {
+    if (!text || !text.trim()) {
+        displayTags([]);
+        return;
+    }
+
+    try {
+        displayTags('generating');
+        const response = await ipcRenderer.invoke('generate-tags', { text: text.trim() });
+        
+        if (response && Array.isArray(response)) {
+            // Filter out empty tags and limit to a reasonable number
+            const validTags = response
+                .filter(tag => tag && tag.trim().length > 0)
+                .slice(0, 15); // Limit to 15 tags
+            
+            if (validTags.length > 0) {
+                displayTags(validTags);
+            } else {
+                console.warn('No valid tags received');
+                displayTags([]);
+            }
+        } else {
+            console.warn('Invalid response format:', response);
+            displayTags([]);
+        }
+    } catch (error) {
+        console.error('Error generating tags:', error);
+        displayTags([]);
+    }
 }
 
 // Dodaj style dla domyślnych tagów
@@ -712,71 +761,6 @@ async function handleTranslation(text) {
         }
         showToast('Translation error: ' + error.message);
         return text;
-    }
-}
-
-// Zmodyfikuj funkcję generateTagsInBatches
-async function generateTagsInBatches(text, batchSize = 6, totalBatches = 5) {
-    const tagsArea = document.querySelector('.tags-area');
-    if (!tagsArea) return;
-
-    // Show loading animation
-    const loadingContainer = showGeneratingAnimation();
-    tagsArea.innerHTML = '';
-    tagsArea.appendChild(loadingContainer);
-
-    try {
-        const response = await ipcRenderer.invoke('generate-tags', { text, batchSize, totalBatches });
-        if (!response || !response.tags) {
-            throw new Error('No tags received');
-        }
-
-        // Hide loading and show tags with animation
-        setTimeout(() => {
-            if (!tagsArea) return;
-            tagsArea.innerHTML = '';
-            
-            const tagsContainer = document.createElement('div');
-            tagsContainer.className = 'tags-container';
-            
-            response.tags.forEach((tag, index) => {
-                const tagElement = document.createElement('div');
-                tagElement.className = 'tag';
-                tagElement.style.animationDelay = `${index * 0.05}s`;
-                
-                const tagText = document.createElement('span');
-                tagText.className = 'tag-text';
-                tagText.textContent = tag;
-                
-                const tagButton = document.createElement('button');
-                tagButton.className = 'tag-button';
-                tagButton.innerHTML = '<i class="fas fa-plus"></i>';
-                tagButton.onclick = () => {
-                    const promptInput = document.getElementById('promptInput');
-                    if (promptInput) {
-                        const currentText = promptInput.value;
-                        promptInput.value = currentText ? `${currentText}, ${tag}` : tag;
-                        promptInput.dispatchEvent(new Event('input'));
-                    }
-                };
-                
-                tagElement.appendChild(tagText);
-                tagElement.appendChild(tagButton);
-                tagsContainer.appendChild(tagElement);
-            });
-            
-            tagsArea.appendChild(tagsContainer);
-        }, 1000);
-    } catch (error) {
-        console.error('Error generating tags:', error);
-        if (tagsArea) {
-            tagsArea.innerHTML = `
-                <div class="error-message">
-                    <i class="fas fa-exclamation-circle"></i>
-                    <span>Error generating tags: ${error.message}</span>
-                </div>
-            `;
-        }
     }
 }
 

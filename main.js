@@ -432,9 +432,10 @@ app.whenReady().then(() => {
         }
     });
 
-    ipcMain.handle('generate-tags', async (event, text) => {
+    ipcMain.handle('generate-tags', async (event, { text }) => {
         try {
-            return await ollamaManager.generateTags(text);
+            const tags = await ollamaManager.generateTags(text);
+            return tags;
         } catch (error) {
             console.error('Error in generate-tags:', error);
             throw error;
