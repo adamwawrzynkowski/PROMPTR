@@ -1,4 +1,7 @@
-const { BrowserWindow, ipcMain, app } = require('electron');
+const electron = require('electron');
+const { BrowserWindow } = electron;
+const ipcMain = electron.ipcMain;
+const app = electron.app;
 const path = require('path');
 const fs = require('fs').promises;
 const { PythonShell } = require('python-shell');
@@ -55,36 +58,40 @@ async function convertToOnnx(modelDir) {
     });
 }
 
-// Zaktualizuj istniejący handler importu modelu
-ipcMain.handle('import-model', async (event, modelInfo) => {
-    try {
-        const modelDir = path.join(app.getPath('userData'), 'PROMPTR', 'custom-models', modelInfo.name);
-        await fs.mkdir(modelDir, { recursive: true });
+// Separate the IPC handler setup into a function
+function setupIpcHandlers() {
+    ipcMain.handle('import-model', async (event, modelInfo) => {
+        try {
+            const modelDir = path.join(app.getPath('userData'), 'PROMPTR', 'custom-models', modelInfo.name);
+            await fs.mkdir(modelDir, { recursive: true });
 
-        // Po pobraniu wszystkich plików
-        window.webContents.send('import-progress', {
-            status: 'Converting model to ONNX format...',
-            progress: 0.9
-        });
+            // Po pobraniu wszystkich plików
+            window.webContents.send('import-progress', {
+                status: 'Converting model to ONNX format...',
+                progress: 0.9
+            });
 
-        // Konwertuj model do ONNX
-        await convertToOnnx(modelDir);
+            // Konwertuj model do ONNX
+            await convertToOnnx(modelDir);
 
-        // Usuń oryginalny plik safetensors
-        await fs.unlink(path.join(modelDir, 'model.safetensors'));
+            // Usuń oryginalny plik safetensors
+            await fs.unlink(path.join(modelDir, 'model.safetensors'));
 
-        window.webContents.send('import-progress', {
-            status: 'Import complete',
-            progress: 1.0
-        });
+            window.webContents.send('import-progress', {
+                status: 'Import complete',
+                progress: 1.0
+            });
 
-        return { success: true };
-    } catch (error) {
-        console.error('Error importing model:', error);
-        throw error;
-    }
-});
+            return { success: true };
+        } catch (error) {
+            console.error('Error during model import:', error);
+            throw error;
+        }
+    });
+}
 
 module.exports = {
-    create
-}; 
+    create,
+    setupIpcHandlers,
+    convertToOnnx
+};

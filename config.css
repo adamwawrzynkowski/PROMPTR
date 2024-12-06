@@ -680,18 +680,20 @@ body {
 }
 
 .model-tile-name {
-    font-size: 14px;
+    font-size: 12px;
     font-weight: 500;
     color: var(--text-color);
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    text-align: center;
 }
 
 .model-tile-params {
-    font-size: 12px;
+    font-size: 10px;
     color: var(--accent-color);
     margin-top: 4px;
+    text-align: center;
 }
 
 .model-tile-tag {

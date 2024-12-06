@@ -376,6 +376,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Inicjalizacja przycisków
     initializeButtons();
     
+    // Get initial Ollama status
+    try {
+        const status = await ipcRenderer.invoke('check-ollama-status');
+        updateConnectionStatus(status);
+        updateModelTags(status);
+    } catch (error) {
+        console.error('Error getting initial Ollama status:', error);
+    }
+    
     console.log('Application initialized');
 });
 
@@ -794,3 +803,206 @@ function renderStyleTile(style) {
 
     return tile;
 }
+
+// Funkcja aktualizująca status połączenia
+function updateConnectionStatus(status) {
+    const connectionBtn = document.getElementById('connection-btn');
+    if (!connectionBtn) return;
+
+    const icon = connectionBtn.querySelector('i');
+    const tooltip = connectionBtn.querySelector('.tooltip');
+
+    if (status.isConnected) {
+        connectionBtn.classList.remove('disconnected');
+        connectionBtn.classList.add('connected');
+        icon.className = 'fas fa-plug';
+        tooltip.textContent = `Connected (${status.currentModel || 'No model selected'})`;
+    } else {
+        connectionBtn.classList.remove('connected');
+        connectionBtn.classList.add('disconnected');
+        icon.className = 'fas fa-plug-circle-xmark';
+        tooltip.textContent = status.error || 'Disconnected';
+    }
+
+    // Zawsze aktualizuj tagi modeli
+    updateModelTags(status);
+}
+
+// Add function to update model tags
+function updateModelTags(status) {
+    const modelTagsContainer = document.querySelector('.model-tags');
+    if (!modelTagsContainer) {
+        console.warn('Model tags container not found');
+        return;
+    }
+
+    // Clear existing tags
+    modelTagsContainer.innerHTML = '';
+
+    if (!status || !status.models) {
+        console.log('No models available');
+        return;
+    }
+
+    // Sort models by category
+    const modelsByCategory = {
+        'text': [],
+        'vision': [],
+        'other': []
+    };
+
+    status.models.forEach(model => {
+        const category = getModelCategory(model.id);
+        if (modelsByCategory[category]) {
+            modelsByCategory[category].push(model);
+        } else {
+            modelsByCategory.other.push(model);
+        }
+    });
+
+    // Create tags for each category
+    Object.entries(modelsByCategory).forEach(([category, models]) => {
+        if (models.length > 0) {
+            const categoryDiv = document.createElement('div');
+            categoryDiv.className = `model-category ${category}`;
+            
+            const categoryTitle = document.createElement('div');
+            categoryTitle.className = 'category-title';
+            categoryTitle.textContent = category.charAt(0).toUpperCase() + category.slice(1);
+            categoryDiv.appendChild(categoryTitle);
+
+            models.forEach(model => {
+                const modelTag = document.createElement('div');
+                modelTag.className = `model-tag ${category}`;
+                modelTag.innerHTML = `
+                    <span class="model-name">${model.id}</span>
+                    <span class="model-size">${formatSize(model.size)}</span>
+                `;
+                
+                // Add click handler for model installation/deletion
+                modelTag.addEventListener('click', async () => {
+                    try {
+                        if (model.installed) {
+                            await ipcRenderer.invoke('delete-model', model.id);
+                            showToast(`Deleting model: ${model.id}`);
+                        } else {
+                            await ipcRenderer.invoke('install-model', model.id);
+                            showToast(`Installing model: ${model.id}`);
+                        }
+                    } catch (error) {
+                        showToast(`Error: ${error.message}`);
+                    }
+                });
+
+                categoryDiv.appendChild(modelTag);
+            });
+
+            modelTagsContainer.appendChild(categoryDiv);
+        }
+    });
+}
+
+// Helper function to format file size
+function formatSize(bytes) {
+    if (!bytes) return 'N/A';
+    const units = ['B', 'KB', 'MB', 'GB'];
+    let size = bytes;
+    let unitIndex = 0;
+    while (size >= 1024 && unitIndex < units.length - 1) {
+        size /= 1024;
+        unitIndex++;
+    }
+    return `${size.toFixed(1)} ${units[unitIndex]}`;
+}
+
+// Add styles for model tags
+document.head.insertAdjacentHTML('beforeend', `
+    <style>
+        .model-tags {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            padding: 10px;
+        }
+
+        .model-category {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+        }
+
+        .category-title {
+            font-weight: bold;
+            color: #888;
+            margin-bottom: 5px;
+        }
+
+        .model-tag {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .model-tag:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .model-name {
+            font-weight: 500;
+        }
+
+        .model-size {
+            color: #888;
+            font-size: 0.9em;
+        }
+
+        .model-tag.text {
+            border-left: 3px solid #4CAF50;
+        }
+
+        .model-tag.vision {
+            border-left: 3px solid #2196F3;
+        }
+
+        .model-tag.other {
+            border-left: 3px solid #9C27B0;
+        }
+    </style>
+`);
+
+// Add function to determine model category
+function getModelCategory(modelId) {
+    if (!modelId) return 'other';
+    
+    const modelLower = modelId.toLowerCase();
+    
+    // Check NSFW first
+    if (modelLower.includes('dolphin-') || modelLower.includes('uncensored')) {
+        return 'NSFW';
+    }
+    
+    // Check Vision models
+    if (modelLower.includes('llava') || modelLower.includes('vision') || modelLower.includes('bakllava')) {
+        return 'Vision';
+    }
+    
+    // Check SFW models
+    const sfwPrefixes = ['llama', 'gemma', 'mistral', 'mixtral', 'phi', 'qwen'];
+    if (sfwPrefixes.some(prefix => modelLower.startsWith(prefix))) {
+        return 'SFW';
+    }
+    
+    // Default to Other
+    return 'Other';
+}
+
+// Nasłuchuj na zmiany statusu
+ipcRenderer.on('ollama-status', (event, status) => {
+    console.log('Received ollama status update:', status);
+    updateConnectionStatus(status);
+});

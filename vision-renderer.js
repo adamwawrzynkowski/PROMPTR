@@ -62,29 +62,26 @@ selectButton.addEventListener('click', () => {
 // Funkcja ładowania dostępnych modeli
 async function loadAvailableModels() {
     try {
-        // Pobierz modele Ollama
         const ollamaModels = await ipcRenderer.invoke('get-available-models');
-        const visionModels = ollamaModels.filter(model => 
-            model.type === 'Vision' && model.installed
-        );
+        const visionModels = ollamaModels.filter(model => model.type === 'Vision' && model.installed);
         
-        // Pobierz custom modele
         const customModels = await ipcRenderer.invoke('get-custom-models');
         const customVisionModels = customModels.filter(model => model.type === 'Vision');
         
-        // Połącz wszystkie modele
         const allModels = [
             ...visionModels.map(model => ({
                 ...model,
                 isCustom: false,
-                displayName: model.name
+                displayName: model.name,
+                status: 'Installed' // Ustawienie statusu na 'Installed'
             })),
             ...customVisionModels.map(model => ({
                 id: model.name,
                 name: model.displayName,
                 type: 'Vision',
                 isCustom: true,
-                displayName: `${model.displayName} (Custom)`
+                displayName: `${model.displayName} (Custom)`,
+                status: 'Available' // Ustawienie statusu na 'Available'
             }))
         ];
         
@@ -96,6 +93,7 @@ async function loadAvailableModels() {
             option.textContent = model.displayName;
             modelSelect.appendChild(option);
         });
+        renderModelTiles(allModels); // Renderowanie kafelków modeli od razu
     } catch (error) {
         console.error('Error loading models:', error);
     }

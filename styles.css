@@ -2839,3 +2839,75 @@ input, button, textarea, [role="button"] {
     backface-visibility: hidden;
     perspective: 1000px;
 }
+
+/* Model Tags */
+.model-tags {
+    display: flex;
+    gap: 8px;
+    margin-left: 12px;
+    align-items: center;
+}
+
+.model-tag {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 10px;
+    background: rgba(255, 255, 255, 0.1);
+    transition: all 0.2s ease;
+    height: 18px;
+}
+
+.model-tag i {
+    font-size: 9px;
+    opacity: 0.8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 12px;
+    height: 12px;
+}
+
+.model-tag .model-name {
+    max-width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    line-height: 18px;
+    display: flex;
+    align-items: center;
+}
+
+/* Model category colors */
+.model-tag.sfw {
+    background: rgba(72, 187, 120, 0.2);
+    color: #48bb78;
+}
+
+.model-tag.nsfw {
+    background: rgba(245, 101, 101, 0.2);
+    color: #f56565;
+}
+
+.model-tag.vision {
+    background: rgba(76, 81, 191, 0.2);
+    color: #4c51bf;
+}
+
+.model-tag.other {
+    background: rgba(237, 137, 54, 0.2);
+    color: #ed8936;
+}
+
+/* Not selected state */
+.model-tag.not-selected {
+    background: rgba(160, 174, 192, 0.1);
+    color: #a0aec0;
+}
+
+/* Hover state */
+.model-tag:hover {
+    filter: brightness(1.1);
+}

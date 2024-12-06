@@ -332,49 +332,68 @@ class OllamaManager {
             throw new Error(this.lastError || 'Not connected or no model selected');
         }
 
-        const systemPrompt = `You are a prompt generator for Stable Diffusion. Output ONLY the enhanced prompt without any additional text, comments, or formatting.`;
+        const systemPrompt = `You are an expert prompt engineer specializing in creating detailed, natural-language prompts for Stable Diffusion image generation. Your goal is to enhance prompts while maintaining a natural, descriptive flow that captures both technical aspects and artistic vision. Focus on:
+
+1. Natural language descriptions that flow well
+2. Specific, vivid details about the subject, setting, and atmosphere
+3. Technical aspects like lighting, composition, and camera settings
+4. Artistic elements like style, mood, and aesthetic qualities
+5. Proper emphasis on important elements using natural language modifiers
+
+Always maintain readability and avoid comma-spam or keyword stuffing.`;
 
         let stylePrompt;
         if (customStyle) {
-            stylePrompt = `Enhance this prompt for Stable Diffusion image generation:
-Base prompt: ${basePrompt}
-Style description: ${customStyle.description}
-Required elements: ${customStyle.fixedTags.join(', ')}
+            stylePrompt = `Enhance this prompt into a detailed, natural description for Stable Diffusion image generation:
 
-Rules:
-1. Return ONLY the enhanced prompt
-2. Include all required elements
-3. Do not add any explanations or comments
-4. Do not use quotes or special formatting
-5. Do not start with phrases like "Here's" or "This is"`;
+Base prompt: ${basePrompt}
+
+Style requirements:
+- Style description: ${customStyle.description}
+- Required elements: ${customStyle.fixedTags.join(', ')}
+
+Guidelines:
+1. Create a flowing, natural description that reads like a professional photographer or artist's vision
+2. Incorporate all required style elements seamlessly into the description
+3. Add specific details about lighting, atmosphere, and technical aspects
+4. Maintain a balance between artistic vision and technical precision
+5. Use natural language rather than just comma-separated keywords
+6. Keep the description focused and coherent
+
+Return only the enhanced prompt without any additional text or formatting.`;
         } else {
             const styleInstructions = new Map([
-                ['realistic', "photorealistic, detailed photography, professional camera settings, natural lighting"],
-                ['cinematic', "cinematic shot, movie scene, dramatic lighting, film grain, professional cinematography"],
-                ['vintage', "vintage style, retro aesthetics, old photograph, film photography, nostalgic"],
-                ['artistic', "artistic, fine art, masterpiece, professional artwork, expressive"],
-                ['abstract', "abstract art, non-representational, geometric shapes, modern art, contemporary"],
-                ['poetic', "ethereal, dreamy, romantic, soft lighting, atmospheric, moody"],
-                ['anime', "anime style, manga art, japanese animation, cel shaded"],
-                ['cartoon', "cartoon style, stylized art, bold lines, vibrant colors"],
-                ['cute', "kawaii style, adorable, chibi, pastel colors, charming"],
-                ['scifi', "science fiction, futuristic, cyberpunk, high tech, advanced technology"]
+                ['realistic', "photorealistic quality with natural lighting, precise details, and professional photography techniques. Focus on authentic representation with careful attention to textures, materials, and environmental context."],
+                ['cinematic', "cinematic composition with dramatic lighting, professional cinematography techniques, and movie-like atmosphere. Consider depth of field, camera angles, and scene composition."],
+                ['vintage', "authentic vintage aesthetics with period-appropriate styling, classic photography techniques, and nostalgic elements. Include film grain, color treatment, and era-specific details."],
+                ['artistic', "fine art qualities with emphasis on artistic composition, creative expression, and masterful technique. Consider brush strokes, artistic medium, and compositional balance."],
+                ['abstract', "abstract artistic interpretation focusing on form, color, and composition. Emphasize geometric elements, non-representational aspects, and modern artistic techniques."],
+                ['poetic', "ethereal and romantic qualities with dreamy atmosphere and evocative mood. Focus on soft lighting, delicate details, and emotional resonance."],
+                ['anime', "high-quality anime artistry with characteristic style elements, dynamic composition, and distinctive lighting. Include cel-shading, characteristic anime features, and stylistic choices."],
+                ['cartoon', "professional cartoon styling with bold design elements, distinctive character features, and vibrant presentation. Focus on clean lines, expressive elements, and stylized details."],
+                ['cute', "adorable and charming qualities with soft, appealing elements and warm atmosphere. Include kawaii-style features, gentle colors, and endearing details."],
+                ['scifi', "futuristic science fiction elements with advanced technological details and innovative design. Focus on high-tech aesthetics, future-forward concepts, and scientific accuracy."]
             ]);
 
             if (!styleInstructions.has(styleId)) {
                 throw new Error(`Unknown style: ${styleId}`);
             }
 
-            stylePrompt = `Enhance this prompt for Stable Diffusion image generation:
-Base prompt: ${basePrompt}
-Style: ${styleInstructions.get(styleId)}
+            stylePrompt = `Enhance this prompt into a detailed, natural description for Stable Diffusion image generation:
 
-Rules:
-1. Return ONLY the enhanced prompt
-2. Include style-specific elements
-3. Do not add any explanations or comments
-4. Do not use quotes or special formatting
-5. Do not start with phrases like "Here's" or "This is"`;
+Base prompt: ${basePrompt}
+
+Style focus: ${styleInstructions.get(styleId)}
+
+Guidelines:
+1. Create a flowing, natural description that reads like a professional artist's vision
+2. Incorporate the style elements seamlessly into the description
+3. Add specific details about lighting, atmosphere, and technical aspects
+4. Maintain a balance between artistic vision and technical precision
+5. Use natural language rather than just comma-separated keywords
+6. Keep the description focused and coherent
+
+Return only the enhanced prompt without any additional text or formatting.`;
         }
 
         try {

@@ -68,9 +68,23 @@ const DEFAULT_STYLES = {
 
 class StylesManager {
     constructor() {
-        this.stylesPath = path.join(app.getPath('userData'), 'styles.json');
-        this.iconsPath = path.join(__dirname, '..', 'assets', 'stylesicons');
         this.styles = null;
+        this._stylesPath = null;
+        this._iconsPath = null;
+    }
+
+    get stylesPath() {
+        if (!this._stylesPath) {
+            this._stylesPath = path.join(app.getPath('userData'), 'styles.json');
+        }
+        return this._stylesPath;
+    }
+
+    get iconsPath() {
+        if (!this._iconsPath) {
+            this._iconsPath = path.join(__dirname, '..', 'assets', 'stylesicons');
+        }
+        return this._iconsPath;
     }
 
     getIconPath(iconName) {
@@ -137,4 +151,4 @@ class StylesManager {
     }
 }
 
-module.exports = new StylesManager(); 
+module.exports = new StylesManager();

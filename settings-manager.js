@@ -1,35 +1,49 @@
-const fs = require('fs');
+const fs = require('fs').promises;
 const path = require('path');
 const { app } = require('electron');
 
 class SettingsManager {
     constructor() {
-        this.settingsPath = path.join(app.getPath('userData'), 'PROMPTR', 'settings.json');
+        this._settingsPath = null;
+        this._settings = null;
         this.defaultSettings = {
             theme: 'dark',
             autoTranslate: true,
             tagGeneration: true,
             slowMode: false,
             slowModeDelay: 1000,
+            currentModel: null,
+            visionModel: null,
             drawThingsIntegration: {
                 enabled: false,
                 path: '',
                 port: 3333
             }
         };
-        const promptrDir = path.dirname(this.settingsPath);
-        if (!fs.existsSync(promptrDir)) {
-            fs.mkdirSync(promptrDir, { recursive: true });
-        }
-        this.settings = this.loadSettings();
-        console.log('Initialized settings:', this.settings);
     }
 
-    loadSettings() {
+    get settingsPath() {
+        if (!this._settingsPath) {
+            this._settingsPath = path.join(app.getPath('userData'), 'PROMPTR', 'settings.json');
+        }
+        return this._settingsPath;
+    }
+
+    async ensureSettingsDirectory() {
+        const settingsDir = path.dirname(this.settingsPath);
         try {
-            if (fs.existsSync(this.settingsPath)) {
+            await fs.access(settingsDir);
+        } catch {
+            await fs.mkdir(settingsDir, { recursive: true });
+        }
+    }
+
+    async loadSettings() {
+        try {
+            await this.ensureSettingsDirectory();
+            if (await fs.stat(this.settingsPath)) {
                 console.log('Loading settings from:', this.settingsPath);
-                const data = fs.readFileSync(this.settingsPath, 'utf8');
+                const data = await fs.readFile(this.settingsPath, 'utf8');
                 const loadedSettings = JSON.parse(data);
                 const mergedSettings = {
                     ...this.defaultSettings,
@@ -40,94 +54,96 @@ class SettingsManager {
                     }
                 };
                 console.log('Loaded settings:', mergedSettings);
-                return mergedSettings;
+                this._settings = mergedSettings;
+            } else {
+                console.log('No settings file found, creating with defaults');
+                this._settings = this.defaultSettings;
+                await this.saveSettings(this._settings);
             }
-            console.log('No settings file found, creating with defaults');
-            this.saveSettings(this.defaultSettings);
-            return this.defaultSettings;
         } catch (error) {
             console.error('Error loading settings:', error);
-            return this.defaultSettings;
+            this._settings = this.defaultSettings;
         }
+        return this._settings;
     }
 
-    saveSettings(newSettings) {
+    async getSettings() {
+        if (!this._settings) {
+            await this.loadSettings();
+        }
+        return JSON.parse(JSON.stringify(this._settings));
+    }
+
+    async saveSettings(settings) {
         try {
-            console.log('Saving settings:', newSettings);
+            await this.ensureSettingsDirectory();
             const settingsToSave = {
-                theme: String(newSettings.theme || this.defaultSettings.theme),
-                autoTranslate: Boolean(newSettings.autoTranslate),
-                tagGeneration: Boolean(newSettings.tagGeneration),
-                slowMode: Boolean(newSettings.slowMode),
-                slowModeDelay: Number(newSettings.slowModeDelay) || this.defaultSettings.slowModeDelay,
+                theme: String(settings.theme || this.defaultSettings.theme),
+                autoTranslate: Boolean(settings.autoTranslate),
+                tagGeneration: Boolean(settings.tagGeneration),
+                slowMode: Boolean(settings.slowMode),
+                slowModeDelay: Number(settings.slowModeDelay) || this.defaultSettings.slowModeDelay,
+                currentModel: settings.currentModel || null,
+                visionModel: settings.visionModel || null,
                 drawThingsIntegration: {
-                    enabled: Boolean(newSettings.drawThingsIntegration?.enabled),
-                    path: String(newSettings.drawThingsIntegration?.path || ''),
-                    port: Number(newSettings.drawThingsIntegration?.port) || 3333
+                    enabled: Boolean(settings.drawThingsIntegration?.enabled),
+                    path: String(settings.drawThingsIntegration?.path || ''),
+                    port: Number(settings.drawThingsIntegration?.port) || 3333
                 }
             };
-
-            const settingsDir = path.dirname(this.settingsPath);
-            if (!fs.existsSync(settingsDir)) {
-                fs.mkdirSync(settingsDir, { recursive: true });
-            }
-
-            fs.writeFileSync(this.settingsPath, JSON.stringify(settingsToSave, null, 2));
+            await fs.writeFile(this.settingsPath, JSON.stringify(settingsToSave, null, 2));
             console.log('Settings saved successfully to:', this.settingsPath);
-            
-            this.settings = settingsToSave;
-            
-            return settingsToSave;
+            this._settings = settingsToSave;
         } catch (error) {
             console.error('Error saving settings:', error);
-            return this.settings;
+            throw error;
         }
     }
 
-    getSettings() {
-        return JSON.parse(JSON.stringify(this.settings));
-    }
-
-    updateSettings(newSettings) {
+    async updateSettings(updates) {
         try {
-            console.log('Updating settings with:', newSettings);
+            console.log('Updating settings with:', updates);
             
-            if (typeof newSettings !== 'object' || newSettings === null) {
+            if (typeof updates !== 'object' || updates === null) {
                 throw new Error('Invalid settings object');
             }
 
             const processedSettings = {
-                theme: String(newSettings.theme || this.settings.theme),
-                autoTranslate: newSettings.autoTranslate !== undefined ? Boolean(newSettings.autoTranslate) : this.settings.autoTranslate,
-                tagGeneration: newSettings.tagGeneration !== undefined ? Boolean(newSettings.tagGeneration) : this.settings.tagGeneration,
-                slowMode: newSettings.slowMode !== undefined ? Boolean(newSettings.slowMode) : this.settings.slowMode,
-                slowModeDelay: Number(newSettings.slowModeDelay) || this.settings.slowModeDelay,
+                theme: String(updates.theme || this._settings.theme),
+                autoTranslate: updates.autoTranslate !== undefined ? Boolean(updates.autoTranslate) : this._settings.autoTranslate,
+                tagGeneration: updates.tagGeneration !== undefined ? Boolean(updates.tagGeneration) : this._settings.tagGeneration,
+                slowMode: updates.slowMode !== undefined ? Boolean(updates.slowMode) : this._settings.slowMode,
+                slowModeDelay: Number(updates.slowModeDelay) || this._settings.slowModeDelay,
+                currentModel: updates.currentModel !== undefined ? updates.currentModel : this._settings.currentModel,
+                visionModel: updates.visionModel !== undefined ? updates.visionModel : this._settings.visionModel,
                 drawThingsIntegration: {
-                    enabled: newSettings.drawThingsIntegration?.enabled !== undefined 
-                        ? Boolean(newSettings.drawThingsIntegration.enabled) 
-                        : this.settings.drawThingsIntegration.enabled,
-                    path: String(newSettings.drawThingsIntegration?.path || this.settings.drawThingsIntegration.path),
-                    port: Number(newSettings.drawThingsIntegration?.port) || this.settings.drawThingsIntegration.port
+                    enabled: updates.drawThingsIntegration?.enabled !== undefined 
+                        ? Boolean(updates.drawThingsIntegration.enabled) 
+                        : this._settings.drawThingsIntegration.enabled,
+                    path: String(updates.drawThingsIntegration?.path || this._settings.drawThingsIntegration.path),
+                    port: Number(updates.drawThingsIntegration?.port) || this._settings.drawThingsIntegration.port
                 }
             };
 
             console.log('Processed settings:', processedSettings);
-            return this.saveSettings(processedSettings);
+            await this.saveSettings(processedSettings);
+            return processedSettings;
         } catch (error) {
             console.error('Error updating settings:', error);
-            return this.settings;
+            throw error;
         }
     }
 
-    resetSettings() {
+    async resetSettings() {
         try {
             console.log('Resetting settings to defaults');
-            return this.saveSettings(this.defaultSettings);
+            await this.saveSettings(this.defaultSettings);
+            return this.defaultSettings;
         } catch (error) {
             console.error('Error resetting settings:', error);
-            return this.settings;
+            throw error;
         }
     }
 }
 
-module.exports = new SettingsManager(); 
+module.exports = new SettingsManager();

@@ -154,16 +154,201 @@ async function updateStatus() {
 
 async function refreshModels() {
     try {
-        console.log('Refreshing models list...');
-        await waitForDOM(); // Poczekaj na załadowanie DOM
         const models = await ipcRenderer.invoke('get-available-models');
-        console.log('Received models:', models);
-        await renderModels(models);
-        expandAllCategories();
+        console.log('Available models:', models);
+        updateModelTags(models);
+        return models;
     } catch (error) {
         console.error('Error refreshing models:', error);
+        statusText.textContent = 'Error refreshing models';
+        statusIcon.className = 'fas fa-exclamation-triangle';
+        return [];
     }
 }
+
+// Function to update model tags
+function updateModelTags(models) {
+    const modelTagsContainer = document.querySelector('.model-tags');
+    if (!modelTagsContainer) {
+        console.warn('Model tags container not found');
+        return;
+    }
+
+    // Clear existing tags
+    modelTagsContainer.innerHTML = '';
+
+    if (!models || models.length === 0) {
+        console.log('No models available');
+        modelTagsContainer.innerHTML = '<div class="no-models">No models available</div>';
+        return;
+    }
+
+    // Sort models by category
+    const modelsByCategory = {
+        'text': [],
+        'vision': [],
+        'other': []
+    };
+
+    models.forEach(model => {
+        const category = getModelCategory(model.id);
+        if (modelsByCategory[category]) {
+            modelsByCategory[category].push(model);
+        } else {
+            modelsByCategory.other.push(model);
+        }
+    });
+
+    // Create tags for each category
+    Object.entries(modelsByCategory).forEach(([category, categoryModels]) => {
+        if (categoryModels.length > 0) {
+            const categoryDiv = document.createElement('div');
+            categoryDiv.className = `model-category ${category}`;
+            
+            const categoryTitle = document.createElement('div');
+            categoryTitle.className = 'category-title';
+            categoryTitle.textContent = category.charAt(0).toUpperCase() + category.slice(1);
+            categoryDiv.appendChild(categoryTitle);
+
+            const modelsGrid = document.createElement('div');
+            modelsGrid.className = 'models-grid';
+
+            categoryModels.forEach(model => {
+                const modelCard = document.createElement('div');
+                modelCard.className = `model-card ${category} ${model.installed ? 'installed' : ''}`;
+                
+                const modelInfo = document.createElement('div');
+                modelInfo.className = 'model-info';
+                
+                const modelName = document.createElement('div');
+                modelName.className = 'model-name';
+                modelName.textContent = model.id;
+                
+                const modelSize = document.createElement('div');
+                modelSize.className = 'model-size';
+                modelSize.textContent = formatSize(model.size);
+
+                const modelStatus = document.createElement('div');
+                modelStatus.className = 'model-status';
+                modelStatus.innerHTML = model.installed ? 
+                    '<i class="fas fa-check"></i> Installed' : 
+                    '<i class="fas fa-download"></i> Available';
+
+                modelInfo.appendChild(modelName);
+                modelInfo.appendChild(modelSize);
+                modelInfo.appendChild(modelStatus);
+
+                const actionButton = document.createElement('button');
+                actionButton.className = 'model-action';
+                actionButton.innerHTML = model.installed ? 
+                    '<i class="fas fa-trash"></i>' : 
+                    '<i class="fas fa-download"></i>';
+                
+                actionButton.addEventListener('click', async (e) => {
+                    e.stopPropagation();
+                    try {
+                        if (model.installed) {
+                            await deleteModel(model.id);
+                        } else {
+                            await downloadModel(model.id);
+                        }
+                    } catch (error) {
+                        console.error('Error managing model:', error);
+                        showToast(`Error: ${error.message}`);
+                    }
+                });
+
+                modelCard.appendChild(modelInfo);
+                modelCard.appendChild(actionButton);
+                modelsGrid.appendChild(modelCard);
+            });
+
+            categoryDiv.appendChild(modelsGrid);
+            modelTagsContainer.appendChild(categoryDiv);
+        }
+    });
+}
+
+// Add styles for model cards
+document.head.insertAdjacentHTML('beforeend', `
+    <style>
+        .models-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 15px;
+            margin-top: 10px;
+        }
+
+        .model-card {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 8px;
+            transition: all 0.2s ease;
+            border-left: 3px solid transparent;
+        }
+
+        .model-card:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .model-card.text { border-left-color: #4CAF50; }
+        .model-card.vision { border-left-color: #2196F3; }
+        .model-card.other { border-left-color: #9C27B0; }
+
+        .model-info {
+            flex: 1;
+        }
+
+        .model-name {
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+
+        .model-size {
+            color: #888;
+            font-size: 0.9em;
+            margin-bottom: 4px;
+        }
+
+        .model-status {
+            font-size: 0.9em;
+            color: #666;
+        }
+
+        .model-status i {
+            margin-right: 4px;
+        }
+
+        .model-action {
+            background: none;
+            border: none;
+            color: #888;
+            padding: 8px;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: all 0.2s ease;
+        }
+
+        .model-action:hover {
+            background: rgba(255, 255, 255, 0.1);
+            color: #fff;
+        }
+
+        .model-card.installed .model-status {
+            color: #4CAF50;
+        }
+
+        .no-models {
+            text-align: center;
+            padding: 20px;
+            color: #888;
+            font-style: italic;
+        }
+    </style>
+`);
 
 // Dodaj funkcję do aktualizacji postępu
 function updateDownloadProgress(modelElement, progress, downloadedSize, totalSize) {
@@ -1006,4 +1191,3 @@ async function updateModelSelects(status) {
     
     visionModelSelect.appendChild(visionGroup);
 }
- 
