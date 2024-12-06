@@ -63,6 +63,12 @@ class AppStartupManager {
     async initializeApp() {
         try {
             this.isStartupComplete = false;
+            
+            // Create startup window if it doesn't exist
+            if (!this.startup) {
+                this.startup = startupWindow.create();
+            }
+
             this.updateStartupProgress('Checking system resources...', 10);
             await this.checkSystemResources();
 
@@ -76,14 +82,35 @@ class AppStartupManager {
             await setupDefaultModels(this.startup);
 
             this.updateStartupProgress('Creating main window...', 70);
-            await this.createMainWindow();
+            try {
+                this.mainWindow = await this.createMainWindow();
+                
+                // Wait for main window to be ready
+                await new Promise((resolve) => {
+                    const checkWindow = () => {
+                        if (this.mainWindow && !this.mainWindow.isDestroyed() && this.mainWindow.webContents.isLoading() === false) {
+                            resolve();
+                        } else {
+                            setTimeout(checkWindow, 100);
+                        }
+                    };
+                    checkWindow();
+                });
+                
+                this.updateStartupProgress('Finalizing startup...', 90);
+                this.isStartupComplete = true;
+                this.updateStartupProgress('Startup complete', 100);
 
-            this.updateStartupProgress('Finalizing startup...', 90);
-            this.isStartupComplete = true;
-            this.updateStartupProgress('Startup complete', 100);
-
-            if (this.startup && !this.startup.isDestroyed()) {
-                this.startup.close();
+                // Close startup window after a short delay
+                setTimeout(() => {
+                    if (this.startup && !this.startup.isDestroyed()) {
+                        this.startup.close();
+                    }
+                }, 500);
+                
+            } catch (error) {
+                console.error('Error creating main window:', error);
+                throw error;
             }
         } catch (error) {
             console.error('Startup error:', error);
@@ -211,6 +238,7 @@ class AppStartupManager {
 
     async createMainWindow() {
         if (!this.mainWindow) {
+            console.log('Creating main window...');
             this.mainWindow = new BrowserWindow({
                 width: 1200,
                 height: 800,
@@ -219,25 +247,55 @@ class AppStartupManager {
                 show: false,
                 frame: false,
                 titleBarStyle: 'hidden',
-                trafficLightPosition: { x: -100, y: -100 }, // Hide traffic lights
+                trafficLightPosition: { x: -100, y: -100 },
                 titleBarOverlay: false,
+                backgroundColor: '#1E1B2E',
                 webPreferences: {
                     nodeIntegration: true,
-                    contextIsolation: false
+                    contextIsolation: false,
+                    devTools: true
                 }
             });
 
             try {
+                console.log('Loading index.html...');
                 await this.mainWindow.loadFile('index.html');
                 console.log('Main window loaded successfully');
-                this.mainWindow.show();
-                this.mainWindow.focus();
+
+                return new Promise((resolve) => {
+                    this.mainWindow.once('ready-to-show', () => {
+                        console.log('Main window ready to show');
+                        this.mainWindow.show();
+                        this.mainWindow.focus();
+                        resolve(this.mainWindow);
+                    });
+
+                    // Add timeout in case ready-to-show never fires
+                    setTimeout(() => {
+                        if (this.mainWindow && !this.mainWindow.isDestroyed() && !this.mainWindow.isVisible()) {
+                            console.log('Forcing window show after timeout');
+                            this.mainWindow.show();
+                            this.mainWindow.focus();
+                            resolve(this.mainWindow);
+                        }
+                    }, 3000);
+                });
             } catch (error) {
                 console.error('Error loading main window:', error);
                 throw error;
             }
         }
         return this.mainWindow;
+    }
+
+    handleStartupError(error) {
+        console.error('Startup error:', error);
+        const detailedError = this.getDetailedErrorMessage(error);
+        if (this.startup && !this.startup.isDestroyed()) {
+            this.startup.webContents.send('startup-error', detailedError);
+        }
+        // Add retry mechanism
+        setTimeout(() => this.retry(), 3000);
     }
 }
 
@@ -362,6 +420,39 @@ app.whenReady().then(() => {
 
     ipcMain.on('retry-startup', () => {
         appStartupManager.retry();
+    });
+
+    // IPC Handlers
+    ipcMain.handle('detect-and-translate', async (event, text) => {
+        try {
+            return await ollamaManager.detectAndTranslateText(text);
+        } catch (error) {
+            console.error('Error in detect-and-translate:', error);
+            throw error;
+        }
+    });
+
+    ipcMain.handle('generate-tags', async (event, text) => {
+        try {
+            return await ollamaManager.generateTags(text);
+        } catch (error) {
+            console.error('Error in generate-tags:', error);
+            throw error;
+        }
+    });
+
+    ipcMain.handle('generate-prompt', async (event, { basePrompt, styleId, customStyle }) => {
+        try {
+            console.log('Generating prompt with:', { basePrompt, styleId, customStyle });
+            
+            // Use default style if none provided
+            const effectiveStyle = styleId || 'realistic';
+            
+            return await ollamaManager.generatePrompt(basePrompt, effectiveStyle, customStyle);
+        } catch (error) {
+            console.error('Error in generate-prompt:', error);
+            throw error;
+        }
     });
 
     // Window control handlers

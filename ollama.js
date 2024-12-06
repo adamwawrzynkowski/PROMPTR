@@ -261,28 +261,24 @@ class OllamaManager {
             const data = await response.json();
             const installedModels = data.models || [];
             
-            // Pobierz listę dostępnych modeli
-            const availableModels = [
-                { name: 'llama2', type: 'Text' },
-                { name: 'llama2:13b', type: 'Text' },
-                { name: 'llama2:70b', type: 'Text' },
-                { name: 'codellama', type: 'Text' },
-                { name: 'mistral', type: 'Text' },
-                { name: 'mixtral', type: 'Text' },
-                { name: 'neural-chat', type: 'Text' },
-                { name: 'starling-lm', type: 'Text' },
-                { name: 'llava', type: 'Vision' },
-                { name: 'bakllava', type: 'Vision' }
-            ];
+            // Convert installed models to our format with type detection
+            return installedModels.map(model => {
+                // Extract base model name (without tags)
+                const baseName = model.name.split(':')[0];
+                
+                // Vision models typically have "vision" in their modelfile or name
+                // This is a basic heuristic - we can expand this logic as needed
+                const isVisionModel = 
+                    model.modelfile?.toLowerCase().includes('vision') ||
+                    baseName.toLowerCase().includes('llava') ||
+                    baseName.toLowerCase().includes('bakllava');
 
-            // Oznacz modele jako zainstalowane
-            return availableModels.map(model => ({
-                ...model,
-                installed: installedModels.some(installed => 
-                    installed.name === model.name || 
-                    installed.name.split(':')[0] === model.name
-                )
-            }));
+                return {
+                    name: model.name,
+                    type: isVisionModel ? 'Vision' : 'Text',
+                    installed: true
+                };
+            });
         } catch (error) {
             console.error('Error listing models:', error);
             return [];
@@ -317,156 +313,295 @@ class OllamaManager {
         }
     }
 
-    getStatus() {
-        return {
-            isConnected: this.isConnected,
-            currentModel: this.currentModel,
-            visionModel: this.visionModel,
-            availableModels: this.availableModels,
-            error: this.lastError
-        };
+    async getStatus() {
+        try {
+            const models = await this.listModels();
+            
+            // Get current model info
+            const currentModelInfo = models.find(m => 
+                m.name === this.currentModel || 
+                m.name.split(':')[0] === this.currentModel
+            );
+            
+            // Get vision model info
+            const visionModelInfo = models.find(m => 
+                m.name === this.visionModel || 
+                m.name.split(':')[0] === this.visionModel
+            );
+            
+            // Filter models by type
+            const textModels = models.filter(m => m.type === 'Text');
+            const visionModels = models.filter(m => m.type === 'Vision');
+            
+            return {
+                isConnected: this.isConnected,
+                currentModel: currentModelInfo || null,
+                visionModel: visionModelInfo || null,
+                availableModels: {
+                    text: textModels,
+                    vision: visionModels
+                },
+                error: this.lastError
+            };
+        } catch (error) {
+            console.error('Error getting status:', error);
+            return {
+                isConnected: false,
+                currentModel: null,
+                visionModel: null,
+                availableModels: {
+                    text: [],
+                    vision: []
+                },
+                error: error.message
+            };
+        }
+    }
+
+    async ensureTextModelSelected() {
+        console.log('Current model from config:', this.currentModel);
+        
+        // Get available models
+        const models = await this.listModels();
+        console.log('Available models:', models);
+        
+        // Filter for installed text models only
+        const installedTextModels = models.filter(m => m.installed && m.type === 'Text');
+        console.log('Installed text models:', installedTextModels);
+        
+        // If current model is not a text model or not installed, select a new one
+        const currentModelInfo = models.find(m => m.name === this.currentModel);
+        if (!currentModelInfo || !currentModelInfo.installed || currentModelInfo.type !== 'Text') {
+            if (installedTextModels.length > 0) {
+                const selectedModel = installedTextModels[0].name;
+                console.log('Setting text model:', selectedModel);
+                await this.setModel(selectedModel);
+            } else {
+                throw new Error('No text models available. Please install a text model first.');
+            }
+        }
+        
+        return this.currentModel;
     }
 
     async generatePrompt(basePrompt, styleId, customStyle = null) {
-        if (!this.isConnected || !this.currentModel) {
-            throw new Error(this.lastError || 'Not connected or no model selected');
+        if (!this.isConnected) {
+            const connected = await this.checkConnection();
+            if (!connected) {
+                throw new Error('Not connected to Ollama service');
+            }
         }
 
-        const systemPrompt = `You are an expert prompt engineer specializing in creating detailed, natural-language prompts for Stable Diffusion image generation. Your goal is to enhance prompts while maintaining a natural, descriptive flow that captures both technical aspects and artistic vision. Focus on:
+        // Ensure we have a text model selected
+        const model = await this.ensureTextModelSelected();
+        console.log('Using text model for prompt generation:', model);
 
-1. Natural language descriptions that flow well
-2. Specific, vivid details about the subject, setting, and atmosphere
-3. Technical aspects like lighting, composition, and camera settings
-4. Artistic elements like style, mood, and aesthetic qualities
-5. Proper emphasis on important elements using natural language modifiers
+        const systemPrompt = `You are an expert prompt engineer specializing in creating detailed, natural-language prompts for Stable Diffusion image generation. Your goal is to enhance prompts while maintaining a natural, descriptive flow that captures both technical aspects and artistic vision.
 
-Always maintain readability and avoid comma-spam or keyword stuffing.`;
+Key requirements:
+1. Create detailed, descriptive prompts that capture the essence of both the subject and style
+2. Include important visual elements: lighting, composition, atmosphere, colors, textures
+3. Incorporate style-specific elements naturally into the description
+4. Use flowing, natural language that reads well
+5. Focus on quality over length - be detailed but avoid unnecessary repetition
+6. Structure: Start with main subject/scene, then add style elements, then technical details`;
 
         let stylePrompt;
         if (customStyle) {
-            stylePrompt = `Enhance this prompt into a detailed, natural description for Stable Diffusion image generation:
+            stylePrompt = `Create a detailed, style-specific prompt for image generation:
 
 Base prompt: ${basePrompt}
 
 Style requirements:
-- Style description: ${customStyle.description}
-- Required elements: ${customStyle.fixedTags.join(', ')}
+- ${customStyle.description}
+- Key elements: ${customStyle.fixedTags.join(', ')}
 
 Guidelines:
-1. Create a flowing, natural description that reads like a professional photographer or artist's vision
-2. Incorporate all required style elements seamlessly into the description
-3. Add specific details about lighting, atmosphere, and technical aspects
-4. Maintain a balance between artistic vision and technical precision
-5. Use natural language rather than just comma-separated keywords
-6. Keep the description focused and coherent
+1. Start with the main subject/scene from the base prompt
+2. Incorporate style elements naturally throughout the description
+3. Add specific details about:
+   - Visual composition and framing
+   - Lighting and shadows
+   - Colors and textures
+   - Atmosphere and mood
+4. Use natural, flowing language
+5. Be detailed but avoid unnecessary repetition
 
-Return only the enhanced prompt without any additional text or formatting.`;
+Return only the enhanced prompt, no additional text.`;
         } else {
             const styleInstructions = new Map([
-                ['realistic', "photorealistic quality with natural lighting, precise details, and professional photography techniques. Focus on authentic representation with careful attention to textures, materials, and environmental context."],
-                ['cinematic', "cinematic composition with dramatic lighting, professional cinematography techniques, and movie-like atmosphere. Consider depth of field, camera angles, and scene composition."],
-                ['vintage', "authentic vintage aesthetics with period-appropriate styling, classic photography techniques, and nostalgic elements. Include film grain, color treatment, and era-specific details."],
-                ['artistic', "fine art qualities with emphasis on artistic composition, creative expression, and masterful technique. Consider brush strokes, artistic medium, and compositional balance."],
-                ['abstract', "abstract artistic interpretation focusing on form, color, and composition. Emphasize geometric elements, non-representational aspects, and modern artistic techniques."],
-                ['poetic', "ethereal and romantic qualities with dreamy atmosphere and evocative mood. Focus on soft lighting, delicate details, and emotional resonance."],
-                ['anime', "high-quality anime artistry with characteristic style elements, dynamic composition, and distinctive lighting. Include cel-shading, characteristic anime features, and stylistic choices."],
-                ['cartoon', "professional cartoon styling with bold design elements, distinctive character features, and vibrant presentation. Focus on clean lines, expressive elements, and stylized details."],
-                ['cute', "adorable and charming qualities with soft, appealing elements and warm atmosphere. Include kawaii-style features, gentle colors, and endearing details."],
-                ['scifi', "futuristic science fiction elements with advanced technological details and innovative design. Focus on high-tech aesthetics, future-forward concepts, and scientific accuracy."]
+                ['realistic', {
+                    desc: "ultra-realistic photography with meticulous attention to detail",
+                    styleGuide: "Create a photorealistic scene with sharp focus, natural lighting, and precise details that make it indistinguishable from a professional photograph. Include subtle imperfections and real-world physics.",
+                    elements: [
+                        "8K resolution quality",
+                        "photographic lens effects",
+                        "natural light behavior",
+                        "realistic textures and materials",
+                        "subtle imperfections for authenticity"
+                    ]
+                }],
+                ['cinematic', {
+                    desc: "epic movie scene with dramatic cinematography",
+                    styleGuide: "Frame this as a scene from a blockbuster movie with dramatic camera angles, atmospheric effects, and emotional impact. Think of iconic movie moments with perfect timing and composition.",
+                    elements: [
+                        "anamorphic lens effects",
+                        "movie color grading",
+                        "dramatic lighting contrasts",
+                        "cinematic aspect ratio",
+                        "depth of field focus pulls"
+                    ]
+                }],
+                ['vintage', {
+                    desc: "nostalgic retro photography with authentic period characteristics",
+                    styleGuide: "Capture the essence of classic photography with period-specific imperfections and techniques. Include film grain, color shifts, and era-appropriate processing artifacts.",
+                    elements: [
+                        "film grain and noise",
+                        "faded color palette",
+                        "light leaks and vignetting",
+                        "slightly blurred edges",
+                        "retro color processing"
+                    ]
+                }],
+                ['artistic', {
+                    desc: "expressive fine art with bold artistic interpretation",
+                    styleGuide: "Transform the scene into a piece of fine art with visible brushstrokes, artistic liberties in color and form, and emotional expression. Think of master painters' techniques and artistic vision.",
+                    elements: [
+                        "visible brushstrokes",
+                        "exaggerated color palette",
+                        "artistic composition rules",
+                        "textural paint effects",
+                        "creative color harmony"
+                    ]
+                }],
+                ['abstract', {
+                    desc: "non-representational art focusing on form and emotion",
+                    styleGuide: "Break down the subject into abstract forms, focusing on shapes, colors, and emotional impact rather than literal representation. Create a bold, modern art piece that captures the essence without being literal.",
+                    elements: [
+                        "geometric abstraction",
+                        "non-literal interpretation",
+                        "bold color blocks",
+                        "simplified forms",
+                        "modern art techniques"
+                    ]
+                }],
+                ['poetic', {
+                    desc: "dreamy, ethereal atmosphere with soft, romantic qualities",
+                    styleGuide: "Create a dreamlike, ethereal scene with soft focus, glowing lights, and romantic atmosphere. Think of fairy tales and romantic poetry visualized through a dreamy lens.",
+                    elements: [
+                        "soft focus effect",
+                        "glowing light halos",
+                        "pastel color transitions",
+                        "ethereal particles",
+                        "dreamy blur effects"
+                    ]
+                }],
+                ['anime', {
+                    desc: "stylized Japanese anime art with characteristic features",
+                    styleGuide: "Render in authentic anime style with characteristic features like large eyes, dynamic poses, and distinctive lighting. Include typical anime elements and artistic techniques.",
+                    elements: [
+                        "large expressive eyes",
+                        "clean cel shading",
+                        "sharp line art",
+                        "anime-specific coloring",
+                        "dynamic action lines"
+                    ]
+                }],
+                ['cartoon', {
+                    desc: "bold, stylized cartoon with exaggerated features",
+                    styleGuide: "Create a vibrant cartoon with bold outlines, exaggerated features, and simplified forms. Think of professional animation with clean lines and striking designs.",
+                    elements: [
+                        "thick bold outlines",
+                        "exaggerated proportions",
+                        "flat color areas",
+                        "simplified shadows",
+                        "cartoon physics"
+                    ]
+                }],
+                ['cute', {
+                    desc: "adorable kawaii style with charming, playful elements",
+                    styleGuide: "Make everything extremely cute and adorable with rounded forms, big eyes, and kawaii aesthetics. Include typical cute elements like sparkles and pastel colors.",
+                    elements: [
+                        "super deformed proportions",
+                        "huge cute eyes",
+                        "pastel color scheme",
+                        "kawaii decorations",
+                        "rounded cute shapes"
+                    ]
+                }],
+                ['scifi', {
+                    desc: "futuristic science fiction with advanced technology",
+                    styleGuide: "Create a high-tech science fiction scene with advanced technology, futuristic lighting, and innovative designs. Include sci-fi elements like holographics and energy effects.",
+                    elements: [
+                        "holographic effects",
+                        "neon lighting",
+                        "advanced tech details",
+                        "energy field effects",
+                        "futuristic materials"
+                    ]
+                }]
             ]);
 
             if (!styleInstructions.has(styleId)) {
                 throw new Error(`Unknown style: ${styleId}`);
             }
 
-            stylePrompt = `Enhance this prompt into a detailed, natural description for Stable Diffusion image generation:
+            const style = styleInstructions.get(styleId);
+            stylePrompt = `Create a highly stylized prompt that perfectly matches this specific style:
 
 Base prompt: ${basePrompt}
 
-Style focus: ${styleInstructions.get(styleId)}
+Style: ${style.desc}
+Style Guide: ${style.styleGuide}
+
+Required style elements to incorporate:
+${style.elements.map(e => '- ' + e).join('\n')}
 
 Guidelines:
-1. Create a flowing, natural description that reads like a professional artist's vision
-2. Incorporate the style elements seamlessly into the description
-3. Add specific details about lighting, atmosphere, and technical aspects
-4. Maintain a balance between artistic vision and technical precision
-5. Use natural language rather than just comma-separated keywords
-6. Keep the description focused and coherent
+1. Transform the base prompt completely to match this specific style
+2. Include ALL the listed style elements naturally in the description
+3. Focus heavily on the unique aspects of this style
+4. Avoid generic descriptions - make it distinctly ${styleId}
+5. Be detailed and specific to this style
 
-Return only the enhanced prompt without any additional text or formatting.`;
+Return only the enhanced prompt, no additional text.`;
         }
 
         try {
-            console.log('Generating prompt for style:', styleId);
-            console.log('Using prompt template:', stylePrompt);
-
-            // Anuluj poprzednie generowanie jeśli istnieje
-            await this.cancelCurrentGeneration();
-
-            // Zapisz bieżące generowanie
-            this.currentGeneration = this.makeRequest(`${this.getBaseUrl()}/api/generate`, {
+            console.log('Generating prompt for style:', styleId || 'custom');
+            
+            const response = await this.makeRequest(`${this.getBaseUrl()}/api/generate`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    model: this.currentModel,
+                    model: model,
                     prompt: stylePrompt,
                     system: systemPrompt,
-                    temperature: 0.7,
                     stream: false,
                     options: {
-                        num_predict: 2000,
-                        stop: ["\n", "Here", "The", "Note", "Remember", ":", "\"", "'"]
+                        temperature: 0.7
                     }
                 })
             });
 
-            const response = await this.currentGeneration;
-            this.currentGeneration = null;
-
             if (!response.ok) {
-                throw new Error('Failed to generate prompt');
+                throw new Error(`Failed to generate prompt: ${response.status}`);
             }
 
             const data = await response.json();
-            const responseText = data.response || '';
-
-            if (!responseText.trim()) {
-                throw new Error('Empty response from API');
-            }
-
-            // Bardziej agresywne czyszczenie odpowiedzi
-            let cleanedResponse = responseText
-                .trim()
-                .replace(/^[^a-zA-Z0-9]+|[^a-zA-Z0-9,]+$/g, '')
-                .replace(/^["'\s]+|["'\s]+$/g, '')
-                .replace(/^(Here's|I've|This|The|Modified|Enhanced|Let me|Would you).*?[:]/i, '')
-                .replace(/\n+/g, ' ')
-                .replace(/\s+/g, ' ')
-                .trim();
-
-            if (customStyle && customStyle.fixedTags.length > 0) {
-                const missingTags = customStyle.fixedTags.filter(tag => 
-                    !cleanedResponse.toLowerCase().includes(tag.toLowerCase())
-                );
-                
-                if (missingTags.length > 0) {
-                    cleanedResponse += `, ${missingTags.join(', ')}`;
-                }
-            }
-
-            console.log('Generated prompt:', cleanedResponse);
-
-            if (!cleanedResponse) {
-                throw new Error('Failed to generate prompt');
-            }
-
-            return cleanedResponse;
-
+            let prompt = data.response || '';
+            
+            // Clean up the prompt
+            prompt = prompt.trim()
+                .replace(/^["']|["']$/g, '') // Remove quotes
+                .replace(/\\n/g, ' ') // Replace newlines with spaces
+                .replace(/\s+/g, ' '); // Normalize spaces
+            
+            return prompt;
         } catch (error) {
             console.error('Error generating prompt:', error);
-            this.currentGeneration = null;
             throw error;
         }
     }
@@ -476,40 +611,52 @@ Return only the enhanced prompt without any additional text or formatting.`;
             throw new Error('No text provided for tag generation');
         }
 
+        if (!this.isConnected) {
+            const connected = await this.checkConnection();
+            if (!connected) {
+                throw new Error('Not connected to Ollama service');
+            }
+        }
+
+        // Ensure we have a text model selected
+        const model = await this.ensureTextModelSelected();
+        console.log('Using text model for tag generation:', model);
+
         try {
             // Anuluj poprzednie generowanie jeśli istnieje
             await this.cancelCurrentGeneration();
 
             const prompt = `Generate relevant tags for this text. Return only tags separated by commas, without explanations: "${text}"`;
             
-            // Zapisz bieżące generowanie
-            this.currentGeneration = this.makeRequest(`${this.getBaseUrl()}/api/generate`, {
+            console.log('Making tag generation request with model:', model);
+            
+            // Make the request to the correct Ollama API endpoint
+            const response = await this.makeRequest(`${this.getBaseUrl()}/api/generate`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    model: this.currentModel,
+                    model: model,
                     prompt: prompt,
                     system: "You are a tag generator. Return ONLY tags separated by commas, without any additional text or explanations.",
                     stream: false,
                     options: {
-                        temperature: 0.7,
-                        num_predict: 100,
-                        stop: ["\n", ".", "Here", "Tags"],
+                        temperature: 0.7
                     }
                 })
             });
 
-            const response = await this.currentGeneration;
-            this.currentGeneration = null;
-
             if (!response.ok) {
-                throw new Error('Failed to generate tags');
+                console.error('Failed to generate tags. Response:', response);
+                throw new Error(`Failed to generate tags: ${response.status}`);
             }
 
             const data = await response.json();
+            console.log('Raw API response:', data);
+
             const responseText = data.response || '';
+            console.log('Response text:', responseText);
             
             if (!responseText.trim()) {
                 throw new Error('Empty response from API');
@@ -520,7 +667,13 @@ Return only the enhanced prompt without any additional text or formatting.`;
                 .trim()
                 .replace(/^(Here are|The tags|Tags:|Suggested tags:|Generated tags:)/i, '')
                 .replace(/["'`]/g, '')
-                .replace(/\.$/, '');
+                .replace(/\.$/, '')
+                .replace(/^["'\s]+|["'\s]+$/g, '')
+                .replace(/\n+/g, ' ')
+                .replace(/\s+/g, ' ')
+                .trim();
+
+            console.log('Cleaned response:', cleanedResponse);
 
             const tags = cleanedResponse
                 .split(',')
@@ -531,14 +684,47 @@ Return only the enhanced prompt without any additional text or formatting.`;
                 throw new Error('No valid tags generated');
             }
 
-            console.log('Generated tags:', tags);
+            console.log('Final generated tags:', tags);
             return tags;
 
         } catch (error) {
             console.error('Error in generateTags:', error);
-            this.currentGeneration = null;
             throw error;
         }
+    }
+
+    async ensureModelSelected() {
+        console.log('Current model from config:', this.currentModel);
+        
+        if (!this.currentModel) {
+            console.log('No model selected, getting available models...');
+            const models = await this.listModels();
+            console.log('Available models:', models);
+            
+            const installedModels = models.filter(m => m.installed);
+            console.log('Installed models:', installedModels);
+            
+            if (installedModels.length > 0) {
+                const selectedModel = installedModels[0].name;
+                console.log('Setting first installed model:', selectedModel);
+                await this.setModel(selectedModel);
+            } else {
+                throw new Error('No models available. Please install a model first.');
+            }
+        } else {
+            // Verify if the current model is actually installed
+            console.log('Verifying if current model is installed:', this.currentModel);
+            const models = await this.listModels();
+            const isInstalled = models.some(m => m.installed && (m.name === this.currentModel || m.name.split(':')[0] === this.currentModel));
+            
+            if (!isInstalled) {
+                console.log('Current model not found in installed models, resetting...');
+                this.currentModel = null;
+                return await this.ensureModelSelected();
+            }
+        }
+        
+        return this.currentModel;
     }
 
     async analyzeImage(imageData, systemPrompt, analysisType = 'content', useCustomModel = false, customModelName = null) {
@@ -1091,7 +1277,7 @@ def convert_safetensors_to_onnx(safetensors_path, onnx_path):
 
         # Usuń plik safetensors po udanej konwersji
         if os.path.exists(onnx_path):
-            os.remove(safetensors_path)
+            os.remove(safetensorsPath)
             return True
         return False
     except Exception as e:

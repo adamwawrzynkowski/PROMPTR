@@ -1,4 +1,4 @@
 {
-  "currentModel": "llama2",
-  "visionModel": "llava"
+  "currentModel": "marco-o1:latest",
+  "visionModel": "llava:7b"
 }

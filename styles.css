@@ -529,7 +529,7 @@ input, button, textarea, [role="button"] {
     opacity: 1;
 }
 
-/* Dodaj na końcu pliku skrypt do obsługi efektu podświetlenia */
+/* Dodaj skrypt do obsługi efektu podświetlenia */
 
 .titlebar-item {
     position: relative;
@@ -587,6 +587,801 @@ input, button, textarea, [role="button"] {
 .error {
     color: var(--error);
     font-style: italic;
+}
+
+/* Style dla kontenera tagów */
+.tags-container {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 8px;
+    min-height: 32px;
+    padding: 5px 0;
+    margin-top: 10px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+    padding-bottom: 10px;
+}
+
+/* Ukryj scrollbar ale zachowaj funkcjonalność */
+.tags-container::-webkit-scrollbar {
+    height: 6px;
+}
+
+.tags-container::-webkit-scrollbar-track {
+    background: var(--input-background);
+    border-radius: 3px;
+}
+
+.tags-container::-webkit-scrollbar-thumb {
+    background: var(--button-background);
+    border-radius: 3px;
+}
+
+.tags-container::-webkit-scrollbar-thumb:hover {
+    background: var(--button-hover);
+}
+
+/* Style dla pojedynczego taga */
+.tag {
+    background: var(--button-background);
+    padding: 4px 12px;
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.tag:hover {
+    background: var(--button-hover);
+    transform: translateY(-1px);
+}
+
+.tag.default-tag {
+    background: var(--button-background);
+    opacity: 0.7;
+}
+
+.tag.default-tag:hover {
+    opacity: 1;
+    background: var(--button-hover);
+}
+
+/* Style dla przycisków input */
+.input-wrapper {
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+
+.input-buttons {
+    position: absolute;
+    right: 10px;
+    top: 16px;
+    display: flex;
+    gap: 8px;
+    z-index: 2;
+}
+
+.input-btn {
+    background: var(--button-background);
+    border: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+}
+
+.input-btn:hover {
+    background: var(--button-hover);
+    color: var(--text);
+}
+
+.input-btn .tooltip {
+    color: var(--tooltip-text);
+    background: var(--tooltip-background);
+}
+
+/* Style dla przycisków w historii */
+.history-item-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.history-action-btn {
+    background: var(--button-background);
+    border: none;
+    padding: 6px;
+    border-radius: 4px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.history-action-btn:hover {
+    background: var(--button-hover);
+    color: var(--text);
+}
+
+.history-action-btn.delete-btn:hover {
+    background: rgba(255, 59, 48, 0.2);
+    color: rgba(255, 59, 48, 0.9);
+}
+
+/* Style dla powiadomień */
+.toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: var(--tooltip-background);
+    color: var(--tooltip-text);
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 14px;
+    opacity: 0;
+    transition: all 0.3s ease;
+    z-index: 1000;
+}
+
+.toast.show {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+}
+
+/* Style dla scrollbara w prompt-input */
+.prompt-input::-webkit-scrollbar {
+    width: 6px;
+}
+
+.prompt-input::-webkit-scrollbar-track {
+    background: var(--scrollbar-track);
+    border-radius: 3px;
+}
+
+.prompt-input::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 3px;
+}
+
+.prompt-input::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
+}
+
+/* Dodaj nowe style */
+.styles-header {
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    padding: 0 10px;
+    margin-bottom: 20px;
+}
+
+.styles-header h2 {
+    margin-right: auto;
+    color: var(--text);
+    font-size: 20px;
+    font-weight: 500;
+}
+
+.manage-styles-btn {
+    background: var(--button-background);
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    color: var(--text);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+    font-size: 14px;
+}
+
+.manage-styles-btn i {
+    font-size: 16px;
+}
+
+.manage-styles-btn:hover {
+    background: var(--button-hover);
+    transform: translateY(-1px);
+}
+
+/* Dodaj na końcu pliku skrypt do obsługi efektu podświetlenia */
+
+.titlebar-item {
+    position: relative;
+}
+
+.tooltip {
+    position: absolute;
+    top: calc(100% + 5px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--card-background);
+    color: var(--text);
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.2s ease;
+    border: 1px solid var(--border);
+    pointer-events: none;
+    z-index: 1000;
+}
+
+.title-bar-item:hover .tooltip {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Dodaj do istniejących styli */
+.loading {
+    color: var(--text-secondary);
+    font-style: italic;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    position: relative;
+}
+
+.loading::after {
+    content: '';
+    display: block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid transparent;
+    border-top-color: var(--text);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    position: absolute;
+    right: -20px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+/* Style dla kontenera tagów */
+.tags-container {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 8px;
+    min-height: 32px;
+    padding: 5px 0;
+    margin-top: 10px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+    padding-bottom: 10px;
+}
+
+/* Ukryj scrollbar ale zachowaj funkcjonalność */
+.tags-container::-webkit-scrollbar {
+    height: 6px;
+}
+
+.tags-container::-webkit-scrollbar-track {
+    background: var(--input-background);
+    border-radius: 3px;
+}
+
+.tags-container::-webkit-scrollbar-thumb {
+    background: var(--button-background);
+    border-radius: 3px;
+}
+
+.tags-container::-webkit-scrollbar-thumb:hover {
+    background: var(--button-hover);
+}
+
+/* Style dla pojedynczego taga */
+.tag {
+    background: var(--button-background);
+    padding: 4px 12px;
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.tag:hover {
+    background: var(--button-hover);
+    transform: translateY(-1px);
+}
+
+.tag.default-tag {
+    background: var(--button-background);
+    opacity: 0.7;
+}
+
+.tag.default-tag:hover {
+    opacity: 1;
+    background: var(--button-hover);
+}
+
+/* Style dla przycisków input */
+.input-wrapper {
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+
+.input-buttons {
+    position: absolute;
+    right: 10px;
+    top: 16px;
+    display: flex;
+    gap: 8px;
+    z-index: 2;
+}
+
+.input-btn {
+    background: var(--button-background);
+    border: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+}
+
+.input-btn:hover {
+    background: var(--button-hover);
+    color: var(--text);
+}
+
+.input-btn .tooltip {
+    color: var(--tooltip-text);
+    background: var(--tooltip-background);
+}
+
+/* Style dla przycisków w historii */
+.history-item-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.history-action-btn {
+    background: var(--button-background);
+    border: none;
+    padding: 6px;
+    border-radius: 4px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.history-action-btn:hover {
+    background: var(--button-hover);
+    color: var(--text);
+}
+
+.history-action-btn.delete-btn:hover {
+    background: rgba(255, 59, 48, 0.2);
+    color: rgba(255, 59, 48, 0.9);
+}
+
+/* Style dla powiadomień */
+.toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: var(--tooltip-background);
+    color: var(--tooltip-text);
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 14px;
+    opacity: 0;
+    transition: all 0.3s ease;
+    z-index: 1000;
+}
+
+.toast.show {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+}
+
+/* Style dla scrollbara w prompt-input */
+.prompt-input::-webkit-scrollbar {
+    width: 6px;
+}
+
+.prompt-input::-webkit-scrollbar-track {
+    background: var(--scrollbar-track);
+    border-radius: 3px;
+}
+
+.prompt-input::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 3px;
+}
+
+.prompt-input::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
+}
+
+/* Dodaj nowe style */
+.styles-header {
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    padding: 0 10px;
+    margin-bottom: 20px;
+}
+
+.styles-header h2 {
+    margin-right: auto;
+    color: var(--text);
+    font-size: 20px;
+    font-weight: 500;
+}
+
+.manage-styles-btn {
+    background: var(--button-background);
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    color: var(--text);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+    font-size: 14px;
+}
+
+.manage-styles-btn i {
+    font-size: 16px;
+}
+
+.manage-styles-btn:hover {
+    background: var(--button-hover);
+    transform: translateY(-1px);
+}
+
+/* Dodaj na końcu pliku skrypt do obsługi efektu podświetlenia */
+
+.titlebar-item {
+    position: relative;
+}
+
+.tooltip {
+    position: absolute;
+    top: calc(100% + 5px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--card-background);
+    color: var(--text);
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.2s ease;
+    border: 1px solid var(--border);
+    pointer-events: none;
+    z-index: 1000;
+}
+
+.title-bar-item:hover .tooltip {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Dodaj do istniejących styli */
+.loading {
+    color: var(--text-secondary);
+    font-style: italic;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    position: relative;
+}
+
+.loading::after {
+    content: '';
+    display: block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid transparent;
+    border-top-color: var(--text);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    position: absolute;
+    right: -20px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+/* Style dla kontenera tagów */
+.tags-container {
+    display: flex;
+    flex-wrap: nowrap;
+    gap: 8px;
+    min-height: 32px;
+    padding: 5px 0;
+    margin-top: 10px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+    padding-bottom: 10px;
+}
+
+/* Ukryj scrollbar ale zachowaj funkcjonalność */
+.tags-container::-webkit-scrollbar {
+    height: 6px;
+}
+
+.tags-container::-webkit-scrollbar-track {
+    background: var(--input-background);
+    border-radius: 3px;
+}
+
+.tags-container::-webkit-scrollbar-thumb {
+    background: var(--button-background);
+    border-radius: 3px;
+}
+
+.tags-container::-webkit-scrollbar-thumb:hover {
+    background: var(--button-hover);
+}
+
+/* Style dla pojedynczego taga */
+.tag {
+    background: var(--button-background);
+    padding: 4px 12px;
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+    flex-shrink: 0;
+}
+
+.tag:hover {
+    background: var(--button-hover);
+    transform: translateY(-1px);
+}
+
+.tag.default-tag {
+    background: var(--button-background);
+    opacity: 0.7;
+}
+
+.tag.default-tag:hover {
+    opacity: 1;
+    background: var(--button-hover);
+}
+
+/* Style dla przycisków input */
+.input-wrapper {
+    position: relative;
+    width: 100%;
+    height: 100%;
+}
+
+.input-buttons {
+    position: absolute;
+    right: 10px;
+    top: 16px;
+    display: flex;
+    gap: 8px;
+    z-index: 2;
+}
+
+.input-btn {
+    background: var(--button-background);
+    border: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    position: relative;
+}
+
+.input-btn:hover {
+    background: var(--button-hover);
+    color: var(--text);
+}
+
+.input-btn .tooltip {
+    color: var(--tooltip-text);
+    background: var(--tooltip-background);
+}
+
+/* Style dla przycisków w historii */
+.history-item-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 10px;
+}
+
+.history-action-btn {
+    background: var(--button-background);
+    border: none;
+    padding: 6px;
+    border-radius: 4px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.history-action-btn:hover {
+    background: var(--button-hover);
+    color: var(--text);
+}
+
+.history-action-btn.delete-btn:hover {
+    background: rgba(255, 59, 48, 0.2);
+    color: rgba(255, 59, 48, 0.9);
+}
+
+/* Style dla powiadomień */
+.toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: var(--tooltip-background);
+    color: var(--tooltip-text);
+    padding: 12px 24px;
+    border-radius: 8px;
+    font-size: 14px;
+    opacity: 0;
+    transition: all 0.3s ease;
+    z-index: 1000;
+}
+
+.toast.show {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+}
+
+/* Style dla scrollbara w prompt-input */
+.prompt-input::-webkit-scrollbar {
+    width: 6px;
+}
+
+.prompt-input::-webkit-scrollbar-track {
+    background: var(--scrollbar-track);
+    border-radius: 3px;
+}
+
+.prompt-input::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 3px;
+}
+
+.prompt-input::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
+}
+
+/* Dodaj nowe style */
+.styles-header {
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    padding: 0 10px;
+    margin-bottom: 20px;
+}
+
+.styles-header h2 {
+    margin-right: auto;
+    color: var(--text);
+    font-size: 20px;
+    font-weight: 500;
+}
+
+.manage-styles-btn {
+    background: var(--button-background);
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    color: var(--text);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+    font-size: 14px;
+}
+
+.manage-styles-btn i {
+    font-size: 16px;
+}
+
+.manage-styles-btn:hover {
+    background: var(--button-hover);
+    transform: translateY(-1px);
+}
+
+/* Dodaj na końcu pliku skrypt do obsługi efektu podświetlenia */
+
+.titlebar-item {
+    position: relative;
+}
+
+.tooltip {
+    position: absolute;
+    top: calc(100% + 5px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--card-background);
+    color: var(--text);
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.2s ease;
+    border: 1px solid var(--border);
+    pointer-events: none;
+    z-index: 1000;
+}
+
+.title-bar-item:hover .tooltip {
+    opacity: 1;
+    visibility: visible;
+}
+
+/* Dodaj do istniejących styli */
+.loading {
+    color: var(--text-secondary);
+    font-style: italic;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    position: relative;
+}
+
+.loading::after {
+    content: '';
+    display: block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid transparent;
+    border-top-color: var(--text);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    position: absolute;
+    right: -20px;
+    top: 50%;
+    transform: translateY(-50%);
 }
 
 /* Style dla kontenera tagów */
@@ -919,7 +1714,7 @@ input, button, textarea, [role="button"] {
     color: var(--text);
     cursor: pointer;
     transition: all 0.2s ease;
-    padding: 0;
+    position: relative;
 }
 
 /* Dodaj style dla przycisku vision w input-buttons */
@@ -981,6 +1776,7 @@ input, button, textarea, [role="button"] {
 .input-btn.draw-things-btn:hover .tooltip {
     opacity: 1;
     visibility: visible;
+    top: 40px; /* Lekko przesuń w górę przy hover dla efektu */
 }
 
 /* Usuń poprzednie style dla titlebar-item.vision */
@@ -1401,7 +2197,7 @@ input, button, textarea, [role="button"] {
     border-bottom: 1px solid var(--border);
 }
 
-/* Style dla kontrolek okna - przesuń bardziej w lewo */
+/* Dodaj style dla kontrolek okna - przesuń bardziej w lewo */
 .window-controls {
     display: flex;
     align-items: center;
@@ -1410,7 +2206,7 @@ input, button, textarea, [role="button"] {
     -webkit-app-region: no-drag;
 }
 
-/* Style dla logo - ustaw za przyciskami */
+/* Dodaj style dla logo - ustaw za przyciskami */
 .title-bar-logo {
     display: flex;
     align-items: center;
@@ -1423,7 +2219,7 @@ input, button, textarea, [role="button"] {
     margin-left: 25px;
 }
 
-/* Style dla prawej strony title bara */
+/* Dodaj style dla prawej strony title bara */
 .title-bar-items {
     display: flex;
     align-items: center;
@@ -1433,7 +2229,7 @@ input, button, textarea, [role="button"] {
     -webkit-app-region: no-drag;
 }
 
-/* Style dla sekcji wsparcia - teraz obok logo */
+/* Dodaj style dla sekcji wsparcia - teraz obok logo */
 .title-bar-support {
     display: flex;
     align-items: center;
@@ -1442,7 +2238,7 @@ input, button, textarea, [role="button"] {
     -webkit-app-region: no-drag;
 }
 
-/* Style dla przycisków kawy i credits */
+/* Dodaj style dla przycisków kawy i credits */
 .coffee-button, .credits-button {
     display: flex;
     align-items: center;
@@ -1474,15 +2270,15 @@ input, button, textarea, [role="button"] {
     transform: translateX(-50%);
     background: var(--card-background);
     color: var(--text);
-    padding: 6px 10px;
+    padding: 4px 8px;
     border-radius: 4px;
     font-size: 12px;
     white-space: nowrap;
     opacity: 0;
     visibility: hidden;
     transition: all 0.2s ease;
+    margin-top: 8px;
     border: 1px solid var(--border);
-    pointer-events: none;
     z-index: 1000;
 }
 
@@ -1886,25 +2682,25 @@ input, button, textarea, [role="button"] {
 }
 
 .style-switch .slider:before {
-    content: '';
     position: absolute;
-    width: 18px;
+    content: "";
     height: 18px;
-    background: var(--text);
-    border-radius: 50%;
-    top: 2px;
+    width: 18px;
     left: 2px;
+    bottom: 2px;
+    background-color: var(--text);
     transition: all 0.3s ease;
+    border-radius: 50%;
 }
 
 .style-switch input:checked + .slider {
-    background: var(--accent-color);
+    background-color: var(--accent-color);
     border-color: transparent;
 }
 
 .style-switch input:checked + .slider:before {
     transform: translateX(20px);
-    background: white;
+    background-color: white;
 }
 
 .inactive-styles {
@@ -2066,131 +2862,6 @@ input, button, textarea, [role="button"] {
     flex-direction: column;
     transition: all 0.3s ease;
     height: 100%;
-}
-
-/* Style dla siatki stylów */
-.active-styles,
-.inactive-styles {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
-    gap: 20px;
-    padding: 10px;
-}
-
-/* Style dla kontrolek karty */
-.style-card .controls {
-    position: absolute;
-    top: 15px;
-    left: 15px;
-    right: 15px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    z-index: 1;
-}
-
-.style-card .left-controls {
-    display: flex;
-    align-items: center;
-}
-
-/* Grupa przycisków historii i refresh */
-.style-card .history-group {
-    display: flex;
-    gap: 4px;
-    margin-right: 20px;
-}
-
-/* Grupa przycisków akcji */
-.style-card .action-controls {
-    display: flex;
-    gap: 8px;
-}
-
-/* Style dla zawartości karty */
-.style-content {
-    margin-top: 45px;
-    display: flex;
-    flex-direction: column;
-    flex: 1;
-    gap: 15px;
-}
-
-.style-content h3 {
-    font-size: 18px;
-    font-weight: 500;
-    color: var(--text);
-    margin-bottom: 8px;
-}
-
-.style-content p {
-    font-size: 14px;
-    color: var(--text-secondary);
-    line-height: 1.4;
-    margin-bottom: 15px;
-}
-
-.prompt-output {
-    flex: 1;
-    background: var(--input-background);
-    border-radius: 8px;
-    padding: 12px;
-    font-size: 14px;
-    color: var(--text);
-    min-height: 150px;
-    max-height: 200px;
-    overflow-y: auto;
-    line-height: 1.5;
-    margin-top: auto;
-}
-
-/* Style dla przycisków w karcie */
-.style-card button {
-    width: 32px;
-    height: 32px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--button-background);
-    border: none;
-    border-radius: 6px;
-    color: var(--text);
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.style-card button:hover {
-    background: var(--button-hover);
-    transform: translateY(-1px);
-}
-
-/* Style dla przycisku Draw Things */
-.style-card .draw-things-btn {
-    width: auto;
-    min-width: 200px;
-    height: 32px;
-    padding: 0 16px;
-    white-space: nowrap;
-    font-size: 14px;
-    font-weight: 500;
-    letter-spacing: 0.2px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between; /* Zmiana z center na space-between */
-    gap: 8px;
-}
-
-.style-card .draw-things-btn i {
-    font-size: 14px;
-    margin-left: 4px; /* Dodaj małą przestrzeń między tekstem a ikoną */
-}
-
-/* Style dla przełącznika */
-.style-switch {
-    position: absolute;
-    top: 15px;
-    right: 15px;
-    z-index: 1;
 }
 
 /* Style dla siatki stylów */
@@ -2534,6 +3205,7 @@ input, button, textarea, [role="button"] {
     scrollbar-width: thin;
     scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
     -webkit-overflow-scrolling: touch; /* Dla lepszego scrollowania na macOS */
+    scroll-behavior: smooth;
 }
 
 /* Zapewnij, że elementy z fixed position nie będą scrollowane */
@@ -2594,21 +3266,21 @@ input, button, textarea, [role="button"] {
     display: flex;
     align-items: center;
     gap: 12px;
-    font-size: 20px;
-    font-weight: 600;
+    font-size: 18px;
+    font-weight: 500;
     color: var(--text);
     margin-bottom: 15px;
 }
 
 .style-card h2 i {
-    font-size: 18px;
+    font-size: 16px;
     width: 24px;
     height: 24px;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--button-background);
     border-radius: 6px;
+    background: var(--button-background);
     padding: 12px;
     color: var(--text);
     transition: all 0.2s ease;
@@ -2911,3 +3583,2603 @@ input, button, textarea, [role="button"] {
 .model-tag:hover {
     filter: brightness(1.1);
 }
+
+/* Style dla kart stylów */
+.styles-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
+    padding: 20px;
+    overflow-y: auto;
+    max-height: calc(100vh - 200px);
+}
+
+.style-card {
+    background: var(--card-background);
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    position: relative;
+    border: 1px solid var(--border);
+    transition: all 0.3s ease;
+    min-height: 200px;
+}
+
+.style-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+}
+
+.style-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+.style-header h2 {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.style-card .description {
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    margin: 0;
+}
+
+.prompt-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    position: relative;
+    min-height: 80px;
+}
+
+.prompt-text {
+    font-size: 14px;
+    color: var(--text);
+    line-height: 1.6;
+    margin: 0;
+    flex: 1;
+    word-break: break-word;
+}
+
+.card-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    margin-top: auto;
+}
+
+.left-controls,
+.right-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.history-group {
+    display: flex;
+    gap: 4px;
+}
+
+.style-card button {
+    background: var(--button-background);
+    border: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.style-card button:hover {
+    background: var(--button-hover);
+    transform: translateY(-1px);
+}
+
+.style-card button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.style-card button i {
+    font-size: 14px;
+}
+
+/* Style dla przełącznika */
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 40px;
+    height: 20px;
+}
+
+.switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--button-background);
+    transition: .4s;
+    border-radius: 20px;
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 16px;
+    width: 16px;
+    left: 2px;
+    bottom: 2px;
+    background-color: var(--text);
+    transition: .4s;
+    border-radius: 50%;
+}
+
+input:checked + .slider {
+    background-color: #9333EA !important;
+}
+
+input:checked + .slider:before {
+    transform: translateX(20px);
+    background-color: white;
+}
+
+.slider {
+    background-color: rgba(147, 51, 234, 0.2) !important;
+}
+
+/* Animacje dla promptu */
+.prompt-reveal {
+    opacity: 0;
+    animation: fadeIn 0.5s ease forwards;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Style dla generowania */
+.generating-container {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 15px;
+    background: var(--input-background);
+    border-radius: 8px;
+    z-index: 2;
+}
+
+.generating-tiles {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+}
+
+.generating-tile {
+    width: 20px;
+    height: 20px;
+    background: var(--button-background);
+    border-radius: 4px;
+    animation: shimmer 1.5s infinite;
+}
+
+.generating-icon {
+    font-size: 20px;
+    color: var(--text);
+    animation: spin 2s linear infinite;
+}
+
+.generating-text {
+    display: flex;
+    gap: 1px;
+}
+
+.generating-text span {
+    animation: bounce 1.5s infinite;
+    display: inline-block;
+}
+
+@keyframes shimmer {
+    0% {
+        opacity: 0.3;
+    }
+    50% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0.3;
+    }
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes bounce {
+    0%, 100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-3px);
+    }
+}
+
+/* Style dla kart */
+.header-section {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.title-line {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+}
+
+.title-with-icon {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.title-with-icon i {
+    font-size: 16px;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.description {
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    margin: 0;
+    padding-left: 32px;
+}
+
+.prompt-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    position: relative;
+    min-height: 80px;
+    background: rgba(20, 20, 30, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 12px;
+}
+
+.prompt-text {
+    font-size: 14px;
+    color: var(--text);
+    line-height: 1.6;
+    margin: 0;
+    flex: 1;
+    word-break: break-word;
+}
+
+/* Styl dla przycisku Draw Things */
+.draw-things-btn {
+    display: flex !important;
+    align-items: center;
+    gap: 8px;
+    width: auto !important;
+    padding: 0 12px !important;
+    background: rgba(147, 51, 234, 0.2) !important;
+}
+
+.draw-things-btn:hover {
+    background: rgba(147, 51, 234, 0.3) !important;
+}
+
+.draw-things-btn span {
+    font-size: 14px;
+    white-space: nowrap;
+    order: 1;
+}
+
+.draw-things-btn i {
+    order: 2;
+    font-size: 12px !important;
+}
+
+/* Zmiana koloru przełącznika na fioletowy */
+input:checked + .slider {
+    background-color: #9333EA !important;
+}
+
+.slider {
+    background-color: rgba(147, 51, 234, 0.2) !important;
+}
+
+/* Style dla kontenera promptu */
+.prompt-container {
+    position: relative;
+    background: var(--card-background);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.prompt-input {
+    width: 100%;
+    min-height: 80px;
+    background: var(--input-background);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 120px 16px 16px;
+    color: var(--text);
+    font-size: 16px;
+    resize: none;
+    line-height: 1.5;
+}
+
+.prompt-input::-webkit-scrollbar {
+    width: 6px;
+}
+
+.prompt-input::-webkit-scrollbar-track {
+    background: var(--scrollbar-track);
+    border-radius: 3px;
+}
+
+.prompt-input::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 3px;
+}
+
+.prompt-input::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
+}
+
+.prompt-input::placeholder {
+    color: var(--text-secondary);
+}
+
+.tags-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-height: 32px;
+    padding: 5px 0;
+    margin-top: 10px;
+}
+
+.tag {
+    background: var(--button-background);
+    padding: 4px 12px;
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.tag:hover {
+    background: var(--button-hover);
+    transform: translateY(-1px);
+}
+
+/* Style dla kontenera stylów */
+.styles-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: var(--card-background);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    min-height: 0; /* Ważne dla prawidłowego scrollowania */
+}
+
+/* Dodaj style dla kontenera scrollowania */
+.styles-scroll-container {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0; /* Ważne dla prawidłowego scrollowania */
+    padding-right: 5px; /* Miejsce na scrollbar */
+}
+
+/* Style dla scrollbara */
+.styles-scroll-container::-webkit-scrollbar {
+    width: 8px;
+}
+
+.styles-scroll-container::-webkit-scrollbar-track {
+    background: var(--scrollbar-track, rgba(0, 0, 0, 0.1));
+    border-radius: 4px;
+}
+
+.styles-scroll-container::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb, rgba(255, 255, 255, 0.2));
+    border-radius: 4px;
+}
+
+.styles-scroll-container::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover, rgba(255, 255, 255, 0.3));
+}
+
+/* Style dla karty stylu */
+.style-card {
+    background: var(--card-background);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    position: relative;
+    min-height: 350px;
+    display: flex;
+    flex-direction: column;
+    transition: all 0.3s ease;
+    height: 100%;
+}
+
+/* Style dla siatki stylów */
+.active-styles,
+.inactive-styles {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+    gap: 20px;
+    padding: 10px;
+}
+
+/* Style dla nieaktywnych stylów */
+.inactive-styles {
+    margin-top: 20px;
+}
+
+.inactive-styles .style-card {
+    opacity: 0.7;
+    transform: scale(0.98);
+}
+
+.inactive-styles .style-card:hover {
+    opacity: 0.85;
+    transform: scale(1);
+}
+
+/* Animacje */
+.style-card.moving {
+    transform: scale(0.98);
+    opacity: 0.8;
+}
+
+/* Nagłówek nieaktywnych stylów */
+.inactive-styles-header {
+    padding: 20px 10px 10px 10px;
+    border-top: 1px solid var(--border);
+    margin-top: 20px;
+}
+
+.inactive-styles-header h3 {
+    color: var(--text-secondary);
+    font-size: 16px;
+    font-weight: 500;
+}
+
+/* Style dla kontenera stylów */
+.styles-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: var(--card-background);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    min-height: 0; /* Ważne dla prawidłowego scrollowania */
+}
+
+/* Style dla nagłówka stylów */
+.styles-header {
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    padding: 0 10px;
+    margin-bottom: 20px;
+}
+
+.styles-header h2 {
+    margin-right: auto;
+    color: var(--text);
+    font-size: 20px;
+    font-weight: 500;
+}
+
+/* Style dla karty stylu */
+.style-card {
+    background: var(--card-background);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    position: relative;
+    min-height: 350px;
+    display: flex;
+    flex-direction: column;
+    transition: all 0.3s ease;
+    height: 100%;
+}
+
+/* Style dla siatki stylów */
+.active-styles,
+.inactive-styles {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+    gap: 20px;
+    padding: 10px;
+}
+
+/* Style dla przycisków narzędziowych w polu promptu */
+.prompt-input-wrapper {
+    position: relative;
+    width: 100%;
+}
+
+.input-buttons {
+    position: absolute;
+    top: 50%;
+    right: 15px;
+    transform: translateY(-50%);
+    display: flex;
+    gap: 8px;
+    height: 32px;
+    align-items: center;
+    padding: 0;
+}
+
+.tool-button {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--button-background);
+    border: none;
+    border-radius: 6px;
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    padding: 0;
+}
+
+/* Popraw padding dla pola tekstowego */
+#promptInput {
+    width: 100%;
+    min-height: 80px;
+    background: var(--input-background);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 120px 16px 16px;
+    color: var(--text);
+    font-size: 16px;
+    resize: none;
+    line-height: 1.5;
+}
+
+/* Style dla zawartości karty */
+.style-content {
+    margin-top: 45px;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    gap: 15px;
+}
+
+.prompt-output {
+    flex: 1;
+    background: var(--input-background);
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 14px;
+    color: var(--text);
+    min-height: 150px;
+    max-height: 200px;
+    overflow-y: auto;
+    line-height: 1.5;
+    margin-top: auto;
+}
+
+/* Style dla przycisku Draw Things */
+.style-card .draw-things-btn {
+    width: auto;
+    min-width: 200px;
+    height: 32px;
+    padding: 0 16px;
+    white-space: nowrap;
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: 0.2px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between; /* Zmiana z center na space-between */
+    gap: 8px;
+}
+
+.style-card .draw-things-btn i {
+    font-size: 14px;
+    margin-left: 4px; /* Dodaj małą przestrzeń między tekstem a ikoną */
+}
+
+/* Style dla przycisku Generate Prompts */
+.styles-header .action-button {
+    background: linear-gradient(
+        45deg,
+        rgba(123, 31, 162, 0.8),
+        rgba(103, 58, 183, 0.8),
+        rgba(156, 39, 176, 0.8)
+    );
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    color: white;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.styles-header .action-button::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 200%;
+    height: 100%;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(255, 255, 255, 0.2),
+        transparent
+    );
+    animation: shimmer 2s infinite;
+}
+
+.styles-header .action-button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 15px rgba(123, 31, 162, 0.3);
+}
+
+@keyframes shimmer {
+    0% {
+        left: -100%;
+    }
+    100% {
+        left: 100%;
+    }
+}
+
+/* Style dla nagłówka stylów */
+.styles-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 10px;
+    margin-bottom: 20px;
+}
+
+.styles-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.secondary-button {
+    background: var(--button-background);
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    color: var(--text);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.secondary-button:hover {
+    background: var(--button-hover);
+    transform: translateY(-1px);
+}
+
+/* Popraw style dla credits button */
+#credits-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+}
+
+#credits-btn:hover {
+    color: var(--text);
+    background: var(--button-hover);
+}
+
+/* Dodaj style dla scrollowania */
+.main-container {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden; /* Zapobiega podwójnemu scrollowaniu */
+}
+
+.content-area {
+    flex: 1;
+    display: flex;
+    overflow: hidden; /* Zapobiega podwójnemu scrollowaniu */
+}
+
+.chat-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden; /* Zapobiega podwójnemu scrollowaniu */
+}
+
+.chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 20px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+/* Style dla scrollbara */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--scrollbar-track);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
+}
+
+/* Dodaj style dla elementów scrollowanych */
+.scrollable {
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+    -webkit-overflow-scrolling: touch; /* Dla lepszego scrollowania na macOS */
+    scroll-behavior: smooth;
+}
+
+/* Zapewnij, że elementy z fixed position nie będą scrollowane */
+.titlebar,
+.toolbar,
+.input-container {
+    position: sticky;
+    z-index: 100;
+    background: var(--background);
+}
+
+.titlebar {
+    top: 0;
+}
+
+.toolbar {
+    top: var(--titlebar-height);
+}
+
+.input-container {
+    bottom: 0;
+}
+
+/* Optymalizacja wydajności dla elementów scrollowanych */
+.scrollable {
+    will-change: transform;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+}
+
+/* Zaktualizuj style dla głównego kontenera */
+.app-container {
+    position: relative;
+    width: 100%;
+    height: 100vh;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    overflow-y: auto;
+    background: var(--background);
+    padding-top: 58px;
+}
+
+/* Zaktualizuj style dla siatki opcji */
+.options-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 25px;
+    padding: 5px;
+    margin: 0 auto;
+    width: 100%;
+    max-width: 1400px;
+}
+
+/* Dodaj style dla ikon stylów */
+.style-card h2 {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 18px;
+    font-weight: 500;
+    color: var(--text);
+    margin-bottom: 15px;
+}
+
+.style-card h2 i {
+    font-size: 16px;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    background: var(--button-background);
+    padding: 12px;
+    color: var(--text);
+    transition: all 0.2s ease;
+}
+
+/* Efekt hover dla ikony */
+.style-card:hover h2 i {
+    transform: scale(1.1);
+    background: var(--button-hover);
+}
+
+/* Animacja dla ikony podczas generowania */
+.style-card.generating h2 i {
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        opacity: 0.6;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 1;
+        transform: scale(1.1);
+    }
+    100% {
+        opacity: 0.6;
+        transform: scale(1);
+    }
+}
+
+/* Style dla różnych typów ikon */
+.style-card h2 i.fa-palette { color: #ff7f50; }
+.style-card h2 i.fa-image { color: #4CAF50; }
+.style-card h2 i.fa-star { color: #ffd700; }
+.style-card h2 i.fa-dragon { color: #ff4081; }
+.style-card h2 i.fa-robot { color: #2196F3; }
+.style-card h2 i.fa-ghost { color: #9c27b0; }
+.style-card h2 i.fa-shapes { color: #e91e63; }
+.style-card h2 i.fa-user { color: #00bcd4; }
+.style-card h2 i.fa-mountain { color: #8bc34a; }
+.style-card h2 i.fa-building { color: #795548; }
+.style-card h2 i.fa-user-astronaut { color: #3f51b5; }
+.style-card h2 i.fa-lightbulb { color: #ffc107; }
+.style-card h2 i.fa-digital-tachograph { color: #607d8b; }
+.style-card h2 i.fa-camera { color: #9e9e9e; }
+.style-card h2 i.fa-paint-brush { color: #ff5722; }
+.style-card h2 i.fa-pencil-alt { color: #795548; }
+.style-card h2 i.fa-magic { color: #e040fb; }
+.style-card h2 i.fa-brush { color: #ff9800; }
+
+/* Upewnij się, że titlebar jest zawsze na górze */
+.titlebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 38px;
+    background: var(--background);
+    z-index: 1000;
+    border-bottom: 1px solid var(--border);
+}
+
+/* Dodaj style dla kontenera scrollowanego */
+.scrollable-content {
+    flex: 1;
+    overflow-y: auto;
+    padding-right: 5px;
+}
+
+/* Zoptymalizuj scrollowanie */
+.scrollable-content::-webkit-scrollbar {
+    width: 8px;
+}
+
+.scrollable-content::-webkit-scrollbar-track {
+    background: var(--scrollbar-track);
+    border-radius: 4px;
+}
+
+.scrollable-content::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 4px;
+}
+
+.scrollable-content::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
+}
+
+/* Zachowaj stałą pozycję dla input section */
+.input-section {
+    position: sticky;
+    bottom: 20px;
+    margin-top: 30px;
+    margin-bottom: 0;
+    z-index: 10;
+}
+
+/* Popraw style dla kart stylów aby zachować ich wygląd */
+.style-card {
+    background: var(--card-background);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    position: relative;
+    min-height: 350px;
+    display: flex;
+    flex-direction: column;
+    transition: all 0.3s ease;
+    height: 100%;
+}
+
+/* Zachowaj efekt hover dla kart */
+.style-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Zachowaj animację dla kart w trakcie generowania */
+.style-card.generating::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, 
+        var(--accent-color-1, #ff0000), 
+        var(--accent-color-2, #00ff00), 
+        var(--accent-color-1, #ff0000)
+    );
+    background-size: 200% 100%;
+    animation: borderMove 2s linear infinite;
+    z-index: -1;
+    border-radius: 10px;
+    -webkit-mask: 
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+}
+
+/* Style dla kafelków stylów */
+.style-tile {
+    background: var(--background-secondary);
+    border-radius: 8px;
+    padding: 12px;
+    margin: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.style-tile:hover {
+    background: var(--background-tertiary);
+    transform: translateY(-2px);
+}
+
+.style-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.style-icon {
+    font-size: 1.2em;
+    color: var(--text-primary);
+    width: 24px;
+    text-align: center;
+}
+
+.style-name {
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.style-description {
+    font-size: 0.9em;
+    color: var(--text-secondary);
+    margin-top: 4px;
+}
+
+/* Animacja dla ikon */
+.style-icon {
+    transition: transform 0.2s ease;
+}
+
+.style-tile:hover .style-icon {
+    transform: scale(1.1);
+}
+
+/* Dodaj te style dla ikon w kartach stylów */
+.style-content h3 {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 18px;
+    font-weight: 500;
+    color: var(--text);
+    margin-bottom: 8px;
+}
+
+.style-content h3 .style-icon {
+    width: 24px;
+    height: 24px;
+    object-fit: contain;
+}
+
+/* Usuń hover efekt dla ikon */
+.style-card:hover .style-content h3 .style-icon {
+    transform: none;
+}
+
+/* Dodaj style dla trybu oszczędzania energii */
+.low-power-mode {
+    --animation-duration: 0.3s;
+    --transition-duration: 0.3s;
+}
+
+.low-power-mode * {
+    animation-duration: var(--animation-duration) !important;
+    transition-duration: var(--transition-duration) !important;
+}
+
+.low-power-mode .animated {
+    animation: none !important;
+}
+
+.hardware-accelerated {
+    transform: translateZ(0);
+    backface-visibility: hidden;
+    perspective: 1000px;
+}
+
+/* Model Tags */
+.model-tags {
+    display: flex;
+    gap: 8px;
+    margin-left: 12px;
+    align-items: center;
+}
+
+.model-tag {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 10px;
+    background: rgba(255, 255, 255, 0.1);
+    transition: all 0.2s ease;
+    height: 18px;
+}
+
+.model-tag i {
+    font-size: 9px;
+    opacity: 0.8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 12px;
+    height: 12px;
+}
+
+.model-tag .model-name {
+    max-width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    line-height: 18px;
+    display: flex;
+    align-items: center;
+}
+
+/* Model category colors */
+.model-tag.sfw {
+    background: rgba(72, 187, 120, 0.2);
+    color: #48bb78;
+}
+
+.model-tag.nsfw {
+    background: rgba(245, 101, 101, 0.2);
+    color: #f56565;
+}
+
+.model-tag.vision {
+    background: rgba(76, 81, 191, 0.2);
+    color: #4c51bf;
+}
+
+.model-tag.other {
+    background: rgba(237, 137, 54, 0.2);
+    color: #ed8936;
+}
+
+/* Not selected state */
+.model-tag.not-selected {
+    background: rgba(160, 174, 192, 0.1);
+    color: #a0aec0;
+}
+
+/* Hover state */
+.model-tag:hover {
+    filter: brightness(1.1);
+}
+
+/* Style dla kart stylów */
+.styles-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
+    padding: 20px;
+    overflow-y: auto;
+    max-height: calc(100vh - 200px);
+}
+
+.style-card {
+    background: var(--card-background);
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    position: relative;
+    border: 1px solid var(--border);
+    transition: all 0.3s ease;
+    min-height: 200px;
+}
+
+.style-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+}
+
+.style-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+.style-header h2 {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.style-card .description {
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    margin: 0;
+}
+
+.prompt-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    position: relative;
+    min-height: 80px;
+}
+
+.prompt-text {
+    font-size: 14px;
+    color: var(--text);
+    line-height: 1.6;
+    margin: 0;
+    flex: 1;
+    word-break: break-word;
+}
+
+.card-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    margin-top: auto;
+}
+
+.left-controls,
+.right-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.history-group {
+    display: flex;
+    gap: 4px;
+}
+
+.style-card button {
+    background: var(--button-background);
+    border: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.style-card button:hover {
+    background: var(--button-hover);
+    transform: translateY(-1px);
+}
+
+.style-card button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.style-card button i {
+    font-size: 14px;
+}
+
+/* Style dla przełącznika */
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 40px;
+    height: 20px;
+}
+
+.switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--button-background);
+    transition: .4s;
+    border-radius: 20px;
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 16px;
+    width: 16px;
+    left: 2px;
+    bottom: 2px;
+    background-color: var(--text);
+    transition: .4s;
+    border-radius: 50%;
+}
+
+input:checked + .slider {
+    background-color: #9333EA !important;
+}
+
+input:checked + .slider:before {
+    transform: translateX(20px);
+    background-color: white;
+}
+
+.slider {
+    background-color: rgba(147, 51, 234, 0.2) !important;
+}
+
+/* Animacje dla promptu */
+.prompt-reveal {
+    opacity: 0;
+    animation: fadeIn 0.5s ease forwards;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Style dla generowania */
+.generating-container {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 15px;
+    background: var(--input-background);
+    border-radius: 8px;
+    z-index: 2;
+}
+
+.generating-tiles {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 4px;
+}
+
+.generating-tile {
+    width: 20px;
+    height: 20px;
+    background: var(--button-background);
+    border-radius: 4px;
+    animation: shimmer 1.5s infinite;
+}
+
+.generating-icon {
+    font-size: 20px;
+    color: var(--text);
+    animation: spin 2s linear infinite;
+}
+
+.generating-text {
+    display: flex;
+    gap: 1px;
+}
+
+.generating-text span {
+    animation: bounce 1.5s infinite;
+    display: inline-block;
+}
+
+@keyframes shimmer {
+    0% {
+        opacity: 0.3;
+    }
+    50% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0.3;
+    }
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+@keyframes bounce {
+    0%, 100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-3px);
+    }
+}
+
+/* Style dla kart */
+.header-section {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.title-line {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+}
+
+.title-with-icon {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.title-with-icon i {
+    font-size: 16px;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.description {
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    margin: 0;
+    padding-left: 32px;
+}
+
+.prompt-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    position: relative;
+    min-height: 80px;
+    background: rgba(20, 20, 30, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 12px;
+}
+
+.prompt-text {
+    font-size: 14px;
+    color: var(--text);
+    line-height: 1.6;
+    margin: 0;
+    flex: 1;
+    word-break: break-word;
+}
+
+/* Styl dla przycisku Draw Things */
+.draw-things-btn {
+    display: flex !important;
+    align-items: center;
+    gap: 8px;
+    width: auto !important;
+    padding: 0 12px !important;
+    background: rgba(147, 51, 234, 0.2) !important;
+}
+
+.draw-things-btn:hover {
+    background: rgba(147, 51, 234, 0.3) !important;
+}
+
+.draw-things-btn span {
+    font-size: 14px;
+    white-space: nowrap;
+    order: 1;
+}
+
+.draw-things-btn i {
+    order: 2;
+    font-size: 12px !important;
+}
+
+/* Zmiana koloru przełącznika na fioletowy */
+input:checked + .slider {
+    background-color: #9333EA !important;
+}
+
+.slider {
+    background-color: rgba(147, 51, 234, 0.2) !important;
+}
+
+/* Style dla kontenera promptu */
+.prompt-container {
+    position: relative;
+    background: var(--card-background);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+}
+
+.prompt-input {
+    width: 100%;
+    min-height: 80px;
+    background: var(--input-background);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 120px 16px 16px;
+    color: var(--text);
+    font-size: 16px;
+    resize: none;
+    line-height: 1.5;
+}
+
+.prompt-input::-webkit-scrollbar {
+    width: 6px;
+}
+
+.prompt-input::-webkit-scrollbar-track {
+    background: var(--scrollbar-track);
+    border-radius: 3px;
+}
+
+.prompt-input::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 3px;
+}
+
+.prompt-input::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
+}
+
+.prompt-input::placeholder {
+    color: var(--text-secondary);
+}
+
+.tags-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-height: 32px;
+    padding: 5px 0;
+    margin-top: 10px;
+}
+
+.tag {
+    background: var(--button-background);
+    padding: 4px 12px;
+    border-radius: 6px;
+    color: var(--text);
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.tag:hover {
+    background: var(--button-hover);
+    transform: translateY(-1px);
+}
+
+/* Style dla kontenera stylów */
+.styles-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: var(--card-background);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    min-height: 0; /* Ważne dla prawidłowego scrollowania */
+}
+
+/* Dodaj style dla kontenera scrollowania */
+.styles-scroll-container {
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0; /* Ważne dla prawidłowego scrollowania */
+    padding-right: 5px; /* Miejsce na scrollbar */
+}
+
+/* Style dla scrollbara */
+.styles-scroll-container::-webkit-scrollbar {
+    width: 8px;
+}
+
+.styles-scroll-container::-webkit-scrollbar-track {
+    background: var(--scrollbar-track, rgba(0, 0, 0, 0.1));
+    border-radius: 4px;
+}
+
+.styles-scroll-container::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb, rgba(255, 255, 255, 0.2));
+    border-radius: 4px;
+}
+
+.styles-scroll-container::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover, rgba(255, 255, 255, 0.3));
+}
+
+/* Style dla karty stylu */
+.style-card {
+    background: var(--card-background);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    position: relative;
+    min-height: 350px;
+    display: flex;
+    flex-direction: column;
+    transition: all 0.3s ease;
+    height: 100%;
+}
+
+/* Style dla siatki stylów */
+.active-styles,
+.inactive-styles {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+    gap: 20px;
+    padding: 10px;
+}
+
+/* Style dla nieaktywnych stylów */
+.inactive-styles {
+    margin-top: 20px;
+}
+
+.inactive-styles .style-card {
+    opacity: 0.7;
+    transform: scale(0.98);
+}
+
+.inactive-styles .style-card:hover {
+    opacity: 0.85;
+    transform: scale(1);
+}
+
+/* Animacje */
+.style-card.moving {
+    transform: scale(0.98);
+    opacity: 0.8;
+}
+
+/* Nagłówek nieaktywnych stylów */
+.inactive-styles-header {
+    padding: 20px 10px 10px 10px;
+    border-top: 1px solid var(--border);
+    margin-top: 20px;
+}
+
+.inactive-styles-header h3 {
+    color: var(--text-secondary);
+    font-size: 16px;
+    font-weight: 500;
+}
+
+/* Style dla kontenera stylów */
+.styles-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    background: var(--card-background);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 20px;
+    min-height: 0; /* Ważne dla prawidłowego scrollowania */
+}
+
+/* Style dla nagłówka stylów */
+.styles-header {
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    padding: 0 10px;
+    margin-bottom: 20px;
+}
+
+.styles-header h2 {
+    margin-right: auto;
+    color: var(--text);
+    font-size: 20px;
+    font-weight: 500;
+}
+
+/* Style dla karty stylu */
+.style-card {
+    background: var(--card-background);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    position: relative;
+    min-height: 350px;
+    display: flex;
+    flex-direction: column;
+    transition: all 0.3s ease;
+    height: 100%;
+}
+
+/* Style dla siatki stylów */
+.active-styles,
+.inactive-styles {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+    gap: 20px;
+    padding: 10px;
+}
+
+/* Style dla przycisków narzędziowych w polu promptu */
+.prompt-input-wrapper {
+    position: relative;
+    width: 100%;
+}
+
+.input-buttons {
+    position: absolute;
+    top: 50%;
+    right: 15px;
+    transform: translateY(-50%);
+    display: flex;
+    gap: 8px;
+    height: 32px;
+    align-items: center;
+    padding: 0;
+}
+
+.tool-button {
+    width: 32px;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: var(--button-background);
+    border: none;
+    border-radius: 6px;
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    padding: 0;
+}
+
+/* Popraw padding dla pola tekstowego */
+#promptInput {
+    width: 100%;
+    min-height: 80px;
+    background: var(--input-background);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 16px 120px 16px 16px;
+    color: var(--text);
+    font-size: 16px;
+    resize: none;
+    line-height: 1.5;
+}
+
+/* Style dla zawartości karty */
+.style-content {
+    margin-top: 45px;
+    display: flex;
+    flex-direction: column;
+    flex: 1;
+    gap: 15px;
+}
+
+.prompt-output {
+    flex: 1;
+    background: var(--input-background);
+    border-radius: 8px;
+    padding: 12px;
+    font-size: 14px;
+    color: var(--text);
+    min-height: 150px;
+    max-height: 200px;
+    overflow-y: auto;
+    line-height: 1.5;
+    margin-top: auto;
+}
+
+/* Style dla przycisku Draw Things */
+.style-card .draw-things-btn {
+    width: auto;
+    min-width: 200px;
+    height: 32px;
+    padding: 0 16px;
+    white-space: nowrap;
+    font-size: 14px;
+    font-weight: 500;
+    letter-spacing: 0.2px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between; /* Zmiana z center na space-between */
+    gap: 8px;
+}
+
+.style-card .draw-things-btn i {
+    font-size: 14px;
+    margin-left: 4px; /* Dodaj małą przestrzeń między tekstem a ikoną */
+}
+
+/* Style dla przycisku Generate Prompts */
+.styles-header .action-button {
+    background: linear-gradient(
+        45deg,
+        rgba(123, 31, 162, 0.8),
+        rgba(103, 58, 183, 0.8),
+        rgba(156, 39, 176, 0.8)
+    );
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    color: white;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    overflow: hidden;
+}
+
+.styles-header .action-button::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 200%;
+    height: 100%;
+    background: linear-gradient(
+        90deg,
+        transparent,
+        rgba(255, 255, 255, 0.2),
+        transparent
+    );
+    animation: shimmer 2s infinite;
+}
+
+.styles-header .action-button:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 15px rgba(123, 31, 162, 0.3);
+}
+
+@keyframes shimmer {
+    0% {
+        left: -100%;
+    }
+    100% {
+        left: 100%;
+    }
+}
+
+/* Style dla nagłówka stylów */
+.styles-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 10px;
+    margin-bottom: 20px;
+}
+
+.styles-actions {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.secondary-button {
+    background: var(--button-background);
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    color: var(--text);
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.secondary-button:hover {
+    background: var(--button-hover);
+    transform: translateY(-1px);
+}
+
+/* Popraw style dla credits button */
+#credits-btn {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+}
+
+#credits-btn:hover {
+    color: var(--text);
+    background: var(--button-hover);
+}
+
+/* Dodaj style dla scrollowania */
+.main-container {
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden; /* Zapobiega podwójnemu scrollowaniu */
+}
+
+.content-area {
+    flex: 1;
+    display: flex;
+    overflow: hidden; /* Zapobiega podwójnemu scrollowaniu */
+}
+
+.chat-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden; /* Zapobiega podwójnemu scrollowaniu */
+}
+
+.chat-messages {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 20px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+/* Style dla scrollbara */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: var(--scrollbar-track);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
+}
+
+/* Dodaj style dla elementów scrollowanych */
+.scrollable {
+    overflow-y: auto;
+    overflow-x: hidden;
+    scrollbar-width: thin;
+    scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+    -webkit-overflow-scrolling: touch; /* Dla lepszego scrollowania na macOS */
+    scroll-behavior: smooth;
+}
+
+/* Zapewnij, że elementy z fixed position nie będą scrollowane */
+.titlebar,
+.toolbar,
+.input-container {
+    position: sticky;
+    z-index: 100;
+    background: var(--background);
+}
+
+.titlebar {
+    top: 0;
+}
+
+.toolbar {
+    top: var(--titlebar-height);
+}
+
+.input-container {
+    bottom: 0;
+}
+
+/* Optymalizacja wydajności dla elementów scrollowanych */
+.scrollable {
+    will-change: transform;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+}
+
+/* Zaktualizuj style dla głównego kontenera */
+.app-container {
+    position: relative;
+    width: 100%;
+    height: 100vh;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    overflow-y: auto;
+    background: var(--background);
+    padding-top: 58px;
+}
+
+/* Zaktualizuj style dla siatki opcji */
+.options-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 25px;
+    padding: 5px;
+    margin: 0 auto;
+    width: 100%;
+    max-width: 1400px;
+}
+
+/* Dodaj style dla ikon stylów */
+.style-card h2 {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    font-size: 18px;
+    font-weight: 500;
+    color: var(--text);
+    margin-bottom: 15px;
+}
+
+.style-card h2 i {
+    font-size: 16px;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
+    background: var(--button-background);
+    padding: 12px;
+    color: var(--text);
+    transition: all 0.2s ease;
+}
+
+/* Efekt hover dla ikony */
+.style-card:hover h2 i {
+    transform: scale(1.1);
+    background: var(--button-hover);
+}
+
+/* Animacja dla ikony podczas generowania */
+.style-card.generating h2 i {
+    animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+    0% {
+        opacity: 0.6;
+        transform: scale(1);
+    }
+    50% {
+        opacity: 1;
+        transform: scale(1.1);
+    }
+    100% {
+        opacity: 0.6;
+        transform: scale(1);
+    }
+}
+
+/* Style dla różnych typów ikon */
+.style-card h2 i.fa-palette { color: #ff7f50; }
+.style-card h2 i.fa-image { color: #4CAF50; }
+.style-card h2 i.fa-star { color: #ffd700; }
+.style-card h2 i.fa-dragon { color: #ff4081; }
+.style-card h2 i.fa-robot { color: #2196F3; }
+.style-card h2 i.fa-ghost { color: #9c27b0; }
+.style-card h2 i.fa-shapes { color: #e91e63; }
+.style-card h2 i.fa-user { color: #00bcd4; }
+.style-card h2 i.fa-mountain { color: #8bc34a; }
+.style-card h2 i.fa-building { color: #795548; }
+.style-card h2 i.fa-user-astronaut { color: #3f51b5; }
+.style-card h2 i.fa-lightbulb { color: #ffc107; }
+.style-card h2 i.fa-digital-tachograph { color: #607d8b; }
+.style-card h2 i.fa-camera { color: #9e9e9e; }
+.style-card h2 i.fa-paint-brush { color: #ff5722; }
+.style-card h2 i.fa-pencil-alt { color: #795548; }
+.style-card h2 i.fa-magic { color: #e040fb; }
+.style-card h2 i.fa-brush { color: #ff9800; }
+
+/* Upewnij się, że titlebar jest zawsze na górze */
+.titlebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 38px;
+    background: var(--background);
+    z-index: 1000;
+    border-bottom: 1px solid var(--border);
+}
+
+/* Dodaj style dla kontenera scrollowanego */
+.scrollable-content {
+    flex: 1;
+    overflow-y: auto;
+    padding-right: 5px;
+}
+
+/* Zoptymalizuj scrollowanie */
+.scrollable-content::-webkit-scrollbar {
+    width: 8px;
+}
+
+.scrollable-content::-webkit-scrollbar-track {
+    background: var(--scrollbar-track);
+    border-radius: 4px;
+}
+
+.scrollable-content::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 4px;
+}
+
+.scrollable-content::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
+}
+
+/* Zachowaj stałą pozycję dla input section */
+.input-section {
+    position: sticky;
+    bottom: 20px;
+    margin-top: 30px;
+    margin-bottom: 0;
+    z-index: 10;
+}
+
+/* Popraw style dla kart stylów aby zachować ich wygląd */
+.style-card {
+    background: var(--card-background);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    position: relative;
+    min-height: 350px;
+    display: flex;
+    flex-direction: column;
+    transition: all 0.3s ease;
+    height: 100%;
+}
+
+/* Zachowaj efekt hover dla kart */
+.style-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+/* Zachowaj animację dla kart w trakcie generowania */
+.style-card.generating::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, 
+        var(--accent-color-1, #ff0000), 
+        var(--accent-color-2, #00ff00), 
+        var(--accent-color-1, #ff0000)
+    );
+    background-size: 200% 100%;
+    animation: borderMove 2s linear infinite;
+    z-index: -1;
+    border-radius: 10px;
+    -webkit-mask: 
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+}
+
+/* Style dla kafelków stylów */
+.style-tile {
+    background: var(--background-secondary);
+    border-radius: 8px;
+    padding: 12px;
+    margin: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.style-tile:hover {
+    background: var(--background-tertiary);
+    transform: translateY(-2px);
+}
+
+.style-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+}
+
+.style-icon {
+    font-size: 1.2em;
+    color: var(--text-primary);
+    width: 24px;
+    text-align: center;
+}
+
+.style-name {
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.style-description {
+    font-size: 0.9em;
+    color: var(--text-secondary);
+    margin-top: 4px;
+}
+
+/* Animacja dla ikon */
+.style-icon {
+    transition: transform 0.2s ease;
+}
+
+.style-tile:hover .style-icon {
+    transform: scale(1.1);
+}
+
+/* Dodaj te style dla ikon w kartach stylów */
+.style-content h3 {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 18px;
+    font-weight: 500;
+    color: var(--text);
+    margin-bottom: 8px;
+}
+
+.style-content h3 .style-icon {
+    width: 24px;
+    height: 24px;
+    object-fit: contain;
+}
+
+/* Usuń hover efekt dla ikon */
+.style-card:hover .style-content h3 .style-icon {
+    transform: none;
+}
+
+/* Dodaj style dla trybu oszczędzania energii */
+.low-power-mode {
+    --animation-duration: 0.3s;
+    --transition-duration: 0.3s;
+}
+
+.low-power-mode * {
+    animation-duration: var(--animation-duration) !important;
+    transition-duration: var(--transition-duration) !important;
+}
+
+.low-power-mode .animated {
+    animation: none !important;
+}
+
+.hardware-accelerated {
+    transform: translateZ(0);
+    backface-visibility: hidden;
+    perspective: 1000px;
+}
+
+/* Model Tags */
+.model-tags {
+    display: flex;
+    gap: 8px;
+    margin-left: 12px;
+    align-items: center;
+}
+
+.model-tag {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 10px;
+    background: rgba(255, 255, 255, 0.1);
+    transition: all 0.2s ease;
+    height: 18px;
+}
+
+.model-tag i {
+    font-size: 9px;
+    opacity: 0.8;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 12px;
+    height: 12px;
+}
+
+.model-tag .model-name {
+    max-width: 100px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    line-height: 18px;
+    display: flex;
+    align-items: center;
+}
+
+/* Model category colors */
+.model-tag.sfw {
+    background: rgba(72, 187, 120, 0.2);
+    color: #48bb78;
+}
+
+.model-tag.nsfw {
+    background: rgba(245, 101, 101, 0.2);
+    color: #f56565;
+}
+
+.model-tag.vision {
+    background: rgba(76, 81, 191, 0.2);
+    color: #4c51bf;
+}
+
+.model-tag.other {
+    background: rgba(237, 137, 54, 0.2);
+    color: #ed8936;
+}
+
+/* Not selected state */
+.model-tag.not-selected {
+    background: rgba(160, 174, 192, 0.1);
+    color: #a0aec0;
+}
+
+/* Hover state */
+.model-tag:hover {
+    filter: brightness(1.1);
+}
+
+/* Style dla kart stylów */
+.styles-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 20px;
+    padding: 20px;
+    overflow-y: auto;
+    max-height: calc(100vh - 200px);
+}
+
+.style-card {
+    background: var(--card-background);
+    border-radius: 12px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    position: relative;
+    border: 1px solid var(--border);
+    transition: all 0.3s ease;
+    min-height: 200px;
+}
+
+.style-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+}
+
+.style-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 10px;
+}
+
+.style-header h2 {
+    font-size: 18px;
+    font-weight: 600;
+    color: var(--text);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.style-card .description {
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    margin: 0;
+}
+
+.prompt-container {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    position: relative;
+    min-height: 80px;
+}
+
+.prompt-text {
+    font-size: 14px;
+    color: var(--text);
+    line-height: 1.6;
+    margin: 0;
+    flex: 1;
+    word-break: break-word;
+}
+
+.card-controls {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    margin-top: auto;
+}
+
+.left-controls,
+.right-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.history-group {
+    display: flex;
+    gap: 4px;
+}
+
+.style-card button {
+    background: var(--button-background);
+    border: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.style-card button:hover {
+    background: var(--button-hover);
+    transform: translateY(-1px);
+}
+
+.style-card button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.style-card button i {
+    font-size: 14px;
+}
+
+/* Style dla przełącznika */
+.switch {
+    position: relative;
+    display: inline-block;
+    width: 40px;
+    height: 20px;
+}
+
+.switch input {
+    opacity: 0;
+    width: 0;
+    height: 0;
+}
+
+.slider {
+    position: absolute;
+    cursor: pointer;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: var(--button-background);
+    transition: .4s;
+    border-radius: 20px;
+}
+
+.slider:before {
+    position: absolute;
+    content: "";
+    height: 16px;
+    width: 16px;
+    left: 2px;
+    bottom: 2px;
+    background-color: var(--text);
+    transition: .4s;
+    border-radius: 50%;
+}
+
+input:checked + .slider {
+    background-color: #9333EA !important;
+}
+
+input:checked + .slider:before {
+    transform: translateX(20px);
+    background-color: white;
+}
+
+.slider {
+    background-color: rgba(147, 51, 234, 0.2) !important;
+}
+
+/* Animacje dla promptu */
+.prompt-reveal {
+    opacity: 0;
+    animation: fadeIn 0.5s ease forwards;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* Style dla generowania */
+.generating-container {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 15px;

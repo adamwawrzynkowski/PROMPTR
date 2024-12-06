@@ -6,11 +6,16 @@ const styleHistories = new Map(); // Przechowuje historię promptów dla każdeg
 
 // Dodaj na początku pliku, po innych importach
 const DEFAULT_STYLES = {
-    'realistic': { name: 'Realistic', description: 'Photorealistic style', icon: 'camera', active: true },
-    'cinematic': { name: 'Cinematic', description: 'Movie-like quality', icon: 'film', active: true },
-    'artistic': { name: 'Artistic', description: 'Artistic interpretation', icon: 'palette', active: true },
-    'anime': { name: 'Anime', description: 'Anime/Manga style', icon: 'star', active: true },
-    // dodaj więcej domyślnych stylów według potrzeb
+    'realistic': { name: 'Realistic', description: 'Ultra-realistic photography with meticulous attention to detail', icon: 'camera', active: true },
+    'cinematic': { name: 'Cinematic', description: 'Epic movie scene aesthetics with dramatic cinematography', icon: 'film', active: true },
+    'vintage': { name: 'Vintage', description: 'Nostalgic retro photography with authentic period characteristics', icon: 'clock-rotate-left', active: true },
+    'artistic': { name: 'Artistic', description: 'Expressive fine art with bold artistic interpretation', icon: 'palette', active: true },
+    'abstract': { name: 'Abstract', description: 'Non-representational art focusing on form and emotion', icon: 'shapes', active: true },
+    'poetic': { name: 'Poetic', description: 'Dreamy, ethereal atmosphere with soft, romantic qualities', icon: 'feather', active: true },
+    'anime': { name: 'Anime', description: 'Stylized Japanese anime art with characteristic features', icon: 'star', active: true },
+    'cartoon': { name: 'Cartoon', description: 'Bold, stylized cartoon with exaggerated features', icon: 'pen-nib', active: true },
+    'cute': { name: 'Cute', description: 'Adorable kawaii style with charming, playful elements', icon: 'heart', active: true },
+    'scifi': { name: 'Sci-Fi', description: 'Futuristic science fiction with advanced technology', icon: 'rocket', active: true }
 };
 
 // Dodaj na początku pliku
@@ -80,121 +85,169 @@ function createStyleCard(style) {
     card.className = 'style-card';
     card.dataset.styleId = style.id;
 
+    // Create header section with title, description and toggle
+    const headerSection = document.createElement('div');
+    headerSection.className = 'header-section';
+
+    // Create title line with icon, name and toggle
+    const titleLine = document.createElement('div');
+    titleLine.className = 'title-line';
+    titleLine.innerHTML = `
+        <div class="title-with-icon">
+            <i class="fas fa-${style.icon}"></i>
+            <span>${style.name}</span>
+        </div>
+        <div class="style-toggle">
+            <label class="switch">
+                <input type="checkbox" ${style.active ? 'checked' : ''}>
+                <span class="slider"></span>
+            </label>
+        </div>
+    `;
+
+    // Add description directly under title
+    const description = document.createElement('div');
+    description.className = 'description';
+    description.textContent = style.description;
+
+    headerSection.appendChild(titleLine);
+    headerSection.appendChild(description);
+
+    // Create prompt container with animation support
+    const promptContainer = document.createElement('div');
+    promptContainer.className = 'prompt-container';
+    
+    // Create loading animation container
+    const loadingContainer = document.createElement('div');
+    loadingContainer.className = 'generating-container';
+    loadingContainer.style.display = 'none';
+    loadingContainer.innerHTML = `
+        <div class="generating-tiles">
+            ${Array(9).fill('<div class="generating-tile"></div>').join('')}
+        </div>
+        <div class="generating-icon">
+            <i class="fas fa-magic"></i>
+        </div>
+        <div class="generating-text">
+            ${Array.from('Generating...').map(char => `<span>${char}</span>`).join('')}
+        </div>
+    `;
+    
+    // Create prompt display (empty by default)
+    const promptDisplay = document.createElement('div');
+    promptDisplay.className = 'prompt-text';
+    
+    promptContainer.appendChild(loadingContainer);
+    promptContainer.appendChild(promptDisplay);
+
+    // Create controls
     const controls = document.createElement('div');
-    controls.className = 'controls';
-
-    // Lewa strona kontrolek (historia i kopiowanie)
-    const leftControls = document.createElement('div');
-    leftControls.className = 'left-controls';
-    
-    // Historia
-    const historyControls = document.createElement('div');
-    historyControls.className = 'history-controls';
-    
-    const prevButton = document.createElement('button');
-    prevButton.className = 'history-button';
-    prevButton.innerHTML = '<i class="fas fa-chevron-left"></i>';
-    prevButton.onclick = () => {
-        const prompt = navigateHistory(style.id, -1);
-        if (prompt) updateStylePrompt(style.id, prompt);
-        updateHistoryButtons(style.id);
-    };
-
-    const nextButton = document.createElement('button');
-    nextButton.className = 'history-button';
-    nextButton.innerHTML = '<i class="fas fa-chevron-right"></i>';
-    nextButton.onclick = () => {
-        const prompt = navigateHistory(style.id, 1);
-        if (prompt) updateStylePrompt(style.id, prompt);
-        updateHistoryButtons(style.id);
-    };
-
-    historyControls.appendChild(prevButton);
-    historyControls.appendChild(nextButton);
-
-    // Przyciski akcji
-    const actionControls = document.createElement('div');
-    actionControls.className = 'action-controls';
-
-    const copyButton = document.createElement('button');
-    copyButton.className = 'action-button';
-    copyButton.innerHTML = '<i class="fas fa-copy"></i>';
-    copyButton.title = 'Copy prompt';
-    copyButton.onclick = () => copyStylePrompt(style.id);
-
-    const drawThingsButton = document.createElement('button');
-    drawThingsButton.className = 'action-button draw-things-btn';
-    drawThingsButton.innerHTML = 'Send to Draw Things <i class="fas fa-arrow-right"></i>';
-    drawThingsButton.onclick = () => sendToDrawThings(style.id);
-    updateDrawThingsButton(drawThingsButton);
-
-    actionControls.appendChild(copyButton);
-    actionControls.appendChild(drawThingsButton);
-
-    // Grupa historii i refresh
-    const historyGroup = document.createElement('div');
-    historyGroup.className = 'history-group';
-    
-    historyGroup.appendChild(historyControls);
-    
-    const refreshButton = document.createElement('button');
-    refreshButton.className = 'refresh-button';
-    refreshButton.innerHTML = '<i class="fas fa-sync-alt"></i>';
-    refreshButton.onclick = async () => {
-        const promptInput = document.getElementById('promptInput');
-        const text = promptInput.value.trim();
-        if (text) {
-            const promptOutput = card.querySelector('.prompt-output');
-            if (promptOutput) {
-                promptOutput.innerHTML = '<span class="loading">Generating...</span>';
-                try {
-                    const generatedPrompt = await ipcRenderer.invoke('generate-prompt', text, style.id);
-                    updateStylePrompt(style.id, generatedPrompt);
-                    addToStyleHistory(style.id, generatedPrompt);
-                    updateHistoryButtons(style.id);
-                } catch (error) {
-                    promptOutput.innerHTML = '<span class="error">Generation failed</span>';
-                }
-            }
-        }
-    };
-    historyGroup.appendChild(refreshButton);
-
-    leftControls.appendChild(historyGroup);
-    leftControls.appendChild(actionControls);
-
-    controls.appendChild(leftControls);
-
-    // Switch
-    const styleSwitch = document.createElement('label');
-    styleSwitch.className = 'style-switch';
-    styleSwitch.innerHTML = `
-        <input type="checkbox" ${style.active ? 'checked' : ''}>
-        <span class="slider"></span>
-    `;
-    styleSwitch.querySelector('input').onchange = (e) => toggleStyle(style.id, e.target.checked);
-
-    // Zawartość
-    const content = document.createElement('div');
-    content.className = 'style-content';
-    
-    // Użyj właściwej ścieżki do ikon
-    const iconPath = `assets/stylesicons/${style.name.toLowerCase()}.png`;
-    content.innerHTML = `
-        <h3>
-            <img src="${iconPath}" class="style-icon" alt="${style.name} icon" 
-                onerror="this.src='assets/stylesicons/default.png'">
-            ${style.name}
-        </h3>
-        <p>${style.description}</p>
-        <div class="prompt-output" id="prompt-${style.id}"></div>
+    controls.className = 'card-controls';
+    controls.innerHTML = `
+        <div class="left-controls">
+            <div class="history-group">
+                <button class="history-btn prev-btn" title="Previous prompt">
+                    <i class="fas fa-chevron-left"></i>
+                </button>
+                <button class="history-btn next-btn" title="Next prompt">
+                    <i class="fas fa-chevron-right"></i>
+                </button>
+            </div>
+            <button class="refresh-btn" title="Generate new prompt">
+                <i class="fas fa-sync-alt"></i>
+            </button>
+            <button class="copy-btn" title="Copy prompt">
+                <i class="fas fa-copy"></i>
+            </button>
+        </div>
+        <div class="right-controls">
+            <button class="draw-things-btn" title="Send to Draw Things">
+                <span>Send to Draw Things</span>
+                <i class="fas fa-arrow-right"></i>
+            </button>
+        </div>
     `;
 
+    // Append all elements to card
+    card.appendChild(headerSection);
+    card.appendChild(promptContainer);
     card.appendChild(controls);
-    card.appendChild(styleSwitch);
-    card.appendChild(content);
+
+    // Add event listeners
+    setupStyleCardEventListeners(card, style);
 
     return card;
+}
+
+function setupStyleCardEventListeners(card, style) {
+    const generateBtn = card.querySelector('.refresh-btn');
+    const copyBtn = card.querySelector('.copy-btn');
+    const drawThingsBtn = card.querySelector('.draw-things-btn');
+    const toggleInput = card.querySelector('input[type="checkbox"]');
+    const prevBtn = card.querySelector('.history-btn.prev-btn');
+    const nextBtn = card.querySelector('.history-btn.next-btn');
+    const promptContainer = card.querySelector('.prompt-container');
+    const loadingContainer = card.querySelector('.generating-container');
+    const promptDisplay = card.querySelector('.prompt-text');
+
+    generateBtn.addEventListener('click', async () => {
+        // Show loading animation
+        promptDisplay.style.display = 'none';
+        loadingContainer.style.display = 'flex';
+        
+        try {
+            const prompt = await ipcRenderer.invoke('generate-prompt', style.id);
+            
+            // Hide loading and show prompt with animation
+            loadingContainer.style.display = 'none';
+            promptDisplay.style.display = 'block';
+            revealPrompt(prompt, promptDisplay);
+            
+            addToStyleHistory(style.id, prompt);
+            updateHistoryButtons(style.id);
+        } catch (error) {
+            console.error('Error generating prompt:', error);
+            promptDisplay.textContent = 'Error generating prompt';
+            loadingContainer.style.display = 'none';
+            promptDisplay.style.display = 'block';
+        }
+    });
+
+    copyBtn.addEventListener('click', () => copyStylePrompt(style.id));
+    drawThingsBtn.addEventListener('click', () => sendToDrawThings(style.id));
+    toggleInput.addEventListener('change', (e) => toggleStyle(style.id, e.target.checked));
+    prevBtn.addEventListener('click', () => {
+        const prompt = navigateHistory(style.id, -1);
+        if (prompt) {
+            revealPrompt(prompt, promptDisplay);
+            updateHistoryButtons(style.id);
+        }
+    });
+    nextBtn.addEventListener('click', () => {
+        const prompt = navigateHistory(style.id, 1);
+        if (prompt) {
+            revealPrompt(prompt, promptDisplay);
+            updateHistoryButtons(style.id);
+        }
+    });
+}
+
+function revealPrompt(promptText, container) {
+    container.innerHTML = '';
+    const words = promptText.split(' ');
+    
+    words.forEach((word, index) => {
+        const wordSpan = document.createElement('span');
+        wordSpan.textContent = word;
+        wordSpan.className = 'prompt-word';
+        wordSpan.style.animationDelay = `${index * 0.03}s`;
+        container.appendChild(wordSpan);
+        
+        // Add space after word (except for last word)
+        if (index < words.length - 1) {
+            container.appendChild(document.createTextNode(' '));
+        }
+    });
 }
 
 // Funkcja do aktualizacji przycisków historii
@@ -205,7 +258,7 @@ function updateHistoryButtons(styleId) {
     const card = document.querySelector(`[data-style-id="${styleId}"]`);
     if (!card) return;
 
-    const [prevButton, nextButton] = card.querySelectorAll('.history-button');
+    const [prevButton, nextButton] = card.querySelectorAll('.history-btn');
     
     prevButton.disabled = history.currentIndex <= 0;
     nextButton.disabled = history.currentIndex >= history.prompts.length - 1;
@@ -447,21 +500,10 @@ function initializeButtons() {
         }
 
         try {
-            const activeCards = document.querySelectorAll('#activeStyles .style-card');
-            for (const card of activeCards) {
-                const styleId = card.dataset.styleId;
-                const promptOutput = card.querySelector('.prompt-output');
-                if (promptOutput) {
-                    promptOutput.innerHTML = '<span class="loading">Generating...</span>';
-                    const generatedPrompt = await ipcRenderer.invoke('generate-prompt', text, styleId);
-                    updateStylePrompt(styleId, generatedPrompt);
-                    addToStyleHistory(styleId, generatedPrompt);
-                    updateHistoryButtons(styleId);
-                }
-            }
+            await generatePromptsSequentially(text);
         } catch (error) {
             console.error('Error generating prompts:', error);
-            showToast('Error generating prompts');
+            showToast('Error generating prompts: ' + error.message);
         }
     });
 
@@ -675,334 +717,198 @@ async function handleTranslation(text) {
 
 // Zmodyfikuj funkcję generateTagsInBatches
 async function generateTagsInBatches(text, batchSize = 6, totalBatches = 5) {
-    let allTags = new Set(); // Użyj Set aby uniknąć duplikatów
-    
-    // Nie dodawaj domyślnych tagów jeśli jest tekst
-    if (!text.trim()) {
-        DEFAULT_TAGS.forEach(tag => allTags.add(tag));
-        displayTags([...allTags]);
-        return [...allTags];
-    }
+    const tagsArea = document.querySelector('.tags-area');
+    if (!tagsArea) return;
 
-    displayTags('generating');
+    // Show loading animation
+    const loadingContainer = showGeneratingAnimation();
+    tagsArea.innerHTML = '';
+    tagsArea.appendChild(loadingContainer);
 
-    // Przygotuj słowa z promptu do porównania
-    const promptWords = text.toLowerCase()
-        .replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, '')
-        .split(/\s+/)
-        .filter(word => word.length > 2);
-
-    // Generuj tagi w pakietach
-    for (let i = 0; i < totalBatches; i++) {
-        try {
-            const prompt = `Generate ${batchSize} unique, descriptive tags for this prompt. 
-                          Focus on key visual elements and style that are NOT already mentioned in the prompt. 
-                          Return only simple tags, separated by commas, no explanations: ${text}`;
-            
-            const batchTags = await ipcRenderer.invoke('generate-tags', prompt);
-            
-            if (Array.isArray(batchTags)) {
-                batchTags.forEach(tag => {
-                    // Usuń spacje na początku i końcu oraz dodaj tylko niepuste tagi
-                    const cleanTag = tag.trim().toLowerCase();
-                    
-                    // Sprawdź czy tag nie zawiera słów z oryginalnego promptu
-                    const tagWords = cleanTag.split(' ');
-                    const isTagUnique = !tagWords.some(word => 
-                        promptWords.includes(word) || 
-                        promptWords.some(promptWord => 
-                            promptWord.includes(word) || word.includes(promptWord)
-                        )
-                    );
-
-                    // Sprawdź czy podobny tag już nie istnieje
-                    const exists = [...allTags].some(existingTag => {
-                        return existingTag.includes(cleanTag) || 
-                               cleanTag.includes(existingTag) ||
-                               existingTag.split(' ').some(word => 
-                                   cleanTag.split(' ').includes(word)
-                               );
-                    });
-                    
-                    if (cleanTag && isTagUnique && !exists) {
-                        allTags.add(cleanTag);
-                    }
-                });
-            }
-
-            // Aktualizuj wyświetlane tagi po każdym pakiecie
-            if (allTags.size > 0) {
-                // Sortuj tagi po długości
-                const sortedTags = [...allTags].sort((a, b) => {
-                    // Najpierw sortuj po liczbie słów
-                    const aWords = a.split(' ').length;
-                    const bWords = b.split(' ').length;
-                    if (aWords !== bWords) return aWords - bWords;
-                    // Następnie po długości tekstu
-                    return a.length - b.length;
-                });
-                displayTags(sortedTags);
-            }
-
-            // Krótka przerwa między pakietami
-            await new Promise(resolve => setTimeout(resolve, 100));
-        } catch (error) {
-            console.error(`Error generating batch ${i + 1}:`, error);
+    try {
+        const response = await ipcRenderer.invoke('generate-tags', { text, batchSize, totalBatches });
+        if (!response || !response.tags) {
+            throw new Error('No tags received');
         }
-    }
 
-    return [...allTags];
-}
-
-// Zaktualizuj funkcję renderowania karty stylu
-function renderStyleCard(style) {
-    const card = document.createElement('div');
-    card.className = 'style-card';
-    card.dataset.styleId = style.id;
-
-    card.innerHTML = `
-        <h2>${style.name}</h2>
-        <p>${style.description}</p>
-        <!-- reszta zawartości karty -->
-    `;
-
-    return card;
-}
-
-// Dodaj funkcję do renderowania kafelka stylu z ikoną
-function renderStyleTile(style) {
-    const tile = document.createElement('div');
-    tile.className = 'style-tile';
-    tile.setAttribute('data-style-id', style.id);
-
-    // Dodaj kontener dla ikony i nazwy
-    const headerContainer = document.createElement('div');
-    headerContainer.className = 'style-header';
-
-    // Dodaj ikonę
-    const icon = document.createElement('i');
-    icon.className = `fas ${style.icon || 'fa-brush'} style-icon`;
-    
-    // Dodaj nazwę
-    const name = document.createElement('span');
-    name.className = 'style-name';
-    name.textContent = style.name;
-
-    // Połącz elementy
-    headerContainer.appendChild(icon);
-    headerContainer.appendChild(name);
-    tile.appendChild(headerContainer);
-
-    // Dodaj opis jeśli istnieje
-    if (style.description) {
-        const description = document.createElement('div');
-        description.className = 'style-description';
-        description.textContent = style.description;
-        tile.appendChild(description);
-    }
-
-    return tile;
-}
-
-// Funkcja aktualizująca status połączenia
-function updateConnectionStatus(status) {
-    const connectionBtn = document.getElementById('connection-btn');
-    if (!connectionBtn) return;
-
-    const icon = connectionBtn.querySelector('i');
-    const tooltip = connectionBtn.querySelector('.tooltip');
-
-    if (status.isConnected) {
-        connectionBtn.classList.remove('disconnected');
-        connectionBtn.classList.add('connected');
-        icon.className = 'fas fa-plug';
-        tooltip.textContent = `Connected (${status.currentModel || 'No model selected'})`;
-    } else {
-        connectionBtn.classList.remove('connected');
-        connectionBtn.classList.add('disconnected');
-        icon.className = 'fas fa-plug-circle-xmark';
-        tooltip.textContent = status.error || 'Disconnected';
-    }
-
-    // Zawsze aktualizuj tagi modeli
-    updateModelTags(status);
-}
-
-// Add function to update model tags
-function updateModelTags(status) {
-    const modelTagsContainer = document.querySelector('.model-tags');
-    if (!modelTagsContainer) {
-        console.warn('Model tags container not found');
-        return;
-    }
-
-    // Clear existing tags
-    modelTagsContainer.innerHTML = '';
-
-    if (!status || !status.models) {
-        console.log('No models available');
-        return;
-    }
-
-    // Sort models by category
-    const modelsByCategory = {
-        'text': [],
-        'vision': [],
-        'other': []
-    };
-
-    status.models.forEach(model => {
-        const category = getModelCategory(model.id);
-        if (modelsByCategory[category]) {
-            modelsByCategory[category].push(model);
-        } else {
-            modelsByCategory.other.push(model);
-        }
-    });
-
-    // Create tags for each category
-    Object.entries(modelsByCategory).forEach(([category, models]) => {
-        if (models.length > 0) {
-            const categoryDiv = document.createElement('div');
-            categoryDiv.className = `model-category ${category}`;
+        // Hide loading and show tags with animation
+        setTimeout(() => {
+            if (!tagsArea) return;
+            tagsArea.innerHTML = '';
             
-            const categoryTitle = document.createElement('div');
-            categoryTitle.className = 'category-title';
-            categoryTitle.textContent = category.charAt(0).toUpperCase() + category.slice(1);
-            categoryDiv.appendChild(categoryTitle);
-
-            models.forEach(model => {
-                const modelTag = document.createElement('div');
-                modelTag.className = `model-tag ${category}`;
-                modelTag.innerHTML = `
-                    <span class="model-name">${model.id}</span>
-                    <span class="model-size">${formatSize(model.size)}</span>
-                `;
+            const tagsContainer = document.createElement('div');
+            tagsContainer.className = 'tags-container';
+            
+            response.tags.forEach((tag, index) => {
+                const tagElement = document.createElement('div');
+                tagElement.className = 'tag';
+                tagElement.style.animationDelay = `${index * 0.05}s`;
                 
-                // Add click handler for model installation/deletion
-                modelTag.addEventListener('click', async () => {
-                    try {
-                        if (model.installed) {
-                            await ipcRenderer.invoke('delete-model', model.id);
-                            showToast(`Deleting model: ${model.id}`);
-                        } else {
-                            await ipcRenderer.invoke('install-model', model.id);
-                            showToast(`Installing model: ${model.id}`);
-                        }
-                    } catch (error) {
-                        showToast(`Error: ${error.message}`);
+                const tagText = document.createElement('span');
+                tagText.className = 'tag-text';
+                tagText.textContent = tag;
+                
+                const tagButton = document.createElement('button');
+                tagButton.className = 'tag-button';
+                tagButton.innerHTML = '<i class="fas fa-plus"></i>';
+                tagButton.onclick = () => {
+                    const promptInput = document.getElementById('promptInput');
+                    if (promptInput) {
+                        const currentText = promptInput.value;
+                        promptInput.value = currentText ? `${currentText}, ${tag}` : tag;
+                        promptInput.dispatchEvent(new Event('input'));
                     }
-                });
-
-                categoryDiv.appendChild(modelTag);
+                };
+                
+                tagElement.appendChild(tagText);
+                tagElement.appendChild(tagButton);
+                tagsContainer.appendChild(tagElement);
             });
-
-            modelTagsContainer.appendChild(categoryDiv);
+            
+            tagsArea.appendChild(tagsContainer);
+        }, 1000);
+    } catch (error) {
+        console.error('Error generating tags:', error);
+        if (tagsArea) {
+            tagsArea.innerHTML = `
+                <div class="error-message">
+                    <i class="fas fa-exclamation-circle"></i>
+                    <span>Error generating tags: ${error.message}</span>
+                </div>
+            `;
         }
-    });
-}
-
-// Helper function to format file size
-function formatSize(bytes) {
-    if (!bytes) return 'N/A';
-    const units = ['B', 'KB', 'MB', 'GB'];
-    let size = bytes;
-    let unitIndex = 0;
-    while (size >= 1024 && unitIndex < units.length - 1) {
-        size /= 1024;
-        unitIndex++;
     }
-    return `${size.toFixed(1)} ${units[unitIndex]}`;
 }
 
-// Add styles for model tags
+// Add this to your styles.css
 document.head.insertAdjacentHTML('beforeend', `
     <style>
-        .model-tags {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            padding: 10px;
+    .error-message {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        color: var(--error);
+        padding: 10px;
+        border-radius: 6px;
+        background: rgba(244, 67, 54, 0.1);
+    }
+    
+    .error-message i {
+        font-size: 18px;
+    }
+    
+    .tags-container {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+    }
+    
+    .tag {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        padding: 6px 10px;
+        background: var(--card-background);
+        border-radius: 4px;
+        opacity: 0;
+        transform: translateY(10px);
+        animation: fadeInUp 0.3s forwards;
+    }
+    
+    @keyframes fadeInUp {
+        to {
+            opacity: 1;
+            transform: translateY(0);
         }
-
-        .model-category {
-            display: flex;
-            flex-direction: column;
-            gap: 5px;
-        }
-
-        .category-title {
-            font-weight: bold;
-            color: #888;
-            margin-bottom: 5px;
-        }
-
-        .model-tag {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 8px 12px;
-            background: rgba(255, 255, 255, 0.05);
-            border-radius: 6px;
-            cursor: pointer;
-            transition: all 0.2s ease;
-        }
-
-        .model-tag:hover {
-            background: rgba(255, 255, 255, 0.1);
-        }
-
-        .model-name {
-            font-weight: 500;
-        }
-
-        .model-size {
-            color: #888;
-            font-size: 0.9em;
-        }
-
-        .model-tag.text {
-            border-left: 3px solid #4CAF50;
-        }
-
-        .model-tag.vision {
-            border-left: 3px solid #2196F3;
-        }
-
-        .model-tag.other {
-            border-left: 3px solid #9C27B0;
-        }
+    }
+    
+    .tag-text {
+        color: var(--text);
+    }
+    
+    .tag-button {
+        background: none;
+        border: none;
+        color: var(--text-secondary);
+        cursor: pointer;
+        padding: 2px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: color 0.2s;
+    }
+    
+    .tag-button:hover {
+        color: var(--text);
+    }
     </style>
 `);
-
-// Add function to determine model category
-function getModelCategory(modelId) {
-    if (!modelId) return 'other';
-    
-    const modelLower = modelId.toLowerCase();
-    
-    // Check NSFW first
-    if (modelLower.includes('dolphin-') || modelLower.includes('uncensored')) {
-        return 'NSFW';
-    }
-    
-    // Check Vision models
-    if (modelLower.includes('llava') || modelLower.includes('vision') || modelLower.includes('bakllava')) {
-        return 'Vision';
-    }
-    
-    // Check SFW models
-    const sfwPrefixes = ['llama', 'gemma', 'mistral', 'mixtral', 'phi', 'qwen'];
-    if (sfwPrefixes.some(prefix => modelLower.startsWith(prefix))) {
-        return 'SFW';
-    }
-    
-    // Default to Other
-    return 'Other';
-}
 
 // Nasłuchuj na zmiany statusu
 ipcRenderer.on('ollama-status', (event, status) => {
     console.log('Received ollama status update:', status);
     updateConnectionStatus(status);
 });
+
+// Funkcja do sekwencyjnego generowania promptów
+async function generatePromptsSequentially(basePrompt) {
+    const activeCards = document.querySelectorAll('.style-card');
+    for (const card of activeCards) {
+        const toggle = card.querySelector('input[type="checkbox"]');
+        if (!toggle || !toggle.checked) continue;
+
+        const promptContainer = card.querySelector('.prompt-container');
+        const loadingContainer = card.querySelector('.generating-container');
+        const promptDisplay = card.querySelector('.prompt-text');
+        
+        if (!promptContainer || !loadingContainer || !promptDisplay) continue;
+
+        try {
+            // Pokaż animację ładowania
+            loadingContainer.style.display = 'flex';
+            promptDisplay.textContent = '';
+
+            // Generuj prompt
+            const styleId = card.dataset.styleId;
+            const response = await ipcRenderer.invoke('generate-prompt', {
+                basePrompt,
+                style: styleId
+            });
+
+            // Ukryj animację ładowania
+            loadingContainer.style.display = 'none';
+
+            // Pokaż wygenerowany prompt z animacją
+            await revealPrompt(response.prompt, promptDisplay);
+            
+            // Dodaj do historii
+            addToStyleHistory(styleId, response.prompt);
+            updateHistoryButtons(styleId);
+
+        } catch (error) {
+            console.error('Error generating prompt:', error);
+            loadingContainer.style.display = 'none';
+            promptDisplay.textContent = 'Error generating prompt';
+            showToast('Error: ' + error.message);
+        }
+    }
+}
+
+// Funkcja do animacji promptu
+function revealPrompt(promptText, container) {
+    container.innerHTML = '';
+    const words = promptText.split(' ');
+    
+    words.forEach((word, index) => {
+        const wordSpan = document.createElement('span');
+        wordSpan.textContent = word;
+        wordSpan.className = 'prompt-word';
+        wordSpan.style.animationDelay = `${index * 0.03}s`;
+        container.appendChild(wordSpan);
+        
+        // Add space after word (except for last word)
+        if (index < words.length - 1) {
+            container.appendChild(document.createTextNode(' '));
+        }
+    });
+}
