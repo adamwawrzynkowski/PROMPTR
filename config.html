@@ -2,8 +2,50 @@
 <html>
 <head>
     <title>Ollama Configuration</title>
-    <link rel="stylesheet" href="config.css">
+    <link rel="stylesheet" href="styles/main.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        /* Custom styles specific to config.html */
+        .model-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-top: 16px;
+        }
+
+        .model-tag {
+            padding: 6px 12px;
+            border-radius: 4px;
+            background: var(--button-background);
+            color: var(--text);
+            font-size: 14px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .model-tag:hover {
+            background: var(--button-hover);
+        }
+
+        .model-tag.installed {
+            background: var(--success);
+            color: white;
+        }
+
+        .model-tag .size {
+            font-size: 12px;
+            opacity: 0.8;
+        }
+
+        .models-section-title {
+            margin: 24px 0 12px;
+            font-size: 18px;
+            font-weight: 500;
+        }
+    </style>
 </head>
 <body>
     <div class="container">

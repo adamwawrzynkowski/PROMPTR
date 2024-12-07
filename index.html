@@ -3,59 +3,59 @@
 <head>
     <meta charset="UTF-8">
     <title>Prompt Editor</title>
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles/main.css">
     <link rel="stylesheet" href="animations.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="stylesheet" href="history.css">
 </head>
 <body>
     <div class="title-bar">
-        <div class="window-controls">
-            <button class="window-control close" id="close-btn">
-                <i class="fas fa-times"></i>
-            </button>
-            <button class="window-control minimize" id="minimize-btn">
-                <i class="fas fa-minus"></i>
-            </button>
-            <button class="window-control maximize" id="maximize-btn">
-                <i class="fas fa-expand"></i>
-            </button>
-        </div>
-        <div class="title-bar-logo">
-            PROMPTR
-            <span class="titlebar-version">v1.0</span>
+        <div class="title-bar-left">
+            <div class="window-controls">
+                <button class="window-control close" id="close-btn">
+                    <i class="fas fa-times"></i>
+                </button>
+                <button class="window-control minimize" id="minimize-btn">
+                    <i class="fas fa-minus"></i>
+                </button>
+                <button class="window-control maximize" id="maximize-btn">
+                    <i class="fas fa-expand"></i>
+                </button>
+            </div>
+            <div class="title-bar-logo">
+                PROMPTR
+                <span class="titlebar-version">v1.0</span>
+            </div>
             <div class="title-bar-support">
-                <div class="coffee-button" title="Buy me a coffee">
+                <button class="coffee-button" title="Buy me a coffee">
                     <i class="fas fa-coffee"></i>
-                    <div class="tooltip">Buy me a coffee</div>
-                </div>
+                </button>
                 <button id="credits-btn" class="title-bar-button" title="Credits">
                     <i class="fas fa-info-circle"></i>
                 </button>
-                <div class="model-tags">
-                    <div class="model-tag text-model" title="Text Model">
-                        <i class="fas fa-pen"></i>
-                        <span class="model-name">Not selected</span>
-                    </div>
-                    <div class="model-tag vision-model" title="Vision Model">
-                        <i class="fas fa-eye"></i>
-                        <span class="model-name">Not selected</span>
-                    </div>
+            </div>
+            <div class="model-tags">
+                <div class="model-tag text-model" title="Text Model">
+                    <i class="fas fa-pen"></i>
+                    <span class="model-name">Not selected</span>
+                </div>
+                <div class="model-tag vision-model" title="Vision Model">
+                    <i class="fas fa-eye"></i>
+                    <span class="model-name">Not selected</span>
                 </div>
             </div>
         </div>
-        <div class="title-bar-items">
-            <div class="title-bar-item connection-status" id="connection-btn">
-                <i class="fas fa-plug"></i>
-                <div class="tooltip">Disconnected</div>
-            </div>
-            <div class="title-bar-item history" id="history-btn">
-                <i class="fas fa-clock-rotate-left"></i>
-                <div class="tooltip">History</div>
-            </div>
-            <div class="title-bar-item settings" id="settings-btn">
-                <i class="fas fa-gear"></i>
-                <div class="tooltip">Settings</div>
+        <div class="title-bar-right">
+            <div class="title-bar-items">
+                <button class="title-bar-item connection-status" id="connection-btn" title="Ollama Status">
+                    <i class="fas fa-plug"></i>
+                </button>
+                <button class="title-bar-item" id="history-btn" title="History">
+                    <i class="fas fa-history"></i>
+                </button>
+                <button class="title-bar-item" id="settings-btn" title="Settings">
+                    <i class="fas fa-cog"></i>
+                </button>
             </div>
         </div>
     </div>
@@ -63,16 +63,21 @@
         <div class="main-content">
             <div class="prompt-input-container">
                 <div class="prompt-input-wrapper">
-                    <textarea id="promptInput" placeholder="Enter your prompt here..."></textarea>
+                    <div class="prompt-textarea-container">
+                        <textarea id="promptInput" placeholder="Enter your prompt here..." rows="3"></textarea>
+                    </div>
                     <div class="input-buttons">
-                        <button id="visionBtn" class="tool-button" title="Prompt from Image">
+                        <button id="visionBtn" class="tool-button" title="Add Image">
                             <i class="fas fa-image"></i>
+                            <span>Vision</span>
                         </button>
                         <button id="copyPromptBtn" class="tool-button" title="Copy Prompt">
                             <i class="fas fa-copy"></i>
+                            <span>Copy</span>
                         </button>
                         <button id="clearPromptBtn" class="tool-button" title="Clear Prompt">
                             <i class="fas fa-times"></i>
+                            <span>Clear</span>
                         </button>
                     </div>
                 </div>

@@ -1,0 +1,164 @@
+@import 'variables.css';
+
+.input-section {
+    position: sticky;
+    bottom: 20px;
+    margin-top: 30px;
+    margin-bottom: 0;
+    z-index: 10;
+    flex-shrink: 0;
+    height: 120px;
+    position: relative;
+    border-radius: 10px;
+    padding: 1px;
+    color: var(--text);
+    border: 1px solid var(--border);
+    background: var(--card-background);
+}
+
+.input-section.generating {
+    border-color: transparent;
+}
+
+.input-section.generating::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    background: linear-gradient(90deg, 
+        var(--accent-color-1, #ff0000), 
+        var(--accent-color-2, #00ff00), 
+        var(--accent-color-1, #ff0000)
+    );
+    background-size: 200% 100%;
+    animation: borderMove 2s linear infinite;
+    z-index: -1;
+    border-radius: 10px;
+    -webkit-mask: 
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+}
+
+.prompt-input-container {
+    width: 100%;
+    margin: 20px 0;
+    background: var(--card-background);
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.prompt-input-wrapper {
+    display: flex;
+    align-items: stretch;
+    min-height: 120px;
+    position: relative;
+}
+
+.prompt-textarea-container {
+    flex: 1;
+    position: relative;
+}
+
+#promptInput {
+    width: 100%;
+    height: 100%;
+    min-height: 90px;
+    padding: 30px;
+    background: transparent;
+    border: none;
+    color: var(--text);
+    font-size: 16px;
+    line-height: 1.5;
+    resize: none;
+    outline: none;
+    font-family: inherit;
+}
+
+#promptInput::placeholder {
+    color: var(--text-secondary);
+    opacity: 0.6;
+}
+
+#promptInput::selection {
+    background: rgba(147, 112, 219, 0.3);
+    color: var(--text);
+}
+
+.input-buttons {
+    display: flex;
+    flex-direction: column;
+    padding: 10px;
+    gap: 8px;
+    border-left: 1px solid var(--border);
+}
+
+.tool-button {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 14px;
+    white-space: nowrap;
+}
+
+.tool-button i {
+    font-size: 16px;
+    width: 20px;
+    text-align: center;
+}
+
+.tool-button span {
+    display: inline-block;
+}
+
+.tool-button:hover {
+    background: var(--button-hover);
+    color: var(--text);
+    border-color: var(--text-secondary);
+}
+
+.tags-container {
+    padding: 10px 15px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    border-top: 1px solid var(--border);
+    align-items: center;
+}
+
+.prompt-input-container:focus-within {
+    border-color: rgba(147, 112, 219, 0.5);
+    box-shadow: 0 0 0 1px rgba(147, 112, 219, 0.5);
+}
+
+#promptInput::-webkit-scrollbar {
+    width: 8px;
+}
+
+#promptInput::-webkit-scrollbar-track {
+    background: var(--background);
+    border-radius: 4px;
+}
+
+#promptInput::-webkit-scrollbar-thumb {
+    background: rgba(147, 112, 219, 0.2);
+    border-radius: 4px;
+}
+
+#promptInput::-webkit-scrollbar-thumb:hover {
+    background: rgba(147, 112, 219, 0.3);
+}
+
+/* Elements that shouldn't respond to window dragging */
+input, button, textarea, [role="button"] {
+    -webkit-app-region: no-drag;
+}

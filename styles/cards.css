@@ -1,0 +1,231 @@
+@import 'variables.css';
+
+/* Card styles */
+.option-card {
+    background: var(--card-background);
+    border-radius: 10px;
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    position: relative;
+    overflow: hidden;
+    min-height: 300px;
+    height: auto;
+    border: 1px solid var(--border);
+    transition: transform 0.2s ease;
+    will-change: transform, background-position;
+}
+
+.option-card h2 {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--text);
+}
+
+.option-card h2 i {
+    font-size: 20px;
+    opacity: 0.8;
+}
+
+.option-card p {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin-bottom: 10px;
+    overflow-y: auto;
+    max-height: 80px;
+    line-height: 1.4;
+    flex-shrink: 0;
+    padding-right: 8px;
+}
+
+.option-card.generating {
+    position: relative;
+}
+
+.option-card.generating::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    background: linear-gradient(90deg, 
+        var(--accent-color-1, #ff0000), 
+        var(--accent-color-2, #00ff00), 
+        var(--accent-color-1, #ff0000)
+    );
+    background-size: 200% 100%;
+    animation: borderMove 2s linear infinite;
+    z-index: -1;
+    border-radius: 10px;
+    -webkit-mask: 
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+}
+
+/* Card hover effect */
+.option-card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(
+        600px circle at var(--mouse-x, 0) var(--mouse-y, 0),
+        rgba(255, 255, 255, 0.06),
+        transparent 40%
+    );
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.option-card:hover::after {
+    opacity: 1;
+}
+
+/* Options grid */
+.options-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 25px;
+    padding: 5px;
+    margin: 0 auto;
+    width: 100%;
+    max-width: 1400px;
+}
+
+.options-grid::-webkit-scrollbar {
+    width: 8px;
+}
+
+.options-grid::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+}
+
+.options-grid::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+}
+
+.options-grid::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+/* Style cards */
+.style-card {
+    background: var(--card-background);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    position: relative;
+    overflow: hidden;
+}
+
+.style-card.generating {
+    position: relative;
+}
+
+.style-card.generating::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    background: linear-gradient(90deg, 
+        var(--accent-color-1, #ff0000), 
+        var(--accent-color-2, #00ff00), 
+        var(--accent-color-1, #ff0000)
+    );
+    background-size: 200% 100%;
+    animation: borderMove 2s linear infinite;
+    z-index: -1;
+    border-radius: 10px;
+    -webkit-mask: 
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+}
+
+.style-card .description {
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    margin: 0;
+}
+
+.style-card .prompt-text {
+    font-size: 14px;
+    color: var(--text);
+    line-height: 1.6;
+    margin: 0;
+}
+
+.style-card .button-group {
+    display: flex;
+    gap: 8px;
+    margin-top: auto;
+}
+
+.style-card .action-btn {
+    background: var(--button-background);
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.style-card .action-btn:hover {
+    background: var(--button-hover);
+    transform: translateY(-1px);
+}
+
+.style-card .action-btn i {
+    font-size: 14px;
+}
+
+.draw-things-btn {
+    background: rgba(147, 51, 234, 0.2) !important;
+    color: rgb(216, 180, 254) !important;
+}
+
+.draw-things-btn:hover {
+    background: rgba(147, 51, 234, 0.3) !important;
+}
+
+.draw-things-btn span {
+    background: linear-gradient(90deg, #f0abfc, #c084fc);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.style-card.generating::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg,
+        transparent,
+        rgba(255, 255, 255, 0.1),
+        transparent
+    );
+    transform: translateX(-100%);
+    animation: shimmer 2s infinite;
+}
+
+/* Responsiveness */
+@media (max-width: 768px) {
+    .options-grid {
+        grid-template-columns: 1fr;
+        padding: 5px 20px;
+    }
+}
