@@ -1,5 +1,65 @@
 @import 'variables.css';
 
+/* Style cards container */
+.styles-section {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    overflow: hidden;
+}
+
+.styles-nav {
+    display: flex;
+    gap: 20px;
+    padding: 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--background);
+}
+
+.styles-nav-item {
+    color: var(--text-secondary);
+    font-size: 14px;
+    cursor: pointer;
+    padding: 8px 16px;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+}
+
+.styles-nav-item:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.styles-nav-item.active {
+    color: var(--text);
+    background: var(--card-background);
+}
+
+.styles-container {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 20px;
+    padding: 20px;
+    overflow-y: auto;
+    height: 100%;
+}
+
+.styles-container::-webkit-scrollbar {
+    width: 8px;
+}
+
+.styles-container::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.styles-container::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 4px;
+}
+
+.styles-container::-webkit-scrollbar-thumb:hover {
+    background: var(--text-secondary);
+}
+
 /* Style cards */
 .style-card {
     background: var(--card-background);
@@ -8,6 +68,8 @@
     padding: 20px;
     position: relative;
     transition: all 0.3s ease;
+    width: 100%;
+    height: fit-content;
 }
 
 .style-card .description {
@@ -305,4 +367,66 @@
 
 .toast.error {
     border-color: var(--error);
+}
+
+/* macOS-style switch */
+.style-switch {
+    width: 51px;
+    height: 31px;
+    border-radius: 31px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid var(--border);
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.style-switch.active {
+    background: #8b5cf6;
+    border-color: #8b5cf6;
+}
+
+.style-switch::before {
+    content: "";
+    position: absolute;
+    width: 25px;
+    height: 25px;
+    left: 3px;
+    background: white;
+    border-radius: 50%;
+    transition: all 0.3s cubic-bezier(0.4, 0.0, 0.2, 1);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+
+.style-switch.active::before {
+    transform: translateX(20px);
+}
+
+/* Styles navigation */
+.styles-nav {
+    display: flex;
+    gap: 20px;
+    padding: 20px;
+    border-bottom: 1px solid var(--border);
+    background: var(--background);
+}
+
+.styles-nav-item {
+    color: var(--text-secondary);
+    font-size: 14px;
+    cursor: pointer;
+    padding: 8px 16px;
+    border-radius: 8px;
+    transition: all 0.2s ease;
+}
+
+.styles-nav-item:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.styles-nav-item.active {
+    color: var(--text);
+    background: var(--card-background);
 }

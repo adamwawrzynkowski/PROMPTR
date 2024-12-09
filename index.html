@@ -84,31 +84,26 @@
                 <div id="tags-container" class="tags-container"></div>
             </div>
 
-            <div class="styles-container">
-                <div class="styles-header">
-                    <h2>Styles</h2>
-                    <div class="styles-actions">
-                        <button id="generatePrompts" class="action-button">
-                            <i class="fas fa-wand-magic-sparkles"></i>
-                            Generate Prompts
-                        </button>
-                        <button id="manageStyles" class="secondary-button">
-                            <i class="fas fa-cog"></i>
-                            Manage Styles
-                        </button>
+            <div class="styles-section">
+                <div class="styles-nav">
+                    <div class="styles-nav-left">
+                        <div class="styles-switch">
+                            <div class="switch-buttons">
+                                <button class="switch-btn active" data-view="active">Active Styles</button>
+                                <button class="switch-btn" data-view="inactive">Inactive Styles</button>
+                            </div>
+                            <input type="checkbox" id="stylesToggle" checked>
+                        </div>
+                    </div>
+                    <div class="styles-nav-right">
+                        <button class="styles-nav-item generate-btn">Generate Prompts</button>
+                        <button class="styles-nav-item manage-btn">Manage Styles</button>
                     </div>
                 </div>
                 
-                <div class="styles-scroll-container">
-                    <div class="active-styles" id="activeStyles">
+                <div class="styles-container">
+                    <div class="styles-list" id="stylesList">
                         <!-- Style cards will be inserted here -->
-                    </div>
-
-                    <div class="inactive-styles-header">
-                        <h3>Inactive Styles</h3>
-                    </div>
-                    <div class="inactive-styles" id="inactiveStyles">
-                        <!-- Inactive style cards will be moved here -->
                     </div>
                 </div>
             </div>

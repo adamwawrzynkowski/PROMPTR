@@ -85,102 +85,99 @@ function createStyleCard(style) {
     card.className = 'style-card';
     card.dataset.styleId = style.id;
 
-    // Create header section with title, description and toggle
-    const headerSection = document.createElement('div');
-    headerSection.className = 'header-section';
-
-    // Create title line with icon, name and toggle
-    const titleLine = document.createElement('div');
-    titleLine.className = 'title-line';
-    titleLine.innerHTML = `
-        <div class="title-with-icon">
-            <i class="fas fa-${style.icon}"></i>
-            <span>${style.name}</span>
-        </div>
-        <div class="style-toggle">
-            <label class="switch">
-                <input type="checkbox" ${style.active ? 'checked' : ''}>
-                <span class="slider"></span>
-            </label>
-        </div>
-    `;
-
-    // Add description directly under title
+    const header = document.createElement('div');
+    header.className = 'style-card-header';
+    
+    const title = document.createElement('div');
+    title.className = 'style-card-title';
+    title.innerHTML = `<i class="fas fa-${style.icon}"></i> ${style.name}`;
+    
     const description = document.createElement('div');
-    description.className = 'description';
-    description.textContent = style.description;
-
-    headerSection.appendChild(titleLine);
-    headerSection.appendChild(description);
-
-    // Create prompt container with animation support
-    const promptContainer = document.createElement('div');
-    promptContainer.className = 'prompt-container';
+    description.className = 'style-card-description';
+    description.textContent = style.description || 'No description available';
     
-    // Create loading animation container
-    const loadingContainer = document.createElement('div');
-    loadingContainer.className = 'generating-container';
-    loadingContainer.style.display = 'none';
-    loadingContainer.innerHTML = `
-        <div class="generating-tiles">
-            ${Array(9).fill('<div class="generating-tile"></div>').join('')}
-        </div>
-        <div class="generating-icon">
-            <i class="fas fa-magic"></i>
-        </div>
-        <div class="generating-text">
-            ${Array.from('Generating...').map(char => `<span>${char}</span>`).join('')}
-        </div>
-    `;
-    
-    // Create prompt display (empty by default)
-    const promptDisplay = document.createElement('div');
-    promptDisplay.className = 'prompt-text';
-    
-    promptContainer.appendChild(loadingContainer);
-    promptContainer.appendChild(promptDisplay);
+    header.appendChild(title);
+    header.appendChild(description);
 
-    // Create controls
+    // Controls container (switch and generate button)
     const controls = document.createElement('div');
-    controls.className = 'card-controls';
-    controls.innerHTML = `
-        <div class="left-controls">
-            <div class="history-group">
-                <button class="history-btn prev-btn" title="Previous prompt">
-                    <i class="fas fa-chevron-left"></i>
-                </button>
-                <button class="history-btn next-btn" title="Next prompt">
-                    <i class="fas fa-chevron-right"></i>
-                </button>
-            </div>
-            <button class="refresh-btn" title="Generate new prompt">
-                <i class="fas fa-sync-alt"></i>
-            </button>
-            <button class="copy-btn" title="Copy prompt">
-                <i class="fas fa-copy"></i>
-            </button>
-        </div>
-        <div class="right-controls">
-            <button class="draw-things-btn" title="Send to Draw Things">
-                <span>Send to Draw Things</span>
-                <i class="fas fa-arrow-right"></i>
-            </button>
-        </div>
-    `;
+    controls.className = 'style-card-controls';
+    
+    const generateBtn = document.createElement('button');
+    generateBtn.className = 'generate-btn';
+    generateBtn.textContent = 'Generate';
+    generateBtn.onclick = (e) => {
+        e.stopPropagation();
+        // Dodaj tutaj logikę generowania promptu
+    };
+    
+    const toggle = document.createElement('div');
+    toggle.className = 'style-toggle';
+    const toggleInput = document.createElement('input');
+    toggleInput.type = 'checkbox';
+    toggleInput.checked = style.active;
+    toggle.appendChild(toggleInput);
+    toggle.onclick = (e) => {
+        e.stopPropagation();
+        const isActive = !toggleInput.checked;
+        toggleStyle(style.id, isActive);
+    };
 
-    // Append all elements to card
-    card.appendChild(headerSection);
-    card.appendChild(promptContainer);
+    controls.appendChild(generateBtn);
+    controls.appendChild(toggle);
+    
+    const preview = document.createElement('div');
+    preview.className = 'prompt-preview empty';
+    preview.textContent = 'Click Generate to create a prompt...';
+    
+    const actions = document.createElement('div');
+    actions.className = 'prompt-actions';
+    
+    const leftActions = document.createElement('div');
+    leftActions.className = 'prompt-actions-left';
+    
+    // Grupa przycisków historii
+    const historyButtons = document.createElement('div');
+    historyButtons.className = 'history-buttons';
+    
+    const undoBtn = document.createElement('button');
+    undoBtn.className = 'prompt-action-btn';
+    undoBtn.innerHTML = '<i class="fas fa-undo"></i>';
+    undoBtn.title = 'Previous prompt';
+    
+    const redoBtn = document.createElement('button');
+    redoBtn.className = 'prompt-action-btn';
+    redoBtn.innerHTML = '<i class="fas fa-redo"></i>';
+    redoBtn.title = 'Next prompt';
+    
+    historyButtons.appendChild(undoBtn);
+    historyButtons.appendChild(redoBtn);
+    
+    const copyBtn = document.createElement('button');
+    copyBtn.className = 'prompt-action-btn';
+    copyBtn.innerHTML = '<i class="fas fa-copy"></i>';
+    copyBtn.title = 'Copy prompt';
+    
+    leftActions.appendChild(historyButtons);
+    leftActions.appendChild(copyBtn);
+    
+    const drawBtn = document.createElement('button');
+    drawBtn.className = 'send-to-draw-btn';
+    drawBtn.innerHTML = '<i class="fas fa-arrow-right"></i> Send to Draw Things';
+    
+    actions.appendChild(leftActions);
+    actions.appendChild(drawBtn);
+    
+    card.appendChild(header);
     card.appendChild(controls);
-
-    // Add event listeners
-    setupStyleCardEventListeners(card, style);
-
+    card.appendChild(preview);
+    card.appendChild(actions);
+    
     return card;
 }
 
 function setupStyleCardEventListeners(card, style) {
-    const generateBtn = card.querySelector('.refresh-btn');
+    const generateBtn = card.querySelector('.generate-btn');
     const copyBtn = card.querySelector('.copy-btn');
     const drawThingsBtn = card.querySelector('.draw-things-btn');
     const toggleInput = card.querySelector('input[type="checkbox"]');
@@ -255,7 +252,7 @@ function updateHistoryButtons(styleId) {
     const history = styleHistories.get(styleId);
     if (!history) return;
 
-    const card = document.querySelector(`[data-style-id="${styleId}"]`);
+    const card = document.querySelector(`.style-card[data-style-id="${styleId}"]`);
     if (!card) return;
 
     const [prevButton, nextButton] = card.querySelectorAll('.history-btn');
@@ -276,79 +273,137 @@ function updateDrawThingsButton(button) {
 
 // Funkcja do przełączania aktywności stylu
 function toggleStyle(styleId, active) {
-    const card = document.querySelector(`[data-style-id="${styleId}"]`);
+    const card = document.querySelector(`.style-card[data-style-id="${styleId}"]`);
     if (!card) return;
 
-    card.classList.add('moving');
+    // Save the new state
+    localStorage.setItem(`style_${styleId}_active`, active);
     
-    if (active) {
-        document.getElementById('activeStyles').appendChild(card);
-    } else {
-        document.getElementById('inactiveStyles').appendChild(card);
+    // Update the toggle switch in the card
+    const toggle = card.querySelector('.style-toggle input[type="checkbox"]');
+    if (toggle) {
+        toggle.checked = active;
     }
 
-    setTimeout(() => card.classList.remove('moving'), 300);
+    // Update card appearance
+    card.classList.toggle('active', active);
     
-    // Zapisz stan w konfiguracji
-    saveStyleState(styleId, active);
+    // Animate the card
+    card.style.opacity = '0';
+    card.style.transform = 'scale(0.8)';
+    
+    // After animation, update visibility
+    setTimeout(() => {
+        const currentView = document.querySelector('.switch-btn.active')?.dataset.view === 'active';
+        if (currentView === active) {
+            card.style.display = '';
+            setTimeout(() => {
+                card.style.opacity = '1';
+                card.style.transform = 'scale(1)';
+            }, 10);
+        } else {
+            card.style.display = 'none';
+        }
+    }, 300);
 }
 
-// Dodaj pozostałe funkcje pomocnicze...
+// Funkcja do przełączania widoku aktywnych/nieaktywnych stylów
+function toggleStylesView(showActive) {
+    const cards = document.querySelectorAll('.style-card');
+    const activeBtn = document.querySelector('.switch-btn[data-view="active"]');
+    const inactiveBtn = document.querySelector('.switch-btn[data-view="inactive"]');
+
+    // Update button states
+    activeBtn.classList.toggle('active', showActive);
+    inactiveBtn.classList.toggle('active', !showActive);
+
+    // Update card visibility with animation
+    cards.forEach(card => {
+        const styleId = card.dataset.styleId;
+        const isCardActive = localStorage.getItem(`style_${styleId}_active`) === 'true';
+        
+        if (isCardActive === showActive) {
+            card.style.display = '';
+            setTimeout(() => {
+                card.style.opacity = '1';
+                card.style.transform = 'scale(1)';
+            }, 10);
+        } else {
+            card.style.opacity = '0';
+            card.style.transform = 'scale(0.8)';
+            setTimeout(() => {
+                card.style.display = 'none';
+            }, 300);
+        }
+    });
+}
+
+// Initialize switch functionality
+document.addEventListener('DOMContentLoaded', () => {
+    const switchBtns = document.querySelectorAll('.switch-btn');
+
+    // Load styles first
+    loadStyles();
+
+    // Handle button clicks for view switching
+    switchBtns.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const isActive = btn.dataset.view === 'active';
+            toggleStylesView(isActive);
+        });
+    });
+
+    // Handle style toggle switches
+    document.addEventListener('change', (e) => {
+        if (e.target.matches('.style-toggle input[type="checkbox"]')) {
+            const card = e.target.closest('.style-card');
+            if (card) {
+                const styleId = card.dataset.styleId;
+                toggleStyle(styleId, e.target.checked);
+            }
+        }
+    });
+
+    // Initial state - show active styles
+    toggleStylesView(true);
+});
 
 // Funkcja do ładowania stylów
-async function loadStyles() {
-    console.log('Loading styles...');
-    const activeContainer = document.getElementById('activeStyles');
-    const inactiveContainer = document.getElementById('inactiveStyles');
-    
-    if (!activeContainer || !inactiveContainer) {
-        console.error('Style containers not found');
+function loadStyles() {
+    const stylesList = document.querySelector('.styles-list');
+    if (!stylesList) {
+        console.error('Styles list container not found');
         return;
     }
 
-    try {
-        const styles = await ipcRenderer.invoke('get-styles');
-        console.log('Received styles:', styles);
+    stylesList.innerHTML = '';
 
-        if (!styles || typeof styles !== 'object') {
-            console.error('Invalid styles data received:', styles);
-            return;
-        }
-
-        // Wyczyść kontenery
-        activeContainer.innerHTML = '';
-        inactiveContainer.innerHTML = '';
-
-        // Utwórz i dodaj karty dla każdego stylu
-        Object.entries(styles).forEach(([id, style]) => {
-            if (!style || typeof style !== 'object') {
-                console.error('Invalid style data:', style);
-                return;
-            }
-
-            const styleData = {
-                id,
-                ...style,
-                active: style.active !== false
-            };
-            
-            try {
-                const card = createStyleCard(styleData);
-                const container = styleData.active ? activeContainer : inactiveContainer;
-                container.appendChild(card);
-            } catch (error) {
-                console.error('Error creating style card:', error);
-            }
+    // Załaduj style z localStorage lub użyj domyślnych
+    Object.entries(DEFAULT_STYLES).forEach(([id, style]) => {
+        const savedState = localStorage.getItem(`style_${id}_active`);
+        const isActive = savedState !== null ? savedState === 'true' : style.active;
+        
+        const card = createStyleCard({
+            id,
+            name: style.name,
+            description: style.description,
+            icon: style.icon,
+            active: isActive
         });
-
-        console.log('Styles loaded successfully');
-    } catch (error) {
-        console.error('Error loading styles:', error);
-        showToast('Error loading styles');
-    }
+        
+        // Set initial visibility based on current view
+        const currentView = document.querySelector('.switch-btn.active')?.dataset.view === 'active';
+        if (isActive !== currentView) {
+            card.style.display = 'none';
+            card.style.opacity = '0';
+            card.style.transform = 'scale(0.8)';
+        }
+        
+        stylesList.appendChild(card);
+    });
 }
 
-// Dodaj funkcję do aktualizacji promptu w karcie stylu
+// Funkcja do aktualizacji promptu w karcie stylu
 function updateStylePrompt(styleId, prompt) {
     const promptOutput = document.querySelector(`#prompt-${styleId}`);
     if (promptOutput) {
@@ -356,7 +411,7 @@ function updateStylePrompt(styleId, prompt) {
     }
 }
 
-// Dodaj funkcję do kopiowania promptu
+// Funkcja do kopiowania promptu
 function copyStylePrompt(styleId) {
     const promptOutput = document.querySelector(`#prompt-${styleId}`);
     if (promptOutput && promptOutput.textContent) {
@@ -365,7 +420,7 @@ function copyStylePrompt(styleId) {
     }
 }
 
-// Dodaj funkcję do wysyłania do Draw Things
+// Funkcja do wysyłania do Draw Things
 async function sendToDrawThings(styleId) {
     const promptOutput = document.querySelector(`#prompt-${styleId}`);
     if (!promptOutput || !promptOutput.textContent) return;
@@ -378,7 +433,7 @@ async function sendToDrawThings(styleId) {
     }
 }
 
-// Dodaj funkcję do sprawdzania połączenia z Draw Things
+// Funkcja do sprawdzania połączenia z Draw Things
 async function checkDrawThingsConnection() {
     try {
         return await ipcRenderer.invoke('check-draw-things');
@@ -388,7 +443,7 @@ async function checkDrawThingsConnection() {
     }
 }
 
-// Dodaj funkcję do zapisywania stanu stylu
+// Funkcja do zapisywania stanu stylu
 async function saveStyleState(styleId, active) {
     try {
         await ipcRenderer.invoke('save-style-state', { styleId, active });
@@ -397,7 +452,7 @@ async function saveStyleState(styleId, active) {
     }
 }
 
-// Dodaj funkcję do wyświetlania powiadomień
+// Funkcja do wyświetlania powiadomień
 function showToast(message) {
     const toast = document.createElement('div');
     toast.className = 'toast';
@@ -568,6 +623,18 @@ function initializeButtons() {
     document.querySelector('.coffee-button')?.addEventListener('click', () => {
         require('electron').shell.openExternal('https://buymeacoffee.com/a_wawrzynkowski');
     });
+
+    // Inicjalizacja przełącznika stylów
+    const stylesToggle = document.getElementById('stylesToggle');
+    const switchContainer = document.querySelector('.switch-container');
+    
+    if (stylesToggle && switchContainer) {
+        // Obsługa kliknięcia w kontener przełącznika
+        switchContainer.addEventListener('click', () => {
+            stylesToggle.checked = !stylesToggle.checked;
+            toggleStylesView(stylesToggle.checked);
+        });
+    }
 }
 
 // Funkcja debounce (jeśli jeszcze nie jest zdefiniowana)
@@ -767,64 +834,64 @@ async function handleTranslation(text) {
 // Add this to your styles.css
 document.head.insertAdjacentHTML('beforeend', `
     <style>
-    .error-message {
-        display: flex;
-        align-items: center;
-        gap: 10px;
-        color: var(--error);
-        padding: 10px;
-        border-radius: 6px;
-        background: rgba(244, 67, 54, 0.1);
-    }
-    
-    .error-message i {
-        font-size: 18px;
-    }
-    
-    .tags-container {
-        display: flex;
-        flex-wrap: wrap;
-        gap: 8px;
-    }
-    
-    .tag {
-        display: flex;
-        align-items: center;
-        gap: 6px;
-        padding: 6px 10px;
-        background: var(--card-background);
-        border-radius: 4px;
-        opacity: 0;
-        transform: translateY(10px);
-        animation: fadeInUp 0.3s forwards;
-    }
-    
-    @keyframes fadeInUp {
-        to {
-            opacity: 1;
-            transform: translateY(0);
+        .error-message {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: var(--error);
+            padding: 10px;
+            border-radius: 6px;
+            background: rgba(244, 67, 54, 0.1);
         }
-    }
-    
-    .tag-text {
-        color: var(--text);
-    }
-    
-    .tag-button {
-        background: none;
-        border: none;
-        color: var(--text-secondary);
-        cursor: pointer;
-        padding: 2px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        transition: color 0.2s;
-    }
-    
-    .tag-button:hover {
-        color: var(--text);
-    }
+        
+        .error-message i {
+            font-size: 18px;
+        }
+        
+        .tags-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        
+        .tag {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 10px;
+            background: var(--card-background);
+            border-radius: 4px;
+            opacity: 0;
+            transform: translateY(10px);
+            animation: fadeInUp 0.3s forwards;
+        }
+        
+        @keyframes fadeInUp {
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .tag-text {
+            color: var(--text);
+        }
+        
+        .tag-button {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            padding: 2px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: color 0.2s;
+        }
+        
+        .tag-button:hover {
+            color: var(--text);
+        }
     </style>
 `);
 
@@ -896,3 +963,13 @@ function revealPrompt(promptText, container) {
         }
     });
 }
+
+// Dodaj event listener for styles toggle
+document.addEventListener('DOMContentLoaded', () => {
+    const stylesToggle = document.getElementById('stylesToggle');
+    if (stylesToggle) {
+        stylesToggle.addEventListener('change', (e) => {
+            toggleStylesView(e.target.checked);
+        });
+    }
+});
