@@ -128,6 +128,39 @@
     overflow: hidden;
 }
 
+.style-card input[type="checkbox"] {
+    appearance: none;
+    width: 40px;
+    height: 24px;
+    background: rgb(58, 37, 89);
+    border: 1px solid rgb(67, 43, 102);
+    border-radius: 12px;
+    position: relative;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.style-card input[type="checkbox"]::after {
+    content: '';
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    background: white;
+    border-radius: 50%;
+    top: 2px;
+    left: 2px;
+    transition: all 0.3s ease;
+}
+
+.style-card input[type="checkbox"]:checked {
+    background: rgb(139, 92, 246);
+    border-color: rgb(139, 92, 246);
+}
+
+.style-card input[type="checkbox"]:checked::after {
+    transform: translateX(16px);
+}
+
 .style-card.generating {
     position: relative;
 }
@@ -168,29 +201,24 @@
 
 .style-card .button-group {
     display: flex;
-    gap: 8px;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    padding: 0 10px;
     margin-top: auto;
 }
 
 .style-card .action-btn {
-    background: var(--button-background);
-    border: none;
-    padding: 8px 16px;
-    border-radius: 6px;
-    color: var(--text);
-    cursor: pointer;
-    transition: all 0.2s ease;
     display: flex;
     align-items: center;
-    gap: 6px;
-}
-
-.style-card .action-btn:hover {
-    background: var(--button-hover);
-    transform: translateY(-1px);
-}
-
-.style-card .action-btn i {
+    gap: 8px;
+    padding: 8px 16px;
+    background: transparent;
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s ease;
     font-size: 14px;
 }
 
@@ -220,6 +248,37 @@
     );
     transform: translateX(-100%);
     animation: shimmer 2s infinite;
+}
+
+.style-card-title-container {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.favorite-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    border-radius: 4px;
+}
+
+.favorite-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.favorite-btn.active {
+    color: #ffd700;
+}
+
+.favorite-btn.active:hover {
+    color: #ffc800;
 }
 
 /* Responsiveness */

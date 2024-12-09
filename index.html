@@ -10,18 +10,18 @@
 </head>
 <body>
     <div class="title-bar">
+        <div class="window-controls">
+            <button class="window-control close" id="close-btn">
+                <i class="fas fa-times"></i>
+            </button>
+            <button class="window-control minimize" id="minimize-btn">
+                <i class="fas fa-minus"></i>
+            </button>
+            <button class="window-control maximize" id="maximize-btn">
+                <i class="fas fa-expand"></i>
+            </button>
+        </div>
         <div class="title-bar-left">
-            <div class="window-controls">
-                <button class="window-control close" id="close-btn">
-                    <i class="fas fa-times"></i>
-                </button>
-                <button class="window-control minimize" id="minimize-btn">
-                    <i class="fas fa-minus"></i>
-                </button>
-                <button class="window-control maximize" id="maximize-btn">
-                    <i class="fas fa-expand"></i>
-                </button>
-            </div>
             <div class="title-bar-logo">
                 PROMPTR
                 <span class="titlebar-version">v1.0</span>
@@ -37,11 +37,11 @@
             <div class="model-tags">
                 <div class="model-tag text-model" title="Text Model">
                     <i class="fas fa-pen"></i>
-                    <span class="model-name">Not selected</span>
+                    <span class="model-name" id="text-model-name">Not selected</span>
                 </div>
                 <div class="model-tag vision-model" title="Vision Model">
                     <i class="fas fa-eye"></i>
-                    <span class="model-name">Not selected</span>
+                    <span class="model-name" id="vision-model-name">Not selected</span>
                 </div>
             </div>
         </div>
@@ -88,22 +88,34 @@
                 <div class="styles-nav">
                     <div class="styles-nav-left">
                         <div class="styles-switch">
-                            <div class="switch-buttons">
-                                <button class="switch-btn active" data-view="active">Active Styles</button>
-                                <button class="switch-btn" data-view="inactive">Inactive Styles</button>
+                            <div class="switch-container">
+                                <button class="switch-btn" data-view="favorites"><i class="fas fa-star"></i> Favorites (0)</button>
+                                <button class="switch-btn active" data-view="active">Active Styles (0)</button>
+                                <button class="switch-btn" data-view="inactive">Inactive Styles (0)</button>
                             </div>
-                            <input type="checkbox" id="stylesToggle" checked>
                         </div>
                     </div>
                     <div class="styles-nav-right">
-                        <button class="styles-nav-item generate-btn">Generate Prompts</button>
-                        <button class="styles-nav-item manage-btn">Manage Styles</button>
+                        <button class="style-card-button">
+                            <i class="fas fa-wand-magic-sparkles"></i>
+                            <span>Generate Prompts</span>
+                        </button>
+                        <button class="style-card-button">
+                            <i class="fas fa-gear"></i>
+                            <span>Manage Styles</span>
+                        </button>
                     </div>
                 </div>
                 
                 <div class="styles-container">
                     <div class="styles-list" id="stylesList">
                         <!-- Style cards will be inserted here -->
+                        <div class="style-card">
+                            <button class="style-card-button">
+                                <span>Send to Draw Things</span>
+                                <i class="fas fa-arrow-right"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>

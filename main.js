@@ -10,6 +10,7 @@ const stylesWindow = require('./styles-window');
 const settingsManager = require('./settings-manager');
 const settingsWindow = require('./settings-window');
 const themeManager = require('./theme-manager');
+const styleSettingsWindow = require('./style-settings-window');
 const { exec } = require('child_process');
 const net = require('net');
 const visionWindow = require('./vision-window');
@@ -454,6 +455,36 @@ app.whenReady().then(() => {
             console.error('Error in generate-prompt:', error);
             throw error;
         }
+    });
+
+    // Event handlers for style settings
+    ipcMain.on('open-style-settings', (event, styleId) => {
+        const window = styleSettingsWindow.createStyleSettingsWindow(mainWindow);
+        
+        // Get style data from storage and send it to the settings window
+        stylesManager.getStyles().then(styles => {
+            const style = styles.find(s => s.id === styleId);
+            if (style) {
+                window.webContents.on('did-finish-load', () => {
+                    window.webContents.send('style-data', style);
+                });
+            }
+        });
+    });
+
+    ipcMain.on('close-style-settings', () => {
+        styleSettingsWindow.closeStyleSettingsWindow();
+    });
+
+    ipcMain.on('save-style-settings', async (event, updatedStyle) => {
+        const styles = await stylesManager.getStyles();
+        const index = styles.findIndex(s => s.id === updatedStyle.id);
+        if (index !== -1) {
+            styles[index] = updatedStyle;
+            await stylesManager.saveStyles(styles);
+            mainWindow.webContents.send('style-updated', updatedStyle);
+        }
+        styleSettingsWindow.closeStyleSettingsWindow();
     });
 
     // Window control handlers

@@ -12,7 +12,6 @@
     display: flex;
     gap: 20px;
     padding: 20px;
-    border-bottom: 1px solid var(--border);
     background: var(--background);
 }
 
@@ -35,10 +34,6 @@
 }
 
 .styles-container {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 20px;
-    padding: 20px;
     overflow-y: auto;
     height: 100%;
 }
@@ -409,7 +404,6 @@
     display: flex;
     gap: 20px;
     padding: 20px;
-    border-bottom: 1px solid var(--border);
     background: var(--background);
 }
 

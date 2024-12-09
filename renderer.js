@@ -84,19 +84,39 @@ function createStyleCard(style) {
     const card = document.createElement('div');
     card.className = 'style-card';
     card.dataset.styleId = style.id;
+    card.dataset.favorite = localStorage.getItem(`style_${style.id}_favorite`) === 'true' ? 'true' : 'false';
 
     const header = document.createElement('div');
     header.className = 'style-card-header';
+    
+    const titleContainer = document.createElement('div');
+    titleContainer.className = 'style-card-title-container';
     
     const title = document.createElement('div');
     title.className = 'style-card-title';
     title.innerHTML = `<i class="fas fa-${style.icon}"></i> ${style.name}`;
     
+    const favoriteBtn = document.createElement('button');
+    favoriteBtn.className = 'favorite-btn';
+    favoriteBtn.innerHTML = '<i class="fas fa-star"></i>';
+    favoriteBtn.classList.toggle('active', card.dataset.favorite === 'true');
+    favoriteBtn.onclick = (e) => {
+        e.stopPropagation();
+        const isFavorite = card.dataset.favorite === 'true';
+        card.dataset.favorite = (!isFavorite).toString();
+        localStorage.setItem(`style_${style.id}_favorite`, (!isFavorite).toString());
+        favoriteBtn.classList.toggle('active', !isFavorite);
+        updateStyleCounts();
+    };
+    
+    titleContainer.appendChild(title);
+    titleContainer.appendChild(favoriteBtn);
+    
     const description = document.createElement('div');
     description.className = 'style-card-description';
     description.textContent = style.description || 'No description available';
     
-    header.appendChild(title);
+    header.appendChild(titleContainer);
     header.appendChild(description);
 
     // Controls container (switch and generate button)
@@ -115,13 +135,13 @@ function createStyleCard(style) {
     toggle.className = 'style-toggle';
     const toggleInput = document.createElement('input');
     toggleInput.type = 'checkbox';
-    toggleInput.checked = style.active;
+    toggleInput.checked = localStorage.getItem(`style_${style.id}_active`) === 'true';
     toggle.appendChild(toggleInput);
-    toggle.onclick = (e) => {
-        e.stopPropagation();
-        const isActive = !toggleInput.checked;
-        toggleStyle(style.id, isActive);
-    };
+
+    // Add change event listener directly to the input
+    toggleInput.addEventListener('change', () => {
+        toggleStyle(style.id, toggleInput.checked);
+    });
 
     controls.appendChild(generateBtn);
     controls.appendChild(toggle);
@@ -158,8 +178,18 @@ function createStyleCard(style) {
     copyBtn.innerHTML = '<i class="fas fa-copy"></i>';
     copyBtn.title = 'Copy prompt';
     
+    const settingsBtn = document.createElement('button');
+    settingsBtn.className = 'prompt-action-btn';
+    settingsBtn.innerHTML = '<i class="fas fa-cog"></i>';
+    settingsBtn.title = 'Style settings';
+    settingsBtn.onclick = (e) => {
+        e.stopPropagation();
+        openStyleSettings(style.id);
+    };
+    
     leftActions.appendChild(historyButtons);
     leftActions.appendChild(copyBtn);
+    leftActions.appendChild(settingsBtn);
     
     const drawBtn = document.createElement('button');
     drawBtn.className = 'send-to-draw-btn';
@@ -288,52 +318,49 @@ function toggleStyle(styleId, active) {
     // Update card appearance
     card.classList.toggle('active', active);
     
-    // Animate the card
-    card.style.opacity = '0';
-    card.style.transform = 'scale(0.8)';
+    // Get current view state
+    const currentView = document.querySelector('.switch-btn.active')?.dataset.view === 'active';
     
-    // After animation, update visibility
-    setTimeout(() => {
-        const currentView = document.querySelector('.switch-btn.active')?.dataset.view === 'active';
-        if (currentView === active) {
-            card.style.display = '';
-            setTimeout(() => {
-                card.style.opacity = '1';
-                card.style.transform = 'scale(1)';
-            }, 10);
-        } else {
+    // If the card's new state doesn't match the current view, hide it with animation
+    if (currentView !== active) {
+        card.style.opacity = '0';
+        card.style.transform = 'scale(0.8)';
+        setTimeout(() => {
             card.style.display = 'none';
-        }
-    }, 300);
-}
-
-// Funkcja do przełączania widoku aktywnych/nieaktywnych stylów
-function toggleStylesView(showActive) {
-    const cards = document.querySelectorAll('.style-card');
-    const activeBtn = document.querySelector('.switch-btn[data-view="active"]');
-    const inactiveBtn = document.querySelector('.switch-btn[data-view="inactive"]');
-
-    // Update button states
-    activeBtn.classList.toggle('active', showActive);
-    inactiveBtn.classList.toggle('active', !showActive);
-
-    // Update card visibility with animation
-    cards.forEach(card => {
-        const styleId = card.dataset.styleId;
-        const isCardActive = localStorage.getItem(`style_${styleId}_active`) === 'true';
-        
-        if (isCardActive === showActive) {
+        }, 300);
+    }
+    
+    // If we're in the correct view for this card's new state, make sure it's visible
+    if (currentView === active) {
+        // If it was hidden, show it with animation
+        if (card.style.display === 'none') {
             card.style.display = '';
-            setTimeout(() => {
-                card.style.opacity = '1';
-                card.style.transform = 'scale(1)';
-            }, 10);
-        } else {
             card.style.opacity = '0';
             card.style.transform = 'scale(0.8)';
             setTimeout(() => {
-                card.style.display = 'none';
-            }, 300);
+                card.style.opacity = '1';
+                card.style.transform = 'scale(1)';
+            }, 10);
+        }
+    }
+
+    // Update style counts
+    updateStyleCounts();
+}
+
+// Funkcja do przełączania widoku aktywnych/nieaktywnych stylów
+function toggleStylesView(view) {
+    const cards = document.querySelectorAll('.style-card');
+    cards.forEach(card => {
+        const isActive = localStorage.getItem(`style_${card.dataset.styleId}_active`) === 'true';
+        const isFavorite = card.dataset.favorite === 'true';
+        
+        if (view === 'active') {
+            card.style.display = isActive ? 'flex' : 'none';
+        } else if (view === 'inactive') {
+            card.style.display = !isActive ? 'flex' : 'none';
+        } else if (view === 'favorites') {
+            card.style.display = isFavorite ? 'flex' : 'none';
         }
     });
 }
@@ -348,8 +375,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // Handle button clicks for view switching
     switchBtns.forEach(btn => {
         btn.addEventListener('click', () => {
-            const isActive = btn.dataset.view === 'active';
-            toggleStylesView(isActive);
+            // Remove active class from all buttons
+            switchBtns.forEach(b => b.classList.remove('active'));
+            // Add active class to clicked button
+            btn.classList.add('active');
+            // Toggle view based on data-view attribute
+            toggleStylesView(btn.dataset.view);
         });
     });
 
@@ -401,6 +432,9 @@ function loadStyles() {
         
         stylesList.appendChild(card);
     });
+
+    // Update style counts after loading
+    updateStyleCounts();
 }
 
 // Funkcja do aktualizacji promptu w karcie stylu
@@ -831,76 +865,6 @@ async function handleTranslation(text) {
     }
 }
 
-// Add this to your styles.css
-document.head.insertAdjacentHTML('beforeend', `
-    <style>
-        .error-message {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            color: var(--error);
-            padding: 10px;
-            border-radius: 6px;
-            background: rgba(244, 67, 54, 0.1);
-        }
-        
-        .error-message i {
-            font-size: 18px;
-        }
-        
-        .tags-container {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-        }
-        
-        .tag {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            padding: 6px 10px;
-            background: var(--card-background);
-            border-radius: 4px;
-            opacity: 0;
-            transform: translateY(10px);
-            animation: fadeInUp 0.3s forwards;
-        }
-        
-        @keyframes fadeInUp {
-            to {
-                opacity: 1;
-                transform: translateY(0);
-            }
-        }
-        
-        .tag-text {
-            color: var(--text);
-        }
-        
-        .tag-button {
-            background: none;
-            border: none;
-            color: var(--text-secondary);
-            cursor: pointer;
-            padding: 2px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: color 0.2s;
-        }
-        
-        .tag-button:hover {
-            color: var(--text);
-        }
-    </style>
-`);
-
-// Nasłuchuj na zmiany statusu
-ipcRenderer.on('ollama-status', (event, status) => {
-    console.log('Received ollama status update:', status);
-    updateConnectionStatus(status);
-});
-
 // Funkcja do sekwencyjnego generowania promptów
 async function generatePromptsSequentially(basePrompt) {
     const activeCards = document.querySelectorAll('.style-card');
@@ -964,12 +928,83 @@ function revealPrompt(promptText, container) {
     });
 }
 
-// Dodaj event listener for styles toggle
-document.addEventListener('DOMContentLoaded', () => {
-    const stylesToggle = document.getElementById('stylesToggle');
-    if (stylesToggle) {
-        stylesToggle.addEventListener('change', (e) => {
-            toggleStylesView(e.target.checked);
-        });
+// Funkcja do aktualizacji liczników styli
+function updateStyleCounts() {
+    const cards = document.querySelectorAll('.style-card');
+    let activeCount = 0;
+    let inactiveCount = 0;
+    let favoritesCount = 0;
+
+    cards.forEach(card => {
+        const isActive = localStorage.getItem(`style_${card.dataset.styleId}_active`) === 'true';
+        const isFavorite = card.dataset.favorite === 'true';
+        
+        if (isActive) activeCount++;
+        else inactiveCount++;
+        if (isFavorite) favoritesCount++;
+    });
+
+    document.querySelector('.switch-btn[data-view="active"]').textContent = `Active Styles (${activeCount})`;
+    document.querySelector('.switch-btn[data-view="inactive"]').textContent = `Inactive Styles (${inactiveCount})`;
+    document.querySelector('.switch-btn[data-view="favorites"]').innerHTML = `<i class="fas fa-star"></i> Favorites (${favoritesCount})`;
+}
+
+// Nasłuchuj na zmiany statusu
+ipcRenderer.on('ollama-status', (event, status) => {
+    console.log('Received ollama status update:', status);
+    updateConnectionStatus(status);
+});
+
+// Nasłuchuj na aktualizacje stylu
+ipcRenderer.on('style-updated', (event, updatedStyle) => {
+    const card = document.querySelector(`.style-card[data-style-id="${updatedStyle.id}"]`);
+    if (card) {
+        const titleEl = card.querySelector('.style-card-title');
+        const descriptionEl = card.querySelector('.style-card-description');
+        
+        titleEl.innerHTML = `<i class="fas fa-${updatedStyle.icon}"></i> ${updatedStyle.name}`;
+        descriptionEl.textContent = updatedStyle.description || 'No description available';
     }
 });
+
+// Funkcja do otwierania ustawień stylu
+function openStyleSettings(styleId) {
+    // Send event to main process to open settings window
+    ipcRenderer.send('open-style-settings', styleId);
+}
+
+// Funkcja do aktualizacji statusu połączenia
+function updateConnectionStatus(status) {
+    const connectionBtn = document.getElementById('connection-btn');
+    if (!connectionBtn) return;
+
+    if (status.isConnected) {
+        connectionBtn.classList.remove('disconnected');
+        connectionBtn.classList.add('connected');
+        connectionBtn.title = 'Ollama Connected';
+        
+        // Update model names when connection is established
+        if (status.currentModel) {
+            const textModelName = document.getElementById('text-model-name');
+            if (textModelName) {
+                textModelName.textContent = status.currentModel;
+            }
+        }
+        if (status.visionModel) {
+            const visionModelName = document.getElementById('vision-model-name');
+            if (visionModelName) {
+                visionModelName.textContent = status.visionModel;
+            }
+        }
+    } else {
+        connectionBtn.classList.remove('connected');
+        connectionBtn.classList.add('disconnected');
+        connectionBtn.title = 'Ollama Disconnected';
+        
+        // Reset model names when disconnected
+        const textModelName = document.getElementById('text-model-name');
+        const visionModelName = document.getElementById('vision-model-name');
+        if (textModelName) textModelName.textContent = 'Not selected';
+        if (visionModelName) visionModelName.textContent = 'Not selected';
+    }
+}

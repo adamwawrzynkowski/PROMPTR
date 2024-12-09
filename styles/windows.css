@@ -90,13 +90,7 @@
     color: var(--text);
 }
 
-/* Window controls */
-.window-controls {
-    display: flex;
-    align-items: center;
-    gap: var(--spacing-sm);
-    -webkit-app-region: no-drag;
-}
+/* Window controls styles are now in titlebar.css */
 
 /* Close button */
 .close-button {

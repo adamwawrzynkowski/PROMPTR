@@ -11,18 +11,8 @@
     z-index: 1000;
     border-bottom: 1px solid var(--border);
     display: flex;
-    justify-content: space-between;
     align-items: center;
-    padding: 0 8px;
     -webkit-app-region: drag;
-}
-
-/* Left section */
-.title-bar-left {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    height: 100%;
 }
 
 /* Window controls */
@@ -31,7 +21,8 @@
     align-items: center;
     gap: 4px;
     -webkit-app-region: no-drag;
-    margin-right: 8px;
+    padding: 0 0px;
+    height: 100%;
 }
 
 .window-control {
@@ -59,6 +50,16 @@
     color: white;
 }
 
+/* Left section */
+.title-bar-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    height: 100%;
+    margin-left: 24px;
+    flex: 1;
+}
+
 /* Logo section */
 .title-bar-logo {
     font-size: 16px;
@@ -70,12 +71,6 @@
     display: flex;
     align-items: center;
     gap: 8px;
-}
-
-.titlebar-version {
-    font-size: 0.8em;
-    opacity: 0.8;
-    margin-left: 4px;
 }
 
 /* Support section */
@@ -177,4 +172,37 @@
 
 .title-bar-item i {
     font-size: 16px;
+}
+
+.titlebar-version {
+    font-size: 0.8em;
+    opacity: 0.8;
+    margin-left: 4px;
+}
+
+/* Connection status */
+#connection-btn {
+    background: none;
+    border: none;
+    padding: 8px;
+    border-radius: 6px;
+    cursor: pointer;
+    color: var(--text-secondary);
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    -webkit-app-region: no-drag;
+}
+
+#connection-btn:hover {
+    background: var(--button-hover);
+}
+
+#connection-btn.connected {
+    color: #4CAF50;
+}
+
+#connection-btn.disconnected {
+    color: var(--text-secondary);
 }

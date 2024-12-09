@@ -35,20 +35,7 @@ body {
     font-weight: 500;
 }
 
-.close-button {
-    -webkit-app-region: no-drag;
-    background: none;
-    border: none;
-    color: var(--text-secondary);
-    cursor: pointer;
-    padding: 8px;
-    border-radius: 4px;
-}
-
-.close-button:hover {
-    background: rgba(255, 59, 48, 0.2);
-    color: #ff3b30;
-}
+/* Window control styles moved to titlebar.css */
 
 .import-container {
     padding: 20px;
@@ -385,4 +372,4 @@ body {
 
 html {
     scroll-behavior: smooth;
-} 
+}

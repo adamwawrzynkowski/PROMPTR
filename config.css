@@ -44,28 +44,7 @@ body {
     color: var(--text-color);
 }
 
-.close-button {
-    -webkit-app-region: no-drag;
-    background: none;
-    border: none;
-    color: var(--text-secondary);
-    cursor: pointer;
-    padding: 8px;
-    border-radius: 4px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s ease;
-}
-
-.close-button:hover {
-    background: rgba(244, 67, 54, 0.1);
-    color: var(--error-color);
-}
-
-.close-button i {
-    font-size: 14px;
-}
+/* Window control styles moved to titlebar.css */
 
 .content {
     padding: 24px;

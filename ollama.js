@@ -314,48 +314,13 @@ class OllamaManager {
     }
 
     async getStatus() {
-        try {
-            const models = await this.listModels();
-            
-            // Get current model info
-            const currentModelInfo = models.find(m => 
-                m.name === this.currentModel || 
-                m.name.split(':')[0] === this.currentModel
-            );
-            
-            // Get vision model info
-            const visionModelInfo = models.find(m => 
-                m.name === this.visionModel || 
-                m.name.split(':')[0] === this.visionModel
-            );
-            
-            // Filter models by type
-            const textModels = models.filter(m => m.type === 'Text');
-            const visionModels = models.filter(m => m.type === 'Vision');
-            
-            return {
-                isConnected: this.isConnected,
-                currentModel: currentModelInfo || null,
-                visionModel: visionModelInfo || null,
-                availableModels: {
-                    text: textModels,
-                    vision: visionModels
-                },
-                error: this.lastError
-            };
-        } catch (error) {
-            console.error('Error getting status:', error);
-            return {
-                isConnected: false,
-                currentModel: null,
-                visionModel: null,
-                availableModels: {
-                    text: [],
-                    vision: []
-                },
-                error: error.message
-            };
-        }
+        const isConnected = await this.checkConnection();
+        return {
+            isConnected,
+            currentModel: this.currentModel,
+            visionModel: this.visionModel,
+            lastError: this.lastError
+        };
     }
 
     async ensureTextModelSelected() {

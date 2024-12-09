@@ -38,25 +38,7 @@ body {
     margin-right: auto;
 }
 
-.titlebar-close {
-    -webkit-app-region: no-drag;
-    background: none;
-    border: none;
-    color: var(--text-secondary);
-    cursor: pointer;
-    padding: 8px;
-    border-radius: 4px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    width: 28px;
-    height: 28px;
-}
-
-.titlebar-close:hover {
-    background: rgba(255, 59, 48, 0.2);
-    color: #ff3b30;
-}
+/* Window control styles moved to titlebar.css */
 
 .styles-window {
     display: flex;

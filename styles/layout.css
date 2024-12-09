@@ -11,7 +11,7 @@
     gap: 20px;
     overflow-y: auto;
     background: var(--background);
-    padding-top: 58px;
+    padding-top: 29px;
 }
 
 .main-content {
@@ -21,13 +21,14 @@
     gap: 20px;
     overflow: hidden;
     min-height: 0;
+    width: 100%;
 }
 
 .main-container {
     display: flex;
     flex-direction: column;
     height: 100vh;
-    padding-top: 38px; /* Wysokość title-bara */
+    padding-top: 19px; /* Wysokość title-bara */
     background: var(--background);
 }
 
@@ -42,24 +43,28 @@
 }
 
 .styles-container {
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-    padding: 20px;
+    flex: 1;
+    min-height: 0;
     overflow: auto;
-    height: 100%;
+    width: 100%;
+    padding: 0 20px 20px 20px;
+    box-sizing: border-box;
 }
 
 .styles-grid {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    display: none;
+    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
     gap: 20px;
     padding: 20px;
-    margin-top: 10px;
     width: 100%;
+    max-width: 100%;
+    margin: 0 auto;
+    grid-auto-rows: 1fr;
 }
 
 .style-card {
+    width: 100%;
+    min-height: 200px;
     display: flex;
     flex-direction: column;
     background: var(--card-background-darker);
@@ -70,7 +75,6 @@
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     cursor: pointer;
     position: relative;
-    transform-origin: center center;
 }
 
 .style-card.moving-to-active {
@@ -157,43 +161,24 @@
     background: rgba(255, 255, 255, 0.1);
 }
 
-.styles-switch {
-    position: relative;
-    display: flex;
-    align-items: center;
+.styles-container {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    width: 100%;
+    padding: 0 20px 20px 20px;
+    box-sizing: border-box;
 }
 
-.switch-buttons {
-    display: flex;
-    gap: 4px;
-    background: var(--card-background-darker);
-    padding: 4px;
-    border: 1px solid var(--border);
-    border-radius: 8px;
-}
-
-.switch-btn {
-    padding: 8px 16px;
-    font-size: 14px;
-    color: var(--text);
-    background: none;
-    border: none;
-    border-radius: 6px;
-    cursor: pointer;
-    transition: all 0.2s ease;
-}
-
-.switch-btn:hover {
-    color: var(--accent);
-}
-
-.switch-btn.active {
-    background: #8b5cf6;
-    color: white;
-}
-
-#stylesToggle {
+.styles-grid {
     display: none;
+    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+    gap: 20px;
+    padding: 20px;
+    width: 100%;
+    max-width: 100%;
+    margin: 0 auto;
+    grid-auto-rows: 1fr;
 }
 
 .prompt-actions {
@@ -202,16 +187,13 @@
     align-items: center;
     gap: 10px;
     margin-top: auto;
+    padding: 0 0px;
 }
 
 .prompt-actions-left {
     display: flex;
-    gap: 10px;
+    gap: 6px;
     align-items: center;
-}
-
-.prompt-actions-left > * {
-    height: 36px !important;
 }
 
 .history-buttons {
@@ -220,6 +202,7 @@
     border-radius: 8px;
     overflow: hidden;
     height: 36px;
+    gap: 0px;
 }
 
 .history-buttons .prompt-action-btn {
@@ -252,6 +235,7 @@
     justify-content: center;
     cursor: pointer;
     transition: all 0.2s ease;
+    padding: 0 10px;
 }
 
 .prompt-action-btn:hover {
@@ -260,7 +244,7 @@
 
 .send-to-draw-btn {
     margin-left: auto;
-    padding: 0 15px;
+    padding: 0 12px;
     height: 36px;
     border-radius: 8px;
     border: 1px solid var(--border);
@@ -268,9 +252,10 @@
     color: var(--text);
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 6px;
     cursor: pointer;
     transition: all 0.2s ease;
+    flex-direction: row-reverse;
 }
 
 .send-to-draw-btn:hover {
@@ -399,137 +384,97 @@
     gap: 8px;
 }
 
-.window-controls {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-left: 5px;
-}
+/* Window controls styles are now in titlebar.css */
 
 .styles-nav {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 0 20px;
+    padding: 20px 0 20px 20px;
+    width: 100%;
+    height: 40px;
+    box-sizing: border-box;
 }
 
 .styles-nav-left {
     display: flex;
     align-items: center;
-    gap: 20px;
-}
-
-.styles-switch {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.switch {
-    position: relative;
-    display: inline-block;
-    width: 51px;
-    height: 31px;
-}
-
-.switch input {
-    opacity: 0;
-    width: 0;
-    height: 0;
-}
-
-.slider {
-    position: absolute;
-    cursor: pointer;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid var(--border);
-    border-radius: 31px;
-    transition: .3s;
-}
-
-.slider:before {
-    position: absolute;
-    content: "";
-    height: 27px;
-    width: 27px;
-    left: 1px;
-    bottom: 1px;
-    background-color: white;
-    border-radius: 50%;
-    transition: .3s;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-}
-
-input:checked + .slider {
-    background-color: #8b5cf6;
-    border-color: #8b5cf6;
-}
-
-input:checked + .slider:before {
-    transform: translateX(20px);
-}
-
-#switchLabel {
-    color: var(--text);
-    font-size: 14px;
-}
-
-.styles-nav h3 {
-    font-size: 16px;
-    font-weight: 500;
-    color: var(--text);
-    margin: 0;
+    height: 100%;
 }
 
 .styles-nav-right {
     display: flex;
-    gap: 10px;
+    align-items: center;
+    gap: 8px;
+    height: 100%;
+    padding-right: 9px;
+}
+
+.styles-nav-right input[type="checkbox"] {
+    margin-top: 1px;
+}
+
+.style-card-button {
+    height: 36px;
+    padding: 0 16px;
+    border-radius: 8px;
+    background: var(--card-background);
+    color: var(--text);
+    border: 1px solid var(--border);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.style-card-button:hover {
+    background: rgba(255, 255, 255, 0.1);
+    transform: translateY(-1px);
+}
+
+.style-card-button i {
+    font-size: 16px;
+    color: var(--text);
+}
+
+/* Specjalne style dla przycisków nawigacyjnych */
+.styles-nav-right .style-card-button i {
+    order: 1;
+}
+
+.styles-nav-right .style-card-button span {
+    order: 2;
+}
+
+/* Style dla przycisków w kartach */
+.style-card .style-card-button i {
+    order: 2;
+}
+
+.style-card .style-card-button span {
+    order: 1;
 }
 
 .styles-section {
     flex: 1;
     display: flex;
     flex-direction: column;
-    overflow: hidden;
-}
-
-.styles-container {
-    flex: 1;
-    overflow: auto;
     width: 100%;
+    min-height: 0;
 }
 
 .styles-list {
     display: grid;
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
     gap: 20px;
     width: 100%;
-    padding: 0;
-    margin: 0;
-}
-
-.style-card {
-    display: flex;
-    flex-direction: column;
-    background: var(--card-background);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 16px;
-    gap: 12px;
-    transition: all 0.3s ease;
-    opacity: 1;
-    transform: scale(1);
-    width: 100%;
-    margin: 0;
-}
-
-.style-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    box-sizing: border-box;
+    padding-top: 20px;
 }
 
 .styles-section-header {
@@ -544,12 +489,41 @@ input:checked + .slider:before {
     margin-bottom: 15px;
 }
 
-.styles-list {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
-    gap: 20px;
-    padding: 20px;
-    width: 100%;
+.switch-container {
+    display: inline-flex;
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    border-radius: 10px;
+    padding: 3px;
+    background: rgba(255, 255, 255, 0.05);
+    gap: 3px;
+}
+
+.switch-btn {
+    padding: 6px 16px;
+    background: transparent;
+    color: var(--text-color);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    border: none;
+    font-size: 14px;
+}
+
+.switch-btn:first-of-type {
+    border-radius: 8px;
+}
+
+.switch-btn:last-of-type {
+    border-radius: 8px;
+}
+
+.switch-btn.active {
+    background: #8A2BE2;
+    color: white;
+    box-shadow: 0 2px 8px rgba(138, 43, 226, 0.4);
+}
+
+.switch-btn:hover:not(.active) {
+    background: rgba(255, 255, 255, 0.1);
 }
 
 @keyframes pulse {
@@ -598,4 +572,59 @@ input:checked + .slider:before {
         opacity: 0;
         translate: calc(var(--switch-x, 0) - var(--card-x, 0)) calc(var(--switch-y, 0) - var(--card-y, 0));
     }
+}
+
+@keyframes shimmer {
+    0% {
+        background-position: -200% 0;
+    }
+    100% {
+        background-position: 200% 0;
+    }
+}
+
+.styles-nav-right .style-card-button:first-child {
+    background: linear-gradient(
+        110deg,
+        rgb(58, 37, 89) 20%,
+        rgb(67, 43, 102) 30%,
+        rgb(139, 92, 246, 0.3) 40%,
+        rgb(67, 43, 102) 50%,
+        rgb(58, 37, 89) 60%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 6s infinite linear;
+    position: relative;
+    overflow: hidden;
+}
+
+.styles-nav-right .style-card-button:first-child::after {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    background: linear-gradient(
+        110deg,
+        transparent 20%,
+        rgba(139, 92, 246, 0.1) 40%,
+        rgba(139, 92, 246, 0.2) 50%,
+        rgba(139, 92, 246, 0.1) 60%,
+        transparent 80%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 4s infinite linear;
+    pointer-events: none;
+}
+
+.styles-nav-right .style-card-button:first-child:hover {
+    background: linear-gradient(
+        110deg,
+        rgb(67, 43, 102) 20%,
+        rgb(76, 49, 116) 30%,
+        rgb(139, 92, 246, 0.4) 40%,
+        rgb(76, 49, 116) 50%,
+        rgb(67, 43, 102) 60%
+    );
+    background-size: 200% 100%;
+    animation: shimmer 3s infinite linear;
+    transform: translateY(-1px);
 }
