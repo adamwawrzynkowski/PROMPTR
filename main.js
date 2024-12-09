@@ -243,8 +243,8 @@ class AppStartupManager {
             this.mainWindow = new BrowserWindow({
                 width: 1200,
                 height: 800,
-                minWidth: 800,
-                minHeight: 600,
+                minWidth: 900,
+                minHeight: 700,
                 show: false,
                 frame: false,
                 titleBarStyle: 'hidden',
@@ -487,6 +487,16 @@ app.whenReady().then(() => {
         styleSettingsWindow.closeStyleSettingsWindow();
     });
 
+    ipcMain.on('update-style-parameters', async (event, data) => {
+        try {
+            await stylesManager.updateStyleParameters(data.styleId, data.parameters);
+            event.reply('style-parameters-updated');
+        } catch (error) {
+            console.error('Error updating style parameters:', error);
+            event.reply('style-parameters-update-error', error.message);
+        }
+    });
+
     // Window control handlers
     ipcMain.on('minimize-window', () => {
         const win = BrowserWindow.getFocusedWindow();
@@ -602,6 +612,77 @@ app.whenReady().then(() => {
                 resolve(true);
             });
         });
+    });
+
+    // Handle model tuning window
+    let modelTuningWindows = new Map();
+
+    ipcMain.on('open-model-tuning', (event, styleData) => {
+        // Check if window already exists for this style
+        if (modelTuningWindows.has(styleData.styleId)) {
+            const existingWindow = modelTuningWindows.get(styleData.styleId);
+            if (!existingWindow.isDestroyed()) {
+                existingWindow.focus();
+                return;
+            }
+        }
+
+        // Create new window
+        const modelTuningWindow = new BrowserWindow({
+            width: 500,
+            height: 600,
+            minWidth: 400,
+            minHeight: 500,
+            show: false,
+            frame: false,
+            titleBarStyle: 'hidden',
+            trafficLightPosition: { x: -100, y: -100 },
+            parent: BrowserWindow.getFocusedWindow(),
+            modal: true,
+            title: `${styleData.styleName} - Model Fine-tuning`,
+            webPreferences: {
+                nodeIntegration: true,
+                contextIsolation: false
+            }
+        });
+
+        modelTuningWindow.loadFile('model-tuning.html');
+        
+        modelTuningWindow.once('ready-to-show', () => {
+            modelTuningWindow.show();
+            modelTuningWindow.webContents.send('init-model-tuning', styleData);
+        });
+
+        modelTuningWindow.on('closed', () => {
+            modelTuningWindows.delete(styleData.styleId);
+        });
+
+        modelTuningWindows.set(styleData.styleId, modelTuningWindow);
+    });
+
+    ipcMain.handle('get-style', async (event, styleId) => {
+        return await stylesManager.getStyle(styleId);
+    });
+
+    ipcMain.on('save-model-parameters', async (event, data) => {
+        try {
+            // Save parameters to style configuration
+            const style = await stylesManager.getStyle(data.styleId);
+            if (style) {
+                style.modelParameters = data.parameters;
+                await stylesManager.updateStyle(style);
+                
+                // Notify main window about the update
+                BrowserWindow.getAllWindows().forEach(window => {
+                    window.webContents.send('model-parameters-updated', {
+                        styleId: data.styleId,
+                        parameters: data.parameters
+                    });
+                });
+            }
+        } catch (error) {
+            console.error('Error saving model parameters:', error);
+        }
     });
 
     // Create and set startup window

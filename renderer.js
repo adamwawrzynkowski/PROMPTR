@@ -96,6 +96,17 @@ function createStyleCard(style) {
     title.className = 'style-card-title';
     title.innerHTML = `<i class="fas fa-${style.icon}"></i> ${style.name}`;
     
+    // Add custom parameters indicator if needed
+    if (hasCustomParameters(style)) {
+        const customIcon = document.createElement('i');
+        customIcon.className = 'fas fa-sliders-h';
+        customIcon.style.fontSize = '12px';
+        customIcon.style.marginLeft = '8px';
+        customIcon.style.color = 'var(--accent)';
+        customIcon.title = 'Custom model parameters';
+        title.appendChild(customIcon);
+    }
+    
     const favoriteBtn = document.createElement('button');
     favoriteBtn.className = 'favorite-btn';
     favoriteBtn.innerHTML = '<i class="fas fa-star"></i>';
@@ -206,6 +217,23 @@ function createStyleCard(style) {
     return card;
 }
 
+// Function to check if style has custom parameters
+function hasCustomParameters(style) {
+    if (!style.modelParameters) return false;
+    
+    const defaultParams = {
+        temperature: 0.7,
+        topP: 0.9,
+        topK: 40,
+        maxTokens: 2048
+    };
+
+    return Object.entries(defaultParams).some(([key, value]) => {
+        return style.modelParameters[key] !== value;
+    });
+}
+
+// Funkcja do zarządzania zdarzeniami karty stylu
 function setupStyleCardEventListeners(card, style) {
     const generateBtn = card.querySelector('.generate-btn');
     const copyBtn = card.querySelector('.copy-btn');
@@ -259,6 +287,7 @@ function setupStyleCardEventListeners(card, style) {
     });
 }
 
+// Funkcja do wyświetlania promptu
 function revealPrompt(promptText, container) {
     container.innerHTML = '';
     const words = promptText.split(' ');
@@ -669,6 +698,34 @@ function initializeButtons() {
             toggleStylesView(stylesToggle.checked);
         });
     }
+
+    // Translation button
+    const translateBtn = document.getElementById('translateBtn');
+    if (translateBtn) {
+        translateBtn.addEventListener('click', async () => {
+            const promptInput = document.getElementById('promptInput');
+            const text = promptInput.value.trim();
+            
+            if (!text) {
+                showToast('Please enter text to translate');
+                return;
+            }
+
+            translateBtn.disabled = true;
+            try {
+                const translatedText = await handleTranslation(text);
+                if (translatedText) {
+                    promptInput.value = translatedText;
+                    showToast('Text translated successfully');
+                }
+            } catch (error) {
+                console.error('Translation error:', error);
+                showToast('Failed to translate text');
+            } finally {
+                translateBtn.disabled = false;
+            }
+        });
+    }
 }
 
 // Funkcja debounce (jeśli jeszcze nie jest zdefiniowana)
@@ -969,9 +1026,33 @@ ipcRenderer.on('style-updated', (event, updatedStyle) => {
 
 // Funkcja do otwierania ustawień stylu
 function openStyleSettings(styleId) {
-    // Send event to main process to open settings window
-    ipcRenderer.send('open-style-settings', styleId);
+    // Get style data
+    ipcRenderer.invoke('get-style', styleId).then(style => {
+        if (style) {
+            // Open model tuning window with style data
+            ipcRenderer.send('open-model-tuning', {
+                styleId: style.id,
+                styleName: style.name,
+                parameters: style.modelParameters || {
+                    temperature: 0.7,
+                    topP: 0.9,
+                    topK: 40,
+                    maxTokens: 2048
+                }
+            });
+        }
+    });
 }
+
+// Listen for model parameter updates
+ipcRenderer.on('model-parameters-updated', (event, data) => {
+    // Update style card if needed
+    const styleCard = document.querySelector(`[data-style-id="${data.styleId}"]`);
+    if (styleCard) {
+        // You can add visual feedback here if needed
+        console.log(`Model parameters updated for style ${data.styleId}:`, data.parameters);
+    }
+});
 
 // Funkcja do aktualizacji statusu połączenia
 function updateConnectionStatus(status) {
