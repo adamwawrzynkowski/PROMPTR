@@ -79,6 +79,33 @@
     }
 }
 
+@keyframes dotPulse {
+    0% {
+        transform: scale(0.8);
+        opacity: 0.5;
+    }
+    50% {
+        transform: scale(1.2);
+        opacity: 1;
+    }
+    100% {
+        transform: scale(0.8);
+        opacity: 0.5;
+    }
+}
+
+@keyframes textFade {
+    0% {
+        opacity: 0.5;
+    }
+    50% {
+        opacity: 1;
+    }
+    100% {
+        opacity: 0.5;
+    }
+}
+
 .generating-container {
     position: relative;
     width: 100%;
@@ -106,28 +133,29 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    gap: 8px;
-    font-size: 12px;
+    gap: 12px;
+    font-size: 13px;
     font-weight: 500;
-    color: var(--text);
-    opacity: 0.9;
-    letter-spacing: 0.3px;
+    color: var(--accent-color);
+    letter-spacing: 0.5px;
     width: 100%;
-    padding: 8px 0;
+    padding: 12px 0;
+    background: linear-gradient(to right, transparent, rgba(var(--accent-color-rgb), 0.05), transparent);
+    border-radius: 8px;
 }
 
 .generating-text i {
-    margin-right: 4px;
+    font-size: 14px;
+    color: var(--accent-color);
+    animation: dotPulse 1.5s infinite ease-in-out;
 }
 
 .generating-text span {
     display: inline-block;
-    opacity: 0;
-    animation: fadeInChar 0.3s forwards;
-    margin-right: 1px;
+    animation: textFade 2s infinite ease-in-out;
 }
 
-/* Delay each character */
+/* Stagger the text fade animation */
 .generating-text span:nth-child(1) { animation-delay: 0.1s; }
 .generating-text span:nth-child(2) { animation-delay: 0.2s; }
 .generating-text span:nth-child(3) { animation-delay: 0.3s; }

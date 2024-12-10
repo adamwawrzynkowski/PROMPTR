@@ -9,70 +9,130 @@ const DEFAULT_STYLES = {
         description: 'Ultra-realistic photography with meticulous attention to detail. Creates photorealistic scenes with sharp focus, natural lighting, and precise details that make images indistinguishable from professional photographs.',
         icon: 'camera',
         fixedTags: ['8K resolution', 'photographic quality', 'natural lighting', 'realistic details'],
-        active: true
+        active: true,
+        modelParameters: {
+            temperature: 0.7,
+            top_p: 0.9,
+            top_k: 40,
+            repeat_penalty: 1.1
+        }
     },
     'cinematic': {
         name: 'Cinematic',
         description: 'Epic movie scene aesthetics with dramatic cinematography. Features professional movie-like composition, atmospheric effects, and emotional impact, as if captured from a blockbuster film.',
         icon: 'film',
         fixedTags: ['cinematic lighting', 'movie grade', 'dramatic atmosphere', 'depth of field'],
-        active: true
+        active: true,
+        modelParameters: {
+            temperature: 0.8,
+            top_p: 0.9,
+            top_k: 40,
+            repeat_penalty: 1.1
+        }
     },
     'vintage': {
         name: 'Vintage',
         description: 'Nostalgic retro photography with authentic period characteristics. Captures the essence of classic photography with film grain, color shifts, and era-appropriate processing artifacts.',
         icon: 'clock-rotate-left',
         fixedTags: ['film grain', 'retro colors', 'light leaks', 'nostalgic mood'],
-        active: true
+        active: true,
+        modelParameters: {
+            temperature: 0.75,
+            top_p: 0.9,
+            top_k: 40,
+            repeat_penalty: 1.1
+        }
     },
     'artistic': {
         name: 'Artistic',
         description: 'Expressive fine art with bold artistic interpretation. Transforms scenes with visible brushstrokes, artistic color choices, and emotional expression, inspired by master painters.',
         icon: 'palette',
         fixedTags: ['brushstrokes', 'artistic style', 'creative colors', 'expressive'],
-        active: true
+        active: true,
+        modelParameters: {
+            temperature: 0.85,
+            top_p: 0.95,
+            top_k: 45,
+            repeat_penalty: 1.05
+        }
     },
     'abstract': {
         name: 'Abstract',
         description: 'Non-representational art focusing on form and emotion. Breaks down subjects into abstract forms, emphasizing shapes, colors, and emotional impact rather than literal representation.',
         icon: 'shapes',
         fixedTags: ['geometric forms', 'abstract shapes', 'bold colors', 'non-literal'],
-        active: true
+        active: true,
+        modelParameters: {
+            temperature: 0.9,
+            top_p: 0.95,
+            top_k: 50,
+            repeat_penalty: 1.0
+        }
     },
     'poetic': {
         name: 'Poetic',
         description: 'Dreamy, ethereal atmosphere with soft, romantic qualities. Creates dreamlike scenes with soft focus, glowing lights, and romantic atmosphere, perfect for ethereal and emotional imagery.',
         icon: 'feather',
         fixedTags: ['soft focus', 'dreamy glow', 'ethereal mood', 'romantic'],
-        active: true
+        active: true,
+        modelParameters: {
+            temperature: 0.8,
+            top_p: 0.92,
+            top_k: 42,
+            repeat_penalty: 1.08
+        }
     },
     'anime': {
         name: 'Anime',
         description: 'Stylized Japanese anime art with characteristic features. Renders in authentic anime style with distinctive elements like large eyes, dynamic poses, and cel shading techniques.',
         icon: 'star',
         fixedTags: ['anime style', 'cel shading', 'dynamic poses', 'characteristic anime'],
-        active: true
+        active: true,
+        modelParameters: {
+            temperature: 0.82,
+            top_p: 0.9,
+            top_k: 40,
+            repeat_penalty: 1.1
+        }
     },
     'cartoon': {
         name: 'Cartoon',
         description: 'Bold, stylized cartoon with exaggerated features. Creates vibrant cartoon imagery with bold outlines, exaggerated proportions, and simplified forms, perfect for animation-style art.',
         icon: 'pen-nib',
         fixedTags: ['bold outlines', 'cartoon style', 'exaggerated', 'vibrant colors'],
-        active: true
+        active: true,
+        modelParameters: {
+            temperature: 0.8,
+            top_p: 0.9,
+            top_k: 40,
+            repeat_penalty: 1.1
+        }
     },
     'cute': {
         name: 'Cute',
         description: 'Adorable kawaii style with charming, playful elements. Makes everything extremely cute with rounded forms, big eyes, and kawaii aesthetics, including sparkles and pastel colors.',
         icon: 'heart',
         fixedTags: ['kawaii style', 'adorable', 'pastel colors', 'rounded shapes'],
-        active: true
+        active: true,
+        modelParameters: {
+            temperature: 0.75,
+            top_p: 0.9,
+            top_k: 38,
+            repeat_penalty: 1.12
+        }
     },
     'scifi': {
         name: 'Sci-Fi',
         description: 'Futuristic science fiction with advanced technology. Creates high-tech scenes with futuristic lighting, innovative designs, and sci-fi elements like holographics and energy effects.',
         icon: 'rocket',
         fixedTags: ['futuristic', 'high-tech', 'sci-fi effects', 'advanced tech'],
-        active: true
+        active: true,
+        modelParameters: {
+            temperature: 0.85,
+            top_p: 0.92,
+            top_k: 45,
+            repeat_penalty: 1.08
+        }
     }
 };
 
@@ -158,6 +218,33 @@ class StylesManager {
             delete this.styles[id];
             await this.saveStyles(this.styles);
         }
+    }
+
+    async updateStyleParameters(id, parameters) {
+        if (!this.styles) {
+            await this.loadStyles();
+        }
+        if (this.styles[id]) {
+            // Initialize modelParameters if it doesn't exist
+            if (!this.styles[id].modelParameters) {
+                this.styles[id].modelParameters = {
+                    temperature: 0.7,
+                    top_p: 0.9,
+                    top_k: 40,
+                    repeat_penalty: 1.1
+                };
+            }
+            
+            // Update only the provided parameters
+            this.styles[id].modelParameters = {
+                ...this.styles[id].modelParameters,
+                ...parameters
+            };
+            
+            await this.saveStyles(this.styles);
+            return this.styles[id];
+        }
+        return null;
     }
 }
 

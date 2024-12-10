@@ -246,25 +246,48 @@ function setupStyleCardEventListeners(card, style) {
     const promptDisplay = card.querySelector('.prompt-text');
 
     generateBtn.addEventListener('click', async () => {
+        const promptInput = document.getElementById('promptInput');
+        const basePrompt = promptInput?.value?.trim() || '';
+        
+        if (!basePrompt) {
+            showToast('Please enter a prompt first');
+            return;
+        }
+        
         // Show loading animation
         promptDisplay.style.display = 'none';
         loadingContainer.style.display = 'flex';
+        generateBtn.disabled = true;
         
         try {
-            const prompt = await ipcRenderer.invoke('generate-prompt', style.id);
+            // Pobierz parametry stylu
+            const styleParams = await ipcRenderer.invoke('get-style', style.id);
+            console.log('Style parameters:', styleParams);
+            
+            const response = await ipcRenderer.invoke('generate-prompt', {
+                basePrompt: basePrompt,
+                styleId: style.id,
+                customStyle: styleParams
+            });
             
             // Hide loading and show prompt with animation
             loadingContainer.style.display = 'none';
             promptDisplay.style.display = 'block';
-            revealPrompt(prompt, promptDisplay);
             
-            addToStyleHistory(style.id, prompt);
-            updateHistoryButtons(style.id);
+            if (response && response.prompt) {
+                await revealPrompt(response.prompt, promptDisplay);
+                addToStyleHistory(style.id, response.prompt);
+                updateHistoryButtons(style.id);
+            } else {
+                promptDisplay.textContent = 'Error: Invalid response format';
+            }
         } catch (error) {
             console.error('Error generating prompt:', error);
             promptDisplay.textContent = 'Error generating prompt';
             loadingContainer.style.display = 'none';
             promptDisplay.style.display = 'block';
+        } finally {
+            generateBtn.disabled = false;
         }
     });
 
@@ -373,25 +396,37 @@ function toggleStyle(styleId, active) {
         }
     }
 
-    // Update style counts
+    // Update style counts and Generate Prompts button
     updateStyleCounts();
+    updateGeneratePromptsButton();
 }
 
 // Funkcja do przełączania widoku aktywnych/nieaktywnych stylów
 function toggleStylesView(view) {
     const cards = document.querySelectorAll('.style-card');
+    const currentView = view === true ? 'active' : view; // Handle legacy true value
+
     cards.forEach(card => {
         const isActive = localStorage.getItem(`style_${card.dataset.styleId}_active`) === 'true';
         const isFavorite = card.dataset.favorite === 'true';
         
-        if (view === 'active') {
+        if (currentView === 'active') {
             card.style.display = isActive ? 'flex' : 'none';
-        } else if (view === 'inactive') {
+        } else if (currentView === 'inactive') {
             card.style.display = !isActive ? 'flex' : 'none';
-        } else if (view === 'favorites') {
+        } else if (currentView === 'favorites') {
             card.style.display = isFavorite ? 'flex' : 'none';
         }
+
+        // Reset transform and opacity for visible cards
+        if (card.style.display === 'flex') {
+            card.style.opacity = '1';
+            card.style.transform = 'scale(1)';
+        }
     });
+
+    // Update the Generate Prompts button text
+    updateGeneratePromptsButton();
 }
 
 // Initialize switch functionality
@@ -425,7 +460,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // Initial state - show active styles
-    toggleStylesView(true);
+    toggleStylesView('active');
+    
+    // Update Generate Prompts button after initialization
+    updateGeneratePromptsButton();
 });
 
 // Funkcja do ładowania stylów
@@ -450,20 +488,17 @@ function loadStyles() {
             icon: style.icon,
             active: isActive
         });
-        
-        // Set initial visibility based on current view
-        const currentView = document.querySelector('.switch-btn.active')?.dataset.view === 'active';
-        if (isActive !== currentView) {
-            card.style.display = 'none';
-            card.style.opacity = '0';
-            card.style.transform = 'scale(0.8)';
-        }
-        
+
         stylesList.appendChild(card);
     });
 
-    // Update style counts after loading
+    // Update initial visibility based on current view
+    const currentView = document.querySelector('.switch-btn.active')?.dataset?.view || 'active';
+    toggleStylesView(currentView);
+    
+    // Update style counts and Generate Prompts button after loading
     updateStyleCounts();
+    updateGeneratePromptsButton();
 }
 
 // Funkcja do aktualizacji promptu w karcie stylu
@@ -607,23 +642,50 @@ function initializePromptInput() {
 // Funkcja inicjalizująca przyciski
 function initializeButtons() {
     // Przycisk generowania promptów
-    document.getElementById('generatePrompts')?.addEventListener('click', async () => {
-        const promptInput = document.getElementById('promptInput');
-        if (!promptInput) return;
-        
-        const text = promptInput.value.trim();
-        if (!text) {
-            showToast('Please enter a prompt first');
-            return;
-        }
+    const generatePromptsBtn = document.getElementById('generatePrompts');
+    if (generatePromptsBtn) {
+        generatePromptsBtn.addEventListener('click', async () => {
+            const promptInput = document.getElementById('promptInput');
+            if (!promptInput) return;
+            
+            const text = promptInput.value.trim();
+            if (!text) {
+                showToast('Please enter a prompt first');
+                return;
+            }
 
-        try {
-            await generatePromptsSequentially(text);
-        } catch (error) {
-            console.error('Error generating prompts:', error);
-            showToast('Error generating prompts: ' + error.message);
-        }
-    });
+            // Sprawdź aktualny widok
+            const currentView = document.querySelector('.switch-btn.active')?.dataset?.view;
+            if (!currentView) return;
+
+            // Wyłącz przycisk podczas generowania
+            generatePromptsBtn.disabled = true;
+            generatePromptsBtn.classList.add('loading');
+
+            try {
+                if (currentView === 'inactive') {
+                    showToast('Cannot generate prompts in Inactive view');
+                    return;
+                }
+                await generatePromptsSequentially(text, currentView);
+            } catch (error) {
+                console.error('Error generating prompts:', error);
+                showToast('Error generating prompts: ' + error.message);
+            } finally {
+                generatePromptsBtn.disabled = false;
+                generatePromptsBtn.classList.remove('loading');
+                updateGeneratePromptsButton();
+            }
+        });
+
+        // Nasłuchuj zmiany widoku
+        document.querySelectorAll('.switch-btn').forEach(btn => {
+            btn.addEventListener('click', updateGeneratePromptsButton);
+        });
+
+        // Inicjalizuj stan przycisku
+        updateGeneratePromptsButton();
+    }
 
     // Przycisk Draw Things
     const drawThingsBtn = document.getElementById('draw-things-btn');
@@ -632,100 +694,63 @@ function initializeButtons() {
         setInterval(() => updateDrawThingsButton(drawThingsBtn), 5000);
     }
 
-    // Przycisk Vision
-    document.getElementById('visionBtn')?.addEventListener('click', () => {
-        ipcRenderer.send('open-vision');
-    });
-
-    // Przycisk kopiowania promptu
-    document.getElementById('copyPromptBtn')?.addEventListener('click', () => {
-        const promptInput = document.getElementById('promptInput');
-        if (promptInput.value.trim()) {
-            navigator.clipboard.writeText(promptInput.value);
-            showToast('Prompt copied to clipboard');
-        }
-    });
-
-    // Przycisk czyszczenia promptu
-    document.getElementById('clearPromptBtn')?.addEventListener('click', () => {
-        const promptInput = document.getElementById('promptInput');
-        promptInput.value = '';
-        displayTags([]);
-        document.querySelectorAll('.prompt-output').forEach(output => {
-            output.textContent = '';
-        });
-    });
-
-    // Przycisk Manage Styles
-    document.getElementById('manageStyles')?.addEventListener('click', () => {
-        ipcRenderer.send('open-styles');
-    });
-
-    // Title bar buttons
-    document.getElementById('connection-btn')?.addEventListener('click', () => {
-        ipcRenderer.send('open-config');
-    });
-
-    document.getElementById('history-btn')?.addEventListener('click', () => {
-        const historyPanel = document.querySelector('.history-panel');
-        if (historyPanel) {
-            historyPanel.classList.toggle('open');
-            updateHistoryDisplay();
-        }
-    });
-
-    document.getElementById('settings-btn')?.addEventListener('click', () => {
-        ipcRenderer.send('open-settings');
-    });
-
-    document.getElementById('credits-btn')?.addEventListener('click', () => {
-        ipcRenderer.send('open-credits');
-    });
-
-    // Coffee button
-    document.querySelector('.coffee-button')?.addEventListener('click', () => {
-        require('electron').shell.openExternal('https://buymeacoffee.com/a_wawrzynkowski');
-    });
-
-    // Inicjalizacja przełącznika stylów
-    const stylesToggle = document.getElementById('stylesToggle');
-    const switchContainer = document.querySelector('.switch-container');
-    
-    if (stylesToggle && switchContainer) {
-        // Obsługa kliknięcia w kontener przełącznika
-        switchContainer.addEventListener('click', () => {
-            stylesToggle.checked = !stylesToggle.checked;
-            toggleStylesView(stylesToggle.checked);
+    // Przycisk Settings
+    const settingsBtn = document.getElementById('settings-btn');
+    if (settingsBtn) {
+        settingsBtn.addEventListener('click', () => {
+            ipcRenderer.send('open-settings');
         });
     }
 
-    // Translation button
-    const translateBtn = document.getElementById('translateBtn');
-    if (translateBtn) {
-        translateBtn.addEventListener('click', async () => {
-            const promptInput = document.getElementById('promptInput');
-            const text = promptInput.value.trim();
-            
-            if (!text) {
-                showToast('Please enter text to translate');
-                return;
-            }
+    // Przycisk Add Style
+    const addStyleBtn = document.getElementById('add-style-btn');
+    if (addStyleBtn) {
+        addStyleBtn.addEventListener('click', () => {
+            ipcRenderer.send('open-add-style');
+        });
+    }
 
-            translateBtn.disabled = true;
-            try {
-                const translatedText = await handleTranslation(text);
-                if (translatedText) {
-                    promptInput.value = translatedText;
-                    showToast('Text translated successfully');
+    // Przyciski historii
+    document.querySelectorAll('.history-btn').forEach(btn => {
+        const styleId = btn.closest('.style-card')?.dataset?.styleId;
+        if (!styleId) return;
+
+        if (btn.classList.contains('prev-btn')) {
+            btn.addEventListener('click', () => {
+                const prompt = navigateHistory(styleId, -1);
+                if (prompt) {
+                    const promptDisplay = btn.closest('.style-card').querySelector('.prompt-text');
+                    revealPrompt(prompt, promptDisplay);
+                    updateHistoryButtons(styleId);
                 }
-            } catch (error) {
-                console.error('Translation error:', error);
-                showToast('Failed to translate text');
-            } finally {
-                translateBtn.disabled = false;
-            }
-        });
-    }
+            });
+        } else if (btn.classList.contains('next-btn')) {
+            btn.addEventListener('click', () => {
+                const prompt = navigateHistory(styleId, 1);
+                if (prompt) {
+                    const promptDisplay = btn.closest('.style-card').querySelector('.prompt-text');
+                    revealPrompt(prompt, promptDisplay);
+                    updateHistoryButtons(styleId);
+                }
+            });
+        }
+    });
+
+    // Przyciski kopiowania
+    document.querySelectorAll('.copy-btn').forEach(btn => {
+        const styleId = btn.closest('.style-card')?.dataset?.styleId;
+        if (!styleId) return;
+        
+        btn.addEventListener('click', () => copyStylePrompt(styleId));
+    });
+
+    // Przyciski ustawień stylu
+    document.querySelectorAll('.style-settings-btn').forEach(btn => {
+        const styleId = btn.closest('.style-card')?.dataset?.styleId;
+        if (!styleId) return;
+        
+        btn.addEventListener('click', () => openStyleSettings(styleId));
+    });
 }
 
 // Funkcja debounce (jeśli jeszcze nie jest zdefiniowana)
@@ -801,6 +826,30 @@ function displayTags(tags) {
     });
 }
 
+// Funkcja do czyszczenia i filtrowania tagów
+function cleanTag(tag) {
+    if (!tag) return '';
+    
+    // Usuń tagi kontrolne
+    const controlTokens = ['<|', '|>', '_start', '_end', 'system', 'assistant', 'user', 'jim'];
+    let cleanedTag = tag.trim();
+    
+    // Usuń tagi kontrolne
+    controlTokens.forEach(token => {
+        cleanedTag = cleanedTag.replace(new RegExp(`<\\|?${token}\\|?>`, 'gi'), '');
+        cleanedTag = cleanedTag.replace(new RegExp(`${token}`, 'gi'), '');
+    });
+    
+    // Usuń znaki specjalne i nadmiarowe spacje
+    cleanedTag = cleanedTag
+        .replace(/[<>|]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    
+    // Sprawdź czy tag nie jest pusty i ma sensowną długość
+    return cleanedTag.length > 1 && cleanedTag.length < 30 ? cleanedTag : '';
+}
+
 // Zmodyfikuj funkcję generateTagsInBatches
 async function generateTagsInBatches(text, batchSize = 6, totalBatches = 5) {
     if (!text || !text.trim()) {
@@ -813,10 +862,12 @@ async function generateTagsInBatches(text, batchSize = 6, totalBatches = 5) {
         const response = await ipcRenderer.invoke('generate-tags', { text: text.trim() });
         
         if (response && Array.isArray(response)) {
-            // Filter out empty tags and limit to a reasonable number
+            // Filtruj i czyść tagi
             const validTags = response
-                .filter(tag => tag && tag.trim().length > 0)
-                .slice(0, 15); // Limit to 15 tags
+                .map(tag => cleanTag(tag))
+                .filter(tag => tag) // usuń puste tagi
+                .filter((tag, index, self) => self.indexOf(tag) === index) // usuń duplikaty
+                .slice(0, 15); // Limit do 15 tagów
             
             if (validTags.length > 0) {
                 displayTags(validTags);
@@ -834,22 +885,235 @@ async function generateTagsInBatches(text, batchSize = 6, totalBatches = 5) {
     }
 }
 
-// Dodaj style dla domyślnych tagów
-document.head.insertAdjacentHTML('beforeend', `
-    <style>
-        .tag.default-tag {
-            background: var(--button-background);
-            opacity: 0.7;
-        }
-        
-        .tag.default-tag:hover {
-            opacity: 1;
-            background: var(--button-hover);
-        }
-    </style>
-`);
+// Funkcja do sekwencyjnego generowania promptów
+async function generatePromptsSequentially(basePrompt, view = 'active') {
+    if (!basePrompt || !basePrompt.trim()) {
+        showToast('Please enter a prompt first');
+        return;
+    }
 
-// Dodaj funkcję handleTranslation
+    // Wybierz karty w zależności od widoku
+    let cards;
+    if (view === 'favorites') {
+        cards = Array.from(document.querySelectorAll('.style-card')).filter(card => 
+            card.dataset.favorite === 'true' || localStorage.getItem(`style_${card.dataset.styleId}_favorite`) === 'true'
+        );
+    } else if (view === 'active') {
+        cards = Array.from(document.querySelectorAll('.style-card')).filter(card => 
+            localStorage.getItem(`style_${card.dataset.styleId}_active`) === 'true'
+        );
+    } else {
+        cards = []; // Dla widoku 'inactive' nie generujemy promptów
+    }
+    
+    if (cards.length === 0) {
+        showToast('No styles available for prompt generation');
+        return;
+    }
+
+    let generatedCount = 0;
+
+    for (const card of cards) {
+        const promptContainer = card.querySelector('.prompt-container');
+        const loadingContainer = card.querySelector('.generating-container');
+        const promptDisplay = card.querySelector('.prompt-text');
+        const generateBtn = card.querySelector('.generate-btn');
+        
+        if (!promptContainer || !loadingContainer || !promptDisplay || !generateBtn) continue;
+
+        try {
+            // Pokaż animację ładowania
+            promptDisplay.style.display = 'none';
+            loadingContainer.style.display = 'flex';
+            generateBtn.disabled = true;
+
+            // Generuj prompt
+            const styleId = card.dataset.styleId;
+            console.log('Generating prompt for style:', styleId);
+            
+            // Pobierz parametry stylu
+            const styleParams = await ipcRenderer.invoke('get-style', styleId);
+            console.log('Style parameters:', styleParams);
+            
+            const response = await ipcRenderer.invoke('generate-prompt', {
+                basePrompt: basePrompt.trim(),
+                styleId: styleId,
+                customStyle: styleParams
+            });
+            
+            // Ukryj animację ładowania
+            loadingContainer.style.display = 'none';
+            promptDisplay.style.display = 'block';
+
+            if (response && response.prompt) {
+                // Pokaż wygenerowany prompt z animacją
+                await revealPrompt(response.prompt, promptDisplay);
+                
+                // Dodaj do historii
+                addToStyleHistory(styleId, response.prompt);
+                updateHistoryButtons(styleId);
+                generatedCount++;
+            } else {
+                promptDisplay.textContent = 'Error: Invalid response format';
+            }
+        } catch (error) {
+            console.error('Error generating prompt:', error);
+            loadingContainer.style.display = 'none';
+            promptDisplay.style.display = 'block';
+            promptDisplay.textContent = 'Error generating prompt';
+        } finally {
+            generateBtn.disabled = false;
+        }
+    }
+
+    if (generatedCount > 0) {
+        showToast(`Generated prompts for ${generatedCount} styles`);
+    }
+}
+
+// Funkcja do animacji promptu
+function revealPrompt(promptText, container) {
+    container.innerHTML = '';
+    const words = promptText.split(' ');
+    
+    words.forEach((word, index) => {
+        const wordSpan = document.createElement('span');
+        wordSpan.textContent = word;
+        wordSpan.className = 'prompt-word';
+        wordSpan.style.animationDelay = `${index * 0.03}s`;
+        container.appendChild(wordSpan);
+        
+        // Add space after word (except for last word)
+        if (index < words.length - 1) {
+            container.appendChild(document.createTextNode(' '));
+        }
+    });
+}
+
+// Funkcja do aktualizacji liczników styli
+function updateStyleCounts() {
+    const cards = document.querySelectorAll('.style-card');
+    let activeCount = 0;
+    let inactiveCount = 0;
+    let favoritesCount = 0;
+
+    cards.forEach(card => {
+        const isActive = localStorage.getItem(`style_${card.dataset.styleId}_active`) === 'true';
+        const isFavorite = card.dataset.favorite === 'true' || localStorage.getItem(`style_${card.dataset.styleId}_favorite`) === 'true';
+        
+        if (isActive) activeCount++;
+        else inactiveCount++;
+        if (isFavorite) favoritesCount++;
+    });
+
+    // Update counts in buttons
+    document.querySelector('.switch-btn[data-view="active"]').textContent = `Active Styles (${activeCount})`;
+    document.querySelector('.switch-btn[data-view="inactive"]').textContent = `Inactive Styles (${inactiveCount})`;
+    document.querySelector('.switch-btn[data-view="favorites"]').innerHTML = `<i class="fas fa-star"></i> Favorites (${favoritesCount})`;
+}
+
+// Funkcja do aktualizacji tekstu przycisku Generate Prompts
+function updateGeneratePromptsButton() {
+    const generatePromptsBtn = document.getElementById('generatePrompts');
+    if (!generatePromptsBtn) {
+        console.error('Generate Prompts button not found');
+        return;
+    }
+
+    const currentView = document.querySelector('.switch-btn.active')?.dataset?.view;
+    if (!currentView) {
+        console.error('No active view found');
+        return;
+    }
+
+    console.log('Updating Generate Prompts button for view:', currentView);
+
+    let cardsCount = 0;
+    if (currentView === 'favorites') {
+        cardsCount = Array.from(document.querySelectorAll('.style-card')).filter(card => 
+            card.dataset.favorite === 'true' || localStorage.getItem(`style_${card.dataset.styleId}_favorite`) === 'true'
+        ).length;
+    } else if (currentView === 'active') {
+        cardsCount = Array.from(document.querySelectorAll('.style-card')).filter(card => 
+            localStorage.getItem(`style_${card.dataset.styleId}_active`) === 'true'
+        ).length;
+    }
+
+    console.log('Cards count:', cardsCount);
+
+    // Zachowaj ikonę podczas aktualizacji tekstu
+    generatePromptsBtn.innerHTML = `<i class="fas fa-wand-magic-sparkles"></i><span>Generate Prompts (${cardsCount})</span>`;
+    generatePromptsBtn.disabled = currentView === 'inactive' || cardsCount === 0;
+    generatePromptsBtn.style.opacity = (currentView === 'inactive' || cardsCount === 0) ? '0.5' : '1';
+}
+
+// Funkcja do otwierania ustawień stylu
+function openStyleSettings(styleId) {
+    // Get style data
+    ipcRenderer.invoke('get-style', styleId).then(style => {
+        if (style) {
+            // Open model tuning window with style data
+            ipcRenderer.send('open-model-tuning', {
+                styleId: style.id,
+                styleName: style.name,
+                parameters: style.modelParameters || {
+                    temperature: 0.7,
+                    topP: 0.9,
+                    topK: 40,
+                    maxTokens: 2048
+                }
+            });
+        }
+    });
+}
+
+// Listen for model parameter updates
+ipcRenderer.on('model-parameters-updated', (event, data) => {
+    // Update style card if needed
+    const styleCard = document.querySelector(`[data-style-id="${data.styleId}"]`);
+    if (styleCard) {
+        // You can add visual feedback here if needed
+        console.log(`Model parameters updated for style ${data.styleId}:`, data.parameters);
+    }
+});
+
+// Funkcja do aktualizacji statusu połączenia
+function updateConnectionStatus(status) {
+    const connectionBtn = document.getElementById('connection-btn');
+    if (!connectionBtn) return;
+
+    if (status.isConnected) {
+        connectionBtn.classList.remove('disconnected');
+        connectionBtn.classList.add('connected');
+        connectionBtn.title = 'Ollama Connected';
+        
+        // Update model names when connection is established
+        if (status.currentModel) {
+            const textModelName = document.getElementById('text-model-name');
+            if (textModelName) {
+                textModelName.textContent = status.currentModel;
+            }
+        }
+        if (status.visionModel) {
+            const visionModelName = document.getElementById('vision-model-name');
+            if (visionModelName) {
+                visionModelName.textContent = status.visionModel;
+            }
+        }
+    } else {
+        connectionBtn.classList.remove('connected');
+        connectionBtn.classList.add('disconnected');
+        connectionBtn.title = 'Ollama Disconnected';
+        
+        // Reset model names when disconnected
+        const textModelName = document.getElementById('text-model-name');
+        const visionModelName = document.getElementById('vision-model-name');
+        if (textModelName) textModelName.textContent = 'Not selected';
+        if (visionModelName) visionModelName.textContent = 'Not selected';
+    }
+}
+
+// Funkcja do obsługi tłumaczenia
 async function handleTranslation(text) {
     try {
         // Najpierw sprawdź ustawienia
@@ -922,90 +1186,6 @@ async function handleTranslation(text) {
     }
 }
 
-// Funkcja do sekwencyjnego generowania promptów
-async function generatePromptsSequentially(basePrompt) {
-    const activeCards = document.querySelectorAll('.style-card');
-    for (const card of activeCards) {
-        const toggle = card.querySelector('input[type="checkbox"]');
-        if (!toggle || !toggle.checked) continue;
-
-        const promptContainer = card.querySelector('.prompt-container');
-        const loadingContainer = card.querySelector('.generating-container');
-        const promptDisplay = card.querySelector('.prompt-text');
-        
-        if (!promptContainer || !loadingContainer || !promptDisplay) continue;
-
-        try {
-            // Pokaż animację ładowania
-            loadingContainer.style.display = 'flex';
-            promptDisplay.textContent = '';
-
-            // Generuj prompt
-            const styleId = card.dataset.styleId;
-            const response = await ipcRenderer.invoke('generate-prompt', {
-                basePrompt,
-                style: styleId
-            });
-
-            // Ukryj animację ładowania
-            loadingContainer.style.display = 'none';
-
-            // Pokaż wygenerowany prompt z animacją
-            await revealPrompt(response.prompt, promptDisplay);
-            
-            // Dodaj do historii
-            addToStyleHistory(styleId, response.prompt);
-            updateHistoryButtons(styleId);
-
-        } catch (error) {
-            console.error('Error generating prompt:', error);
-            loadingContainer.style.display = 'none';
-            promptDisplay.textContent = 'Error generating prompt';
-            showToast('Error: ' + error.message);
-        }
-    }
-}
-
-// Funkcja do animacji promptu
-function revealPrompt(promptText, container) {
-    container.innerHTML = '';
-    const words = promptText.split(' ');
-    
-    words.forEach((word, index) => {
-        const wordSpan = document.createElement('span');
-        wordSpan.textContent = word;
-        wordSpan.className = 'prompt-word';
-        wordSpan.style.animationDelay = `${index * 0.03}s`;
-        container.appendChild(wordSpan);
-        
-        // Add space after word (except for last word)
-        if (index < words.length - 1) {
-            container.appendChild(document.createTextNode(' '));
-        }
-    });
-}
-
-// Funkcja do aktualizacji liczników styli
-function updateStyleCounts() {
-    const cards = document.querySelectorAll('.style-card');
-    let activeCount = 0;
-    let inactiveCount = 0;
-    let favoritesCount = 0;
-
-    cards.forEach(card => {
-        const isActive = localStorage.getItem(`style_${card.dataset.styleId}_active`) === 'true';
-        const isFavorite = card.dataset.favorite === 'true';
-        
-        if (isActive) activeCount++;
-        else inactiveCount++;
-        if (isFavorite) favoritesCount++;
-    });
-
-    document.querySelector('.switch-btn[data-view="active"]').textContent = `Active Styles (${activeCount})`;
-    document.querySelector('.switch-btn[data-view="inactive"]').textContent = `Inactive Styles (${inactiveCount})`;
-    document.querySelector('.switch-btn[data-view="favorites"]').innerHTML = `<i class="fas fa-star"></i> Favorites (${favoritesCount})`;
-}
-
 // Nasłuchuj na zmiany statusu
 ipcRenderer.on('ollama-status', (event, status) => {
     console.log('Received ollama status update:', status);
@@ -1024,68 +1204,28 @@ ipcRenderer.on('style-updated', (event, updatedStyle) => {
     }
 });
 
-// Funkcja do otwierania ustawień stylu
-function openStyleSettings(styleId) {
-    // Get style data
-    ipcRenderer.invoke('get-style', styleId).then(style => {
-        if (style) {
-            // Open model tuning window with style data
-            ipcRenderer.send('open-model-tuning', {
-                styleId: style.id,
-                styleName: style.name,
-                parameters: style.modelParameters || {
-                    temperature: 0.7,
-                    topP: 0.9,
-                    topK: 40,
-                    maxTokens: 2048
-                }
-            });
-        }
-    });
+// Startup progress handling
+function updateStartupUI(progress, status, message) {
+    const progressBar = document.getElementById('startup-progress-bar');
+    const statusEl = document.getElementById('startup-status');
+    const messageEl = document.getElementById('startup-message');
+    
+    if (progressBar) progressBar.style.width = `${progress}%`;
+    if (statusEl) statusEl.textContent = status;
+    if (messageEl) messageEl.textContent = message;
 }
 
-// Listen for model parameter updates
-ipcRenderer.on('model-parameters-updated', (event, data) => {
-    // Update style card if needed
-    const styleCard = document.querySelector(`[data-style-id="${data.styleId}"]`);
-    if (styleCard) {
-        // You can add visual feedback here if needed
-        console.log(`Model parameters updated for style ${data.styleId}:`, data.parameters);
-    }
+ipcRenderer.on('startup-progress', (event, data) => {
+    updateStartupUI(data.progress, data.status, data.message);
 });
 
-// Funkcja do aktualizacji statusu połączenia
-function updateConnectionStatus(status) {
-    const connectionBtn = document.getElementById('connection-btn');
-    if (!connectionBtn) return;
-
-    if (status.isConnected) {
-        connectionBtn.classList.remove('disconnected');
-        connectionBtn.classList.add('connected');
-        connectionBtn.title = 'Ollama Connected';
-        
-        // Update model names when connection is established
-        if (status.currentModel) {
-            const textModelName = document.getElementById('text-model-name');
-            if (textModelName) {
-                textModelName.textContent = status.currentModel;
-            }
-        }
-        if (status.visionModel) {
-            const visionModelName = document.getElementById('vision-model-name');
-            if (visionModelName) {
-                visionModelName.textContent = status.visionModel;
-            }
-        }
-    } else {
-        connectionBtn.classList.remove('connected');
-        connectionBtn.classList.add('disconnected');
-        connectionBtn.title = 'Ollama Disconnected';
-        
-        // Reset model names when disconnected
-        const textModelName = document.getElementById('text-model-name');
-        const visionModelName = document.getElementById('vision-model-name');
-        if (textModelName) textModelName.textContent = 'Not selected';
-        if (visionModelName) visionModelName.textContent = 'Not selected';
+ipcRenderer.on('initialization-complete', () => {
+    const startupScreen = document.getElementById('startup-screen');
+    if (startupScreen) {
+        startupScreen.style.opacity = '0';
+        startupScreen.style.transition = 'opacity 0.5s ease';
+        setTimeout(() => {
+            startupScreen.style.display = 'none';
+        }, 500);
     }
-}
+});

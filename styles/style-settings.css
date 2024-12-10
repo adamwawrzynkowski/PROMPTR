@@ -156,3 +156,56 @@
 .secondary-btn:hover {
     background: rgba(255, 255, 255, 0.1);
 }
+
+.model-parameters {
+    padding: 10px;
+    background-color: var(--background-secondary);
+    border-radius: 8px;
+}
+
+.parameter-row {
+    display: flex;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.parameter-row:last-child {
+    margin-bottom: 0;
+}
+
+.parameter-row label {
+    flex: 0 0 120px;
+    font-size: 14px;
+    color: var(--text-primary);
+}
+
+.parameter-row input[type="range"] {
+    flex: 1;
+    margin: 0 10px;
+    -webkit-appearance: none;
+    height: 4px;
+    background: var(--accent);
+    border-radius: 2px;
+    outline: none;
+}
+
+.parameter-row input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    background: var(--accent);
+    border-radius: 50%;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.parameter-row input[type="range"]::-webkit-slider-thumb:hover {
+    background: var(--accent-hover);
+}
+
+.parameter-row span {
+    flex: 0 0 40px;
+    text-align: right;
+    font-size: 14px;
+    color: var(--text-secondary);
+}

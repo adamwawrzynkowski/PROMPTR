@@ -2,13 +2,78 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Prompt Editor</title>
+    <title>PROMPTR</title>
     <link rel="stylesheet" href="styles/main.css">
-    <link rel="stylesheet" href="animations.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <link rel="stylesheet" href="history.css">
 </head>
 <body>
+    <div class="app-container">
+        <div class="main-content">
+            <div class="prompt-input-container">
+                <div class="prompt-input-wrapper">
+                    <div class="prompt-textarea-container">
+                        <textarea id="promptInput" placeholder="Enter your prompt here..." rows="3"></textarea>
+                    </div>
+                    <div class="input-buttons">
+                        <button id="translateBtn" class="tool-button" title="Translate">
+                            <i class="fas fa-language"></i>
+                            <span>Translate</span>
+                        </button>
+                        <button id="visionBtn" class="tool-button" title="Add Image">
+                            <i class="fas fa-image"></i>
+                            <span>Vision</span>
+                        </button>
+                        <button id="copyPromptBtn" class="tool-button" title="Copy Prompt">
+                            <i class="fas fa-copy"></i>
+                            <span>Copy</span>
+                        </button>
+                        <button id="clearPromptBtn" class="tool-button" title="Clear Prompt">
+                            <i class="fas fa-times"></i>
+                            <span>Clear</span>
+                        </button>
+                    </div>
+                </div>
+                <div id="tags-container" class="tags-container"></div>
+            </div>
+
+            <div class="styles-section">
+                <div class="styles-nav">
+                    <div class="styles-nav-left">
+                        <div class="styles-switch">
+                            <div class="switch-container">
+                                <button class="switch-btn" data-view="favorites"><i class="fas fa-star"></i> Favorites (0)</button>
+                                <button class="switch-btn active" data-view="active">Active Styles (0)</button>
+                                <button class="switch-btn" data-view="inactive">Inactive Styles (0)</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="styles-nav-right">
+                        <button id="generatePrompts" class="style-card-button">
+                            <i class="fas fa-wand-magic-sparkles"></i>
+                            <span>Generate Prompts</span>
+                        </button>
+                        <button class="style-card-button">
+                            <i class="fas fa-gear"></i>
+                            <span>Manage Styles</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="styles-container">
+                    <div class="styles-list" id="stylesList">
+                        <!-- Style cards will be inserted here -->
+                        <div class="style-card">
+                            <button class="style-card-button">
+                                <span>Send to Draw Things</span>
+                                <i class="fas fa-arrow-right"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
     <div class="title-bar">
         <div class="window-controls">
             <button class="window-control close" id="close-btn">
@@ -56,72 +121,6 @@
                 <button class="title-bar-item" id="settings-btn" title="Settings">
                     <i class="fas fa-cog"></i>
                 </button>
-            </div>
-        </div>
-    </div>
-    <div class="app-container">
-        <div class="main-content">
-            <div class="prompt-input-container">
-                <div class="prompt-input-wrapper">
-                    <div class="prompt-textarea-container">
-                        <textarea id="promptInput" placeholder="Enter your prompt here..." rows="3"></textarea>
-                    </div>
-                    <div class="input-buttons">
-                        <button id="translateBtn" class="tool-button" title="Translate">
-                            <i class="fas fa-language"></i>
-                            <span>Translate</span>
-                        </button>
-                        <button id="visionBtn" class="tool-button" title="Add Image">
-                            <i class="fas fa-image"></i>
-                            <span>Vision</span>
-                        </button>
-                        <button id="copyPromptBtn" class="tool-button" title="Copy Prompt">
-                            <i class="fas fa-copy"></i>
-                            <span>Copy</span>
-                        </button>
-                        <button id="clearPromptBtn" class="tool-button" title="Clear Prompt">
-                            <i class="fas fa-times"></i>
-                            <span>Clear</span>
-                        </button>
-                    </div>
-                </div>
-                <div id="tags-container" class="tags-container"></div>
-            </div>
-
-            <div class="styles-section">
-                <div class="styles-nav">
-                    <div class="styles-nav-left">
-                        <div class="styles-switch">
-                            <div class="switch-container">
-                                <button class="switch-btn" data-view="favorites"><i class="fas fa-star"></i> Favorites (0)</button>
-                                <button class="switch-btn active" data-view="active">Active Styles (0)</button>
-                                <button class="switch-btn" data-view="inactive">Inactive Styles (0)</button>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="styles-nav-right">
-                        <button class="style-card-button">
-                            <i class="fas fa-wand-magic-sparkles"></i>
-                            <span>Generate Prompts</span>
-                        </button>
-                        <button class="style-card-button">
-                            <i class="fas fa-gear"></i>
-                            <span>Manage Styles</span>
-                        </button>
-                    </div>
-                </div>
-                
-                <div class="styles-container">
-                    <div class="styles-list" id="stylesList">
-                        <!-- Style cards will be inserted here -->
-                        <div class="style-card">
-                            <button class="style-card-button">
-                                <span>Send to Draw Things</span>
-                                <i class="fas fa-arrow-right"></i>
-                            </button>
-                        </div>
-                    </div>
-                </div>
             </div>
         </div>
     </div>

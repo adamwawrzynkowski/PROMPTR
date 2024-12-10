@@ -13,8 +13,25 @@
     min-height: 300px;
     height: auto;
     border: 1px solid var(--border);
-    transition: transform 0.2s ease;
-    will-change: transform, background-position;
+    transition: transform 0.2s ease, border-color 0.2s ease;
+    will-change: transform, border-color;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+    contain: layout style paint;
+}
+
+.option-card:hover {
+    transform: translateY(-2px);
+    border-color: var(--accent-color);
+}
+
+.option-card.active {
+    border-color: var(--accent-color);
+    background: linear-gradient(
+        to bottom right,
+        rgba(var(--accent-color-rgb), 0.1),
+        transparent
+    );
 }
 
 .option-card h2 {
@@ -24,6 +41,7 @@
     font-size: 20px;
     font-weight: 600;
     color: var(--text);
+    contain: content;
 }
 
 .option-card h2 i {
@@ -40,6 +58,21 @@
     line-height: 1.4;
     flex-shrink: 0;
     padding-right: 8px;
+    -webkit-overflow-scrolling: touch;
+    contain: content;
+}
+
+.option-card p::-webkit-scrollbar {
+    width: 4px;
+}
+
+.option-card p::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.option-card p::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
 }
 
 .option-card.generating {

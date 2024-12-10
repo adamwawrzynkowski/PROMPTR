@@ -45,21 +45,46 @@
 .styles-container {
     flex: 1;
     min-height: 0;
-    overflow: auto;
+    overflow-y: overlay;
+    overflow-x: hidden;
     width: 100%;
     padding: 0 20px 20px 20px;
     box-sizing: border-box;
+    will-change: transform;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior: contain;
+    scrollbar-gutter: stable;
+    contain: content;
+}
+
+.styles-container::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.styles-container::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.styles-container::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    transition: background 0.2s ease;
+}
+
+.styles-container::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.2);
 }
 
 .styles-grid {
-    display: none;
-    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
     gap: 20px;
-    padding: 20px;
     width: 100%;
-    max-width: 100%;
-    margin: 0 auto;
-    grid-auto-rows: 1fr;
+    padding-bottom: 20px;
+    contain: layout style paint;
+    transform: translateZ(0);
+    backface-visibility: hidden;
 }
 
 .style-card {
@@ -75,6 +100,7 @@
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     cursor: pointer;
     position: relative;
+    overflow: hidden;
 }
 
 .style-card.moving-to-active {
@@ -159,26 +185,6 @@
 
 .generate-btn:hover {
     background: rgba(255, 255, 255, 0.1);
-}
-
-.styles-container {
-    flex: 1;
-    min-height: 0;
-    overflow: auto;
-    width: 100%;
-    padding: 0 20px 20px 20px;
-    box-sizing: border-box;
-}
-
-.styles-grid {
-    display: none;
-    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
-    gap: 20px;
-    padding: 20px;
-    width: 100%;
-    max-width: 100%;
-    margin: 0 auto;
-    grid-auto-rows: 1fr;
 }
 
 .prompt-actions {

@@ -3,7 +3,7 @@ const { BrowserWindow, ipcMain, dialog, shell } = electron;
 const app = electron.app;
 const path = require('path');
 const http = require('http');
-const ollamaManager = require('./ollama');
+const { ollamaManager, getStatus } = require('./ollama-manager');
 const configWindow = require('./config-window');
 const stylesManager = require('./styles-manager');
 const stylesWindow = require('./styles-window');
@@ -76,29 +76,48 @@ class AppStartupManager {
             this.updateStartupProgress('Initializing configuration...', 30);
             await this.initializeConfiguration();
 
+            // Initialize Ollama Manager
+            this.updateStartupProgress('Initializing Ollama Manager...', 40);
+            const ollamaInitialized = await ollamaManager.initialize((progress, status, message) => {
+                if (this.startup) {
+                    this.startup.webContents.send('startup-progress', { progress, status, message });
+                }
+            });
+            if (!ollamaInitialized) {
+                // Show a dialog with instructions
+                const { response } = await dialog.showMessageBox(this.startup, {
+                    type: 'error',
+                    title: 'Ollama Not Available',
+                    message: 'Could not connect to Ollama service',
+                    detail: 'Please ensure that:\n\n1. Ollama is installed on your system\n2. You can run "ollama serve" from the terminal\n\nWould you like to visit the Ollama installation page?',
+                    buttons: ['Visit Ollama Website', 'Cancel'],
+                    defaultId: 0,
+                    cancelId: 1
+                });
+
+                if (response === 0) {
+                    shell.openExternal('https://ollama.ai/download');
+                }
+                
+                throw new Error('Failed to initialize Ollama Manager. Please install Ollama and try again.');
+            }
+
             // Set up IPC handlers for model import
             modelImportWindow.setupIpcHandlers();
 
             this.updateStartupProgress('Setting up models...', 50);
             await setupDefaultModels(this.startup);
 
-            this.updateStartupProgress('Creating main window...', 70);
+            this.updateStartupProgress('Creating main window...', 90);
             try {
                 this.mainWindow = await this.createMainWindow();
-                
-                // Wait for main window to be ready
-                await new Promise((resolve) => {
-                    const checkWindow = () => {
-                        if (this.mainWindow && !this.mainWindow.isDestroyed() && this.mainWindow.webContents.isLoading() === false) {
-                            resolve();
-                        } else {
-                            setTimeout(checkWindow, 100);
-                        }
-                    };
-                    checkWindow();
-                });
-                
-                this.updateStartupProgress('Finalizing startup...', 90);
+
+                // Signal initialization complete
+                if (this.startup) {
+                    this.startup.webContents.send('initialization-complete');
+                }
+
+                this.updateStartupProgress('Finalizing startup...', 95);
                 this.isStartupComplete = true;
                 this.updateStartupProgress('Startup complete', 100);
 
@@ -386,12 +405,13 @@ async function createWindow() {
 // Create startup window
 function createStartupWindow() {
     const startup = new BrowserWindow({
-        width: 500,
-        height: 400,
+        width: 450,
+        height: 550,
         frame: false,
         resizable: false,
         show: false,
         center: true,
+        useContentSize: true,
         webPreferences: {
             nodeIntegration: true,
             contextIsolation: false
@@ -447,10 +467,29 @@ app.whenReady().then(() => {
         try {
             console.log('Generating prompt with:', { basePrompt, styleId, customStyle });
             
-            // Use default style if none provided
-            const effectiveStyle = styleId || 'realistic';
+            // Get style parameters
+            let style = null;
+            if (styleId) {
+                style = stylesManager.getStyle(styleId);
+                if (!style) {
+                    throw new Error(`Style not found: ${styleId}`);
+                }
+            }
+
+            // Merge style parameters with custom parameters
+            const mergedStyle = {
+                ...style,
+                modelParameters: {
+                    ...(style?.modelParameters || {}),
+                    ...(customStyle?.modelParameters || {})
+                },
+                prefix: customStyle?.prefix || style?.prefix,
+                suffix: customStyle?.suffix || style?.suffix
+            };
+
+            console.log('Using merged style:', mergedStyle);
             
-            return await ollamaManager.generatePrompt(basePrompt, effectiveStyle, customStyle);
+            return await ollamaManager.generatePrompt(basePrompt, styleId, mergedStyle);
         } catch (error) {
             console.error('Error in generate-prompt:', error);
             throw error;
@@ -542,11 +581,11 @@ app.whenReady().then(() => {
 
     // Ollama status handlers
     ipcMain.handle('check-ollama-status', async () => {
-        return await ollamaManager.getStatus();
+        return await getStatus();
     });
 
     ipcMain.handle('refresh-ollama-status', async () => {
-        return await ollamaManager.getStatus();
+        return await getStatus();
     });
 
     // Model handlers

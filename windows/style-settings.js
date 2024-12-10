@@ -23,6 +23,28 @@ document.addEventListener('DOMContentLoaded', () => {
     const descriptionInput = document.getElementById('style-description');
     const promptInput = document.getElementById('style-prompt');
 
+    // Parametry modelu
+    const temperatureInput = document.getElementById('temperature');
+    const temperatureValue = document.getElementById('temperature-value');
+    const topPInput = document.getElementById('top-p');
+    const topPValue = document.getElementById('top-p-value');
+    const topKInput = document.getElementById('top-k');
+    const topKValue = document.getElementById('top-k-value');
+    const repeatPenaltyInput = document.getElementById('repeat-penalty');
+    const repeatPenaltyValue = document.getElementById('repeat-penalty-value');
+
+    // Aktualizacja wartości parametrów
+    function updateParameterValue(input, valueDisplay) {
+        input.addEventListener('input', () => {
+            valueDisplay.textContent = input.value;
+        });
+    }
+
+    updateParameterValue(temperatureInput, temperatureValue);
+    updateParameterValue(topPInput, topPValue);
+    updateParameterValue(topKInput, topKValue);
+    updateParameterValue(repeatPenaltyInput, repeatPenaltyValue);
+
     // Wypełnij dropdown z ikonami
     availableIcons.forEach(iconName => {
         const iconOption = document.createElement('div');
@@ -62,7 +84,13 @@ document.addEventListener('DOMContentLoaded', () => {
             ...currentStyle,
             name: nameInput.value,
             description: descriptionInput.value,
-            prompt: promptInput.value
+            prompt: promptInput.value,
+            modelParameters: {
+                temperature: parseFloat(temperatureInput.value),
+                top_p: parseFloat(topPInput.value),
+                top_k: parseInt(topKInput.value),
+                repeat_penalty: parseFloat(repeatPenaltyInput.value)
+            }
         };
         ipcRenderer.send('save-style-settings', updatedStyle);
     };
@@ -74,5 +102,17 @@ document.addEventListener('DOMContentLoaded', () => {
         descriptionInput.value = style.description || '';
         promptInput.value = style.prompt || '';
         currentIconBtn.innerHTML = `<i class="fas fa-${style.icon}"></i>`;
+
+        // Ustaw wartości parametrów modelu
+        if (style.modelParameters) {
+            temperatureInput.value = style.modelParameters.temperature || 0.7;
+            temperatureValue.textContent = temperatureInput.value;
+            topPInput.value = style.modelParameters.top_p || 0.9;
+            topPValue.textContent = topPInput.value;
+            topKInput.value = style.modelParameters.top_k || 40;
+            topKValue.textContent = topKInput.value;
+            repeatPenaltyInput.value = style.modelParameters.repeat_penalty || 1.1;
+            repeatPenaltyValue.textContent = repeatPenaltyInput.value;
+        }
     });
 });
