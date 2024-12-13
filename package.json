@@ -19,7 +19,10 @@
     "mac": {
       "category": "public.app-category.graphics-design",
       "icon": "assets/icon.icns",
-      "target": ["dmg", "zip"],
+      "target": [
+        "dmg",
+        "zip"
+      ],
       "darkModeSupport": true
     },
     "files": [
@@ -44,13 +47,14 @@
     "@emotion/react": "^11.11.0",
     "@emotion/styled": "^11.11.0",
     "@heroicons/react": "^2.1.5",
+    "electron-store": "^8.1.0",
     "framer-motion": "^10.12.16",
     "node-fetch": "^2.6.1",
     "onnxruntime-node": "^1.16.0",
+    "python-shell": "^5.0.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "sharp": "^0.32.1",
-    "python-shell": "^5.0.0"
+    "sharp": "^0.32.1"
   },
   "devDependencies": {
     "@babel/core": "^7.22.1",

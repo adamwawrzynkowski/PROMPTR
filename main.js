@@ -2,6 +2,7 @@ const electron = require('electron');
 const { BrowserWindow, ipcMain, dialog, shell } = electron;
 const app = electron.app;
 const path = require('path');
+const Store = require('electron-store');
 const http = require('http');
 const { ollamaManager, getStatus } = require('./ollama-manager');
 const configWindow = require('./config-window');
@@ -29,6 +30,21 @@ const dependenciesWindow = require('./dependencies-window');
 const creditsWindow = require('./credits-window');
 const fetch = require('node-fetch');
 const fs = require('fs').promises;
+
+// Initialize electron store with schema
+const store = new Store({
+    schema: {
+        settings: {
+            type: 'object',
+            properties: {
+                theme: {
+                    type: 'string',
+                    default: 'purple'
+                }
+            }
+        }
+    }
+});
 
 // Global variables
 let mainWindow = null;
@@ -560,6 +576,29 @@ app.whenReady().then(async () => {
         } catch (error) {
             console.error('Error updating style parameters:', error);
             event.reply('style-parameters-update-error', error.message);
+        }
+    });
+
+    // Theme settings handlers
+    ipcMain.handle('get-setting', async (event, key) => {
+        try {
+            const settings = store.get('settings') || {};
+            return settings[key];
+        } catch (error) {
+            console.error('Error getting setting:', error);
+            return null;
+        }
+    });
+
+    ipcMain.handle('set-setting', async (event, key, value) => {
+        try {
+            const settings = store.get('settings') || {};
+            settings[key] = value;
+            store.set('settings', settings);
+            return true;
+        } catch (error) {
+            console.error('Error setting setting:', error);
+            return false;
         }
     });
 

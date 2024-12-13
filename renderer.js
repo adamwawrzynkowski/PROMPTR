@@ -1416,3 +1416,37 @@ ipcRenderer.on('initialization-complete', () => {
         }, 500);
     }
 });
+
+// Theme handling
+const initializeTheme = async () => {
+    const themeSelect = document.getElementById('themeSelect');
+    if (!themeSelect) return;
+
+    const body = document.body;
+    
+    try {
+        // Load saved theme from electron store
+        const savedTheme = await ipcRenderer.invoke('get-setting', 'theme') || 'purple';
+        themeSelect.value = savedTheme;
+        body.className = `theme-${savedTheme}`;
+
+        // Handle theme changes
+        themeSelect.addEventListener('change', async (e) => {
+            const selectedTheme = e.target.value;
+            body.className = `theme-${selectedTheme}`;
+            try {
+                await ipcRenderer.invoke('set-setting', 'theme', selectedTheme);
+            } catch (error) {
+                console.error('Error saving theme:', error);
+            }
+        });
+    } catch (error) {
+        console.error('Error loading theme:', error);
+        // Set default theme if there's an error
+        body.className = 'theme-purple';
+    }
+};
+
+document.addEventListener('DOMContentLoaded', () => {
+    initializeTheme();
+});

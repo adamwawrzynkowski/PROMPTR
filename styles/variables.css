@@ -1,3 +1,5 @@
+@import './themes.css';
+
 :root {
     /* Base colors */
     --background: #1a1a1a;
@@ -10,12 +12,6 @@
     --card-background-darker: rgba(45, 45, 45, 0.95);
     --input-background: rgba(0, 0, 0, 0.2);
     
-    /* Accent colors */
-    --accent-primary: #3eb8ff;
-    --accent-secondary: #ff52b6;
-    --accent-gradient: linear-gradient(135deg, var(--accent-primary) 0%, var(--accent-secondary) 100%);
-    --primary: #3eb8ff;
-    
     /* Text colors */
     --text: #ffffff;
     --text-primary: #ffffff;
@@ -25,11 +21,6 @@
     /* Overlay colors */
     --overlay-background: rgba(0, 0, 0, 0.75);
     --overlay-blur: blur(10px);
-    
-    /* Border colors */
-    --border: rgba(255, 255, 255, 0.1);
-    --border-primary: rgba(255, 255, 255, 0.1);
-    --border-secondary: rgba(255, 255, 255, 0.05);
     
     /* Scrollbar colors */
     --scrollbar-thumb: rgba(255, 255, 255, 0.2);
@@ -83,7 +74,4 @@
     --z-modal: 200;
     --z-popover: 300;
     --z-tooltip: 400;
-    
-    /* Hover color */
-    --hover-action: #9333EA;
 }

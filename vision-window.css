@@ -6,6 +6,7 @@
     --border: rgba(255, 255, 255, 0.1);
     --button-background: rgba(255, 255, 255, 0.1);
     --button-hover: rgba(255, 255, 255, 0.2);
+    --theme-color: var(--text);
 }
 
 body {
@@ -50,7 +51,7 @@ body {
 }
 
 #drop-zone {
-    border: 2px dashed var(--border);
+    border: 2px dashed var(--theme-color);
     border-radius: 12px;
     padding: 40px;
     text-align: center;
@@ -60,7 +61,7 @@ body {
 }
 
 #drop-zone.drag-over {
-    border-color: var(--text);
+    border-color: var(--theme-color);
     background: rgba(255, 255, 255, 0.05);
 }
 
@@ -122,7 +123,7 @@ body {
 .loading-spinner {
     width: 16px;
     height: 16px;
-    border: 2px solid var(--text);
+    border: 2px solid var(--theme-color);
     border-top-color: transparent;
     border-radius: 50%;
     animation: spin 1s linear infinite;
@@ -248,7 +249,7 @@ body {
     width: 100%;
     padding: 8px;
     border-radius: 4px;
-    border: 1px solid var(--border-color);
-    background: var(--background-primary);
-    color: var(--text-primary);
+    border: 1px solid var(--border);
+    background: var(--background);
+    color: var(--text);
 } 

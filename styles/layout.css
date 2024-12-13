@@ -93,14 +93,16 @@
     display: flex;
     flex-direction: column;
     background: var(--card-background-darker);
-    border: 1px solid var(--border);
+    border: 1px solid transparent;
     border-radius: 12px;
     padding: 20px;
     gap: 15px;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     cursor: pointer;
-    position: relative;
-    overflow: hidden;
+}
+
+.style-card:hover {
+    border: 1px solid var(--theme-color);
 }
 
 .style-card.moving-to-active {
@@ -144,7 +146,7 @@
 .style-card .prompt-preview {
     flex: 1;
     background: var(--background);
-    border: 1px solid var(--border);
+    border: none;
     border-radius: 8px;
     padding: 15px;
     font-size: 14px;
@@ -173,7 +175,7 @@
     height: 31px;
     padding: 0 12px;
     border-radius: 8px;
-    border: 1px solid var(--border);
+    border: 1px solid var(--theme-color-back);
     background: var(--card-background);
     color: var(--text);
     font-size: 14px;
@@ -184,7 +186,11 @@
 }
 
 .generate-btn:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--card-background-darker);
+    border: 1px solid var(--theme-color);
+    border-radius: 6px;
+    color: var(--text);
+    transition: all 0.2s ease;
 }
 
 .prompt-actions {
@@ -204,7 +210,7 @@
 
 .history-buttons {
     display: flex;
-    border: 1px solid var(--border);
+    border: 1px solid var(--theme-color-back);
     border-radius: 8px;
     overflow: hidden;
     height: 36px;
@@ -214,9 +220,9 @@
 .history-buttons .prompt-action-btn {
     width: 36px;
     height: 36px;
-    border: none;
+    border: 1px solid transparent;
     border-radius: 0;
-    background: var(--card-background);
+    background: var(--button-background);
     color: var(--text);
     display: flex;
     align-items: center;
@@ -226,15 +232,15 @@
 }
 
 .history-buttons .prompt-action-btn:first-child {
-    border-right: 1px solid var(--border);
+    border-right: 1px solid var(--theme-color-back);
 }
 
 .prompt-action-btn {
     width: 36px;
     height: 36px;
     border-radius: 8px;
-    border: 1px solid var(--border);
-    background: var(--card-background);
+    border: 1px solid transparent;
+    background: var(--button-background);
     color: var(--text);
     display: flex;
     align-items: center;
@@ -245,7 +251,19 @@
 }
 
 .prompt-action-btn:hover {
-    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid var(--theme-color);
+    background: var(--button-hover);
+}
+
+.prompt-action-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    border: 1px solid transparent;
+}
+
+.prompt-action-btn:disabled:hover {
+    background: var(--button-background);
+    border: 1px solid transparent;
 }
 
 .send-to-draw-btn {
@@ -253,7 +271,7 @@
     padding: 0 12px;
     height: 36px;
     border-radius: 8px;
-    border: 1px solid var(--border);
+    border: 1px solid var(--theme-color-back);
     background: var(--card-background);
     color: var(--text);
     display: flex;
@@ -265,7 +283,11 @@
 }
 
 .send-to-draw-btn:hover {
-    background: rgba(255, 255, 255, 0.1);
+    background: var(--card-background-darker);
+    border: 1px solid var(--theme-color);
+    border-radius: 6px;
+    color: var(--text);
+    transition: all 0.2s ease;
 }
 
 .content-container {
@@ -281,10 +303,13 @@
 .prompt-container {
     display: flex;
     flex-direction: column;
+    padding: 12px 16px;
     gap: 12px;
     width: 100%;
     max-width: 800px;
     margin: 0 auto;
+    border: 1px dashed var(--theme-color-back);
+    border-radius: 12px;
 }
 
 /* Headers */
@@ -293,7 +318,7 @@
     justify-content: space-between;
     align-items: center;
     padding: 20px;
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid var(--theme-color-back);
 }
 
 .styles-header h2 {
@@ -431,7 +456,7 @@
     border-radius: 8px;
     background: var(--card-background);
     color: var(--text);
-    border: 1px solid var(--border);
+    border: 1px solid var(--theme-color-back);
     cursor: pointer;
     display: flex;
     align-items: center;
@@ -502,7 +527,7 @@
 
 .switch-container {
     display: inline-flex;
-    border: 2px solid rgba(255, 255, 255, 0.1);
+    border: 1px solid var(--theme-color-back);
     border-radius: 10px;
     padding: 3px;
     background: rgba(255, 255, 255, 0.05);
@@ -515,7 +540,7 @@
     color: var(--text-color);
     cursor: pointer;
     transition: all 0.3s ease;
-    border: none;
+    border: 1px solid var(--theme-color-back);
     font-size: 14px;
 }
 
@@ -528,7 +553,7 @@
 }
 
 .switch-btn.active {
-    background: #8A2BE2;
+    background: var(--theme-color);
     color: white;
     box-shadow: 0 2px 8px rgba(138, 43, 226, 0.4);
 }
@@ -595,14 +620,7 @@
 }
 
 .styles-nav-right .style-card-button:first-child {
-    background: linear-gradient(
-        110deg,
-        rgb(58, 37, 89) 20%,
-        rgb(67, 43, 102) 30%,
-        rgb(139, 92, 246, 0.3) 40%,
-        rgb(67, 43, 102) 50%,
-        rgb(58, 37, 89) 60%
-    );
+    background: var(--gradient-background);
     background-size: 200% 100%;
     animation: shimmer 6s infinite linear;
     position: relative;
@@ -613,29 +631,14 @@
     content: '';
     position: absolute;
     inset: -1px;
-    background: linear-gradient(
-        110deg,
-        transparent 20%,
-        rgba(139, 92, 246, 0.1) 40%,
-        rgba(139, 92, 246, 0.2) 50%,
-        rgba(139, 92, 246, 0.1) 60%,
-        transparent 80%
-    );
     background-size: 200% 100%;
     animation: shimmer 4s infinite linear;
     pointer-events: none;
 }
 
 .styles-nav-right .style-card-button:first-child:hover {
-    background: linear-gradient(
-        110deg,
-        rgb(67, 43, 102) 20%,
-        rgb(76, 49, 116) 30%,
-        rgb(139, 92, 246, 0.4) 40%,
-        rgb(76, 49, 116) 50%,
-        rgb(67, 43, 102) 60%
-    );
+    background: var(--gradient-background);
     background-size: 200% 100%;
     animation: shimmer 3s infinite linear;
-    transform: translateY(-1px);
+    transition: all 0.2s ease;
 }

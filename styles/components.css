@@ -1,4 +1,4 @@
-@import 'variables.css';
+@import 'themes.css';
 
 /* Style cards container */
 .styles-section {
@@ -30,17 +30,18 @@
     border-radius: 8px;
     transition: all 0.2s ease;
     background: var(--card-background);
-    border: 1px solid var(--border);
+    border: 1px solid transparent;
 }
 
 .styles-nav-item:hover {
     background: var(--card-background-darker);
+    border: 1px solid var(--theme-color);
 }
 
 .styles-nav-item.active {
     color: var(--text);
     background: var(--primary);
-    border-color: transparent;
+    border: 1px solid var(--theme-color-back);
 }
 
 .styles-container {
@@ -70,7 +71,7 @@
 /* Style cards */
 .style-card {
     background: var(--card-background-darker);
-    border: 1px solid var(--border);
+    border: 1px solid transparent;
     border-radius: 10px;
     padding: 20px;
     position: relative;
@@ -78,6 +79,10 @@
     width: 100%;
     height: fit-content;
     color: var(--text);
+}
+
+.style-card:hover {
+    border: 1px solid var(--theme-color);
 }
 
 .style-card-title {
@@ -101,6 +106,7 @@
     padding: 4px 8px;
     background: var(--card-background);
     border-radius: 4px;
+    border: 1px solid var(--theme-color-back);
     color: var(--text-secondary);
     font-size: 12px;
 }
@@ -123,9 +129,9 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 8px 12px;
+    padding: 12px 12px;
     background: var(--card-background-darker);
-    border: 1px solid var(--border);
+    border-color: var(--theme-color-back);
     border-radius: 6px;
     color: var(--text);
     font-size: 14px;
@@ -134,7 +140,10 @@
 }
 
 .prompt-action-btn:hover {
-    border-color: var(--hover-action);
+    background: var(--card-background-darker);
+    border-color: var(--theme-color);
+    color: var(--text);
+    transition: all 0.2s ease;
 }
 
 .prompt-action-btn i {
@@ -176,7 +185,7 @@
     overflow: hidden;
     min-height: 300px;
     height: auto;
-    border: 1px solid var(--border);
+    border: 1px solid transparent;
     transition: transform 0.2s ease;
     will-change: transform, background-position;
 }
@@ -198,11 +207,16 @@
     animation: borderMove 2s linear infinite;
     z-index: -1;
     border-radius: 10px;
+    border: 1px solid var(--theme-color);
     -webkit-mask: 
         linear-gradient(#fff 0 0) content-box,
         linear-gradient(#fff 0 0);
     -webkit-mask-composite: xor;
     mask-composite: exclude;
+}
+
+.option-card:hover {
+    border: 1px solid var(--theme-color);
 }
 
 /* Style dla sekcji wejściowej */
@@ -218,12 +232,17 @@
     border-radius: 10px;
     padding: 1px;
     color: var(--text);
-    border: 1px solid var(--border);
+    border: 1px solid transparent;
     background: var(--card-background);
 }
 
+.input-section:focus-within {
+    border: 1px solid var(--theme-color-back);
+    box-shadow: 0 0 0 1px var(--theme-color-transparent);
+}
+
 .input-section.generating {
-    border-color: transparent;
+    border: 1px solid var(--theme-color-back);
 }
 
 .input-section.generating::before {
@@ -246,17 +265,24 @@
     mask-composite: exclude;
 }
 
+.prompt-input-wrapper-tools {
+    position: relative;
+    top: -45%;
+    width: 100%;
+}
+
 .prompt-input-container {
     width: 100%;
     padding: 20px;
     background: var(--card-background);
     border-radius: 12px;
-    border: 1px solid var(--border);
 }
 
 .prompt-input-wrapper {
     position: relative;
-    width: 100%;
+    width: 84%;
+    height: 81%;
+    top: -4.5%;
 }
 
 .prompt-textarea-container {
@@ -266,13 +292,13 @@
 
 .input-buttons {
     position: absolute;
-    top: 45%;
+    width: 15%;
     right: -10px;
     transform: translateY(-50%);
     display: flex;
     flex-direction: column;
     background: var(--card-background-darker);
-    border: 1px solid var(--border);
+    border: 1px solid var(--theme-color-back);
     border-radius: 8px;
     padding: 4px;
     z-index: 10;
@@ -281,23 +307,17 @@
 .tool-button {
     position: relative;
     display: flex;
-    align-items: center;
     gap: 12px;
     padding: 8px 16px;
     background: transparent;
-    border: none;
+    border: 1px solid var(--theme-color-back);
     color: var(--text);
     font-size: 14px;
     cursor: pointer;
     transition: background-color 0.2s ease;
-    width: 100%;
     text-align: left;
     border-radius: 4px;
     margin: 1px 0;
-}
-
-.tool-button:hover {
-    background-color: rgba(255, 255, 255, 0.15) !important;
 }
 
 .tool-button i {
@@ -305,12 +325,16 @@
     width: 20px;
 }
 
+.tool-button:hover {
+    background-color: rgba(255, 255, 255, 0.15) !important;
+}
+
 .prompt-textarea {
     width: 100%;
     min-height: 100px;
     padding: 15px;
     background: var(--input-background);
-    border: none;
+    border: 1px solid var(--theme-color-back);
     border-radius: 8px;
     color: var(--text);
     font-size: 14px;
@@ -328,7 +352,7 @@
     height: 100%;
     padding: 16px 140px 16px 20px;
     background: transparent;
-    border: none;
+    border: 1px solid var(--theme-color-back);
     border-radius: 8px;
     color: var(--text);
     font-size: 18px;
@@ -361,7 +385,7 @@
 /* Style dla przycisków */
 .input-btn {
     background: var(--button-background);
-    border: none;
+    border: 1px solid transparent;
     width: 32px;
     height: 32px;
     border-radius: 6px;
@@ -374,7 +398,7 @@
 }
 
 .input-btn:hover {
-    border-color: var(--hover-action);
+    border: 1px solid var(--theme-color);
 }
 
 .input-btn i {
@@ -383,7 +407,7 @@
 
 .refresh-btn {
     background: var(--button-background);
-    border: none;
+    border: 1px solid transparent;
     width: 28px;
     height: 28px;
     border-radius: 6px;
@@ -394,9 +418,13 @@
     transition: all 0.3s ease;
 }
 
+.refresh-btn:hover {
+    border: 1px solid var(--theme-color);
+}
+
 .draw-things-btn {
     background: rgba(147, 51, 234, 0.2);
-    border: none;
+    border: 1px solid transparent;
     padding: 8px 16px;
     border-radius: 6px;
     cursor: pointer;
@@ -408,7 +436,8 @@
 }
 
 .draw-things-btn:hover {
-    background: rgba(147, 51, 234, 0.3);
+    background: var(--theme-color-hover);
+    border: 1px solid var(--theme-color);
 }
 
 /* Tags */
@@ -422,7 +451,7 @@
     cursor: pointer;
     transition: all 0.2s ease;
     user-select: none;
-    border: 1px solid var(--border);
+    border: 1px solid var(--theme-color-back);
 }
 
 .generating-tag i {
@@ -449,13 +478,13 @@
 
 .tag.default-tag:hover {
     opacity: 1;
-    border-color: var(--hover-action);
+    border: 1px solid var(--theme-color);
 }
 
 .tags-container {
     margin-top: 5px;
     padding-top: 10px;
-    border-top: 1px solid var(--border);
+    border-top: none;
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
@@ -486,8 +515,8 @@
     bottom: 20px;
     left: 50%;
     transform: translateX(-50%) translateY(100px);
-    background: var(--card-background);
-    border: 1px solid var(--border);
+    background: var(--theme-color-darker);
+    border: 1px solid var(--theme-color);
     border-radius: 8px;
     padding: 12px 20px;
     color: var(--text);
@@ -524,16 +553,16 @@
     border-radius: 31px;
     cursor: pointer;
     transition: all 0.3s ease;
-    background: rgba(255, 255, 255, 0.1);
-    border: 1px solid var(--border);
+    background: var(--theme-color);
+    border: 1px solid transparent;
     position: relative;
     display: flex;
     align-items: center;
 }
 
 .style-switch.active {
-    background: #8b5cf6;
-    border-color: #8b5cf6;
+    background: var(--theme-color-back);
+    border: 1px solid var(--theme-color-back);
 }
 
 .style-switch::before {
@@ -568,22 +597,24 @@
     border-radius: 8px;
     transition: all 0.2s ease;
     user-select: none;
+    border: 1px solid transparent;
 }
 
 .styles-nav-item:hover {
-    border-color: var(--hover-action);
+    border: 1px solid var(--theme-color-back);
 }
 
 .styles-nav-item.active {
     color: var(--text);
     background: var(--primary);
+    border: 1px solid var(--theme-color-back);
 }
 
 /* Context menu */
 .context-menu {
     position: absolute;
     background: var(--card-background-darker);
-    border: 1px solid var(--border);
+    border: 1px solid transparent;
     border-radius: 8px;
     padding: 6px;
     min-width: 180px;
@@ -605,6 +636,7 @@
 
 .context-menu-item:hover {
     background: var(--background-secondary);
+    border: 1px solid var(--theme-color);
 }
 
 .context-menu-item i {

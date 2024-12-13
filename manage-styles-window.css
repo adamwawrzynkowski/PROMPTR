@@ -260,7 +260,7 @@ body {
     transform: translateX(-50%) translateY(100px);
     padding: 12px 24px;
     border-radius: 8px;
-    background: var(--card-background);
+    background: var(--style-card-background);
     color: var(--text);
     font-size: 14px;
     opacity: 0;

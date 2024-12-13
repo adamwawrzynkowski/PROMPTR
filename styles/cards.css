@@ -12,7 +12,7 @@
     overflow: hidden;
     min-height: 300px;
     height: auto;
-    border: 1px solid var(--border);
+    border: 1px solid transparent;
     transition: transform 0.2s ease, border-color 0.2s ease;
     will-change: transform, border-color;
     transform: translateZ(0);
@@ -22,11 +22,11 @@
 
 .option-card:hover {
     transform: translateY(-2px);
-    border-color: var(--accent-color);
+    border-color: var(--theme-color);
 }
 
 .option-card.active {
-    border-color: var(--accent-color);
+    border-color: var(--theme-color);
     background: linear-gradient(
         to bottom right,
         rgba(var(--accent-color-rgb), 0.1),
@@ -137,11 +137,13 @@
 .options-grid::-webkit-scrollbar-track {
     background: rgba(255, 255, 255, 0.1);
     border-radius: 4px;
+    border: none;
 }
 
 .options-grid::-webkit-scrollbar-thumb {
     background: rgba(255, 255, 255, 0.2);
     border-radius: 4px;
+    border: none;
 }
 
 .options-grid::-webkit-scrollbar-thumb:hover {
@@ -151,7 +153,7 @@
 /* Style cards */
 .style-card {
     background: var(--card-background);
-    border: 1px solid var(--border);
+    border: 1px solid transparent;
     border-radius: 10px;
     padding: 20px;
     display: flex;
@@ -165,12 +167,14 @@
     appearance: none;
     width: 40px;
     height: 24px;
-    background: rgb(58, 37, 89);
-    border: 1px solid rgb(67, 43, 102);
+    background: var(--theme-color-back);
+    border: none;
     border-radius: 12px;
     position: relative;
     cursor: pointer;
     transition: all 0.3s ease;
+    top: 2px;
+    left: 2px;
 }
 
 .style-card input[type="checkbox"]::after {
@@ -180,18 +184,23 @@
     height: 18px;
     background: white;
     border-radius: 50%;
+    border: none;
     top: 2px;
     left: 2px;
     transition: all 0.3s ease;
 }
 
 .style-card input[type="checkbox"]:checked {
-    background: rgb(139, 92, 246);
-    border-color: rgb(139, 92, 246);
+    background: var(--theme-color);
+    border: 1px solid var(--theme-color);
+    top: 2px;
+    left: 2px;
 }
 
 .style-card input[type="checkbox"]:checked::after {
     transform: translateX(16px);
+    top: 2px;
+    left: 2px;
 }
 
 .style-card.generating {
@@ -211,6 +220,7 @@
     animation: borderMove 2s linear infinite;
     z-index: -1;
     border-radius: 10px;
+    border: none;
     -webkit-mask: 
         linear-gradient(#fff 0 0) content-box,
         linear-gradient(#fff 0 0);
@@ -247,7 +257,7 @@
     gap: 8px;
     padding: 8px 16px;
     background: transparent;
-    border: 1px solid var(--border);
+    border: none;
     border-radius: 8px;
     color: var(--text-secondary);
     cursor: pointer;

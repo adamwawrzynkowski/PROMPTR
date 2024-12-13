@@ -20,7 +20,7 @@
     align-items: center;
     padding: 0 var(--spacing-md);
     height: 60px;
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid var(--theme-color-back);
 }
 
 .header h1 {
@@ -37,7 +37,7 @@
     padding: var(--spacing-md);
     background: var(--card-background);
     border-radius: var(--radius-lg);
-    border: 1px solid var(--border);
+    border: 1px solid var(--theme-color-back);
 }
 
 /* Content section */
@@ -58,7 +58,7 @@
     padding: var(--spacing-sm);
     background: var(--card-background);
     border-radius: var(--radius-md);
-    border: 1px solid var(--border);
+    border: 1px solid var(--theme-color-back);
 }
 
 .status-indicator {
@@ -80,7 +80,7 @@
     align-items: center;
     padding: var(--spacing-sm) var(--spacing-md);
     background: var(--background);
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid var(--theme-color-back);
     -webkit-app-region: drag;
 }
 

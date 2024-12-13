@@ -9,7 +9,7 @@
     height: 38px;
     background: var(--background);
     z-index: 1000;
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid var(--theme-color-back);
     display: flex;
     align-items: center;
     -webkit-app-region: drag;
@@ -36,13 +36,14 @@
     color: var(--text-secondary);
     transition: all 0.2s ease;
     background: transparent;
-    border: none;
+    border: 1px solid transparent;
     -webkit-app-region: no-drag;
 }
 
 .window-control:hover {
     background: var(--button-hover);
     color: var(--text);
+    border: 1px solid var(--theme-color);
 }
 
 .window-control.close:hover {
@@ -84,7 +85,7 @@
 .coffee-button,
 .title-bar-button {
     background: transparent;
-    border: none;
+    border: 1px solid transparent;
     color: var(--text-secondary);
     width: 32px;
     height: 32px;
@@ -99,7 +100,7 @@
 .coffee-button:hover,
 .title-bar-button:hover {
     background: var(--button-hover);
-    color: var(--text);
+    border: 1px solid var(--theme-color);
 }
 
 /* Model tags */
@@ -178,6 +179,21 @@
     font-size: 0.8em;
     opacity: 0.8;
     margin-left: 4px;
+}
+
+.title-bar-items .theme-selector select {
+    appearance: none;
+    background-color: transparent;
+    border: 1px solid transparent;
+    color: var(--text);
+    padding: 4px 24px 4px 8px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.title-bar-items .theme-selector select:hover {
+    border: 1px solid var(--theme-color);
 }
 
 /* Connection status */

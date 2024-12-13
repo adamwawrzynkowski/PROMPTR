@@ -3,7 +3,7 @@
 /* Input fields */
 input, textarea {
     background: var(--input-background);
-    border: 1px solid var(--border);
+    border: 1px solid transparent;
     border-radius: var(--radius-md);
     padding: var(--spacing-sm) var(--spacing-md);
     color: var(--text);
@@ -13,9 +13,13 @@ input, textarea {
     font-family: inherit;
 }
 
+input:hover, textarea:hover {
+    border: 1px solid var(--theme-color-transparent);
+}
+
 input:focus, textarea:focus {
     outline: none;
-    border-color: var(--accent-color);
+    border: 1px solid var(--theme-color);
 }
 
 input::placeholder, textarea::placeholder {
@@ -141,7 +145,7 @@ input::placeholder, textarea::placeholder {
 /* Select */
 select {
     background: var(--input-background);
-    border: 1px solid var(--border);
+    border: 1px solid transparent;
     border-radius: var(--radius-md);
     padding: var(--spacing-sm) var(--spacing-md);
     color: var(--text);
@@ -156,16 +160,20 @@ select {
     padding-right: 40px;
 }
 
+select:hover {
+    border: 1px solid var(--theme-color-transparent);
+}
+
 select:focus {
     outline: none;
-    border-color: var(--accent-color);
+    border: 1px solid var(--theme-color);
 }
 
 /* Form validation */
 .form-group.error input,
 .form-group.error textarea,
 .form-group.error select {
-    border-color: var(--error);
+    border: 1px solid var(--theme-color-back);
 }
 
 .form-group.error .help-text {
@@ -175,7 +183,7 @@ select:focus {
 .form-group.success input,
 .form-group.success textarea,
 .form-group.success select {
-    border-color: var(--success);
+    border: 1px solid var(--theme-color-back);
 }
 
 .form-group.success .help-text {

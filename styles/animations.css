@@ -115,7 +115,6 @@
     align-items: center;
     justify-content: center;
     gap: 4px;
-    background: transparent;
     z-index: 1;
 }
 
@@ -224,13 +223,7 @@
 }
 
 .prompt-container {
-    height: 100px;
-    margin-top: 20px;
-    font-size: 14px;
-    line-height: 1.4;
-    color: var(--text);
-    overflow-y: auto;
-    padding-right: 8px;
+    height: 140px;
 }
 
 .prompt-container::-webkit-scrollbar {

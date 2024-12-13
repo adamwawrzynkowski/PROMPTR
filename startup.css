@@ -6,9 +6,10 @@
     --accent-color-hover: #9969ff;
     --text-color: #ffffff;
     --text-secondary: rgba(255, 255, 255, 0.7);
-    --border-color: rgba(255, 255, 255, 0.1);
+    --border-color: var(--accent-color);
     --success-color: #4CAF50;
     --error-color: #f44336;
+    --theme-color: var(--accent-color);
 }
 
 body {
@@ -34,7 +35,7 @@ body {
     background: var(--background);
     border-radius: 12px;
     overflow: hidden;
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--theme-color);
 }
 
 .title-bar {
@@ -44,7 +45,7 @@ body {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    border-bottom: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--theme-color);
 }
 
 .title {
@@ -67,7 +68,7 @@ body {
     background: var(--card-background);
     padding: 24px;
     border-radius: 12px;
-    border: 1px solid var(--border-color);
+    border: 1px solid var(--theme-color);
     display: flex;
     flex-direction: column;
     gap: 16px;

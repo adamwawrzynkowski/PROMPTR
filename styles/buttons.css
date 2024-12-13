@@ -47,7 +47,7 @@ button:hover, .button:hover {
 
 /* Draw things button */
 .draw-things-btn {
-    background: rgba(147, 51, 234, 0.2);
+    background: var(--theme-color-transparent);
     border: none;
     padding: 8px 16px;
     border-radius: 6px;
@@ -60,7 +60,7 @@ button:hover, .button:hover {
 }
 
 .draw-things-btn:hover {
-    background: rgba(147, 51, 234, 0.3) !important;
+    background: var(--theme-color-hover) !important;
 }
 
 /* History action button */
