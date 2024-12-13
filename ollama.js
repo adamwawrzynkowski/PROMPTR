@@ -382,8 +382,30 @@ class OllamaManager {
                 parameters
             });
 
+            // Ensure we have a model selected
+            await this.ensureTextModelSelected();
+
+            // Make the actual API call to Ollama
+            const response = await fetch(`http://${this.endpoint.host}:${this.endpoint.port}/api/generate`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    model: this.currentModel,
+                    prompt: finalPrompt,
+                    options: parameters,
+                    stream: false
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error(`Failed to generate prompt: ${response.statusText}`);
+            }
+
+            const result = await response.json();
             return {
-                prompt: finalPrompt,
+                prompt: result.response,
                 parameters
             };
         } catch (error) {

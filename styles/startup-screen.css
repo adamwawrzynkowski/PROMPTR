@@ -1,3 +1,5 @@
+@import 'themes.css';
+
 /* Startup Screen Styles */
 html, body {
     margin: 0;
@@ -49,7 +51,7 @@ html, body {
     font-size: 2.4rem;
     font-weight: 700;
     margin: 0;
-    background: linear-gradient(135deg, #00ff87 0%, #60efff 100%);
+    background: white;
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
@@ -92,7 +94,7 @@ html, body {
 
 .progress-bar-fill {
     height: 100%;
-    background: linear-gradient(90deg, #00ff87 0%, #60efff 100%);
+    background: white;
     border-radius: 3px;
     transition: width 0.3s ease;
 }
@@ -102,7 +104,7 @@ html, body {
     font-weight: 600;
     color: #ffffff;
     margin: 0.5rem 0;
-    background: linear-gradient(90deg, #00ff87 0%, #60efff 100%);
+    background: white;
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
 }
