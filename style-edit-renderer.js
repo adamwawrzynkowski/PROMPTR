@@ -54,8 +54,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                 nameInput.value = style.name;
                 descriptionInput.value = style.description;
                 tagsInput.value = style.fixedTags.join(', ');
-                selectedIcon = style.icon;
-                renderIconsGrid();
+                selectedIcon = style.icon || 'paint-brush'; 
+                renderIconsGrid(); 
             }
         } catch (error) {
             console.error('Error loading style:', error);
@@ -65,9 +65,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Obsługa przycisku Save
     saveBtn.addEventListener('click', async () => {
         const style = {
+            id: currentStyleId, 
             name: nameInput.value.trim(),
             description: descriptionInput.value.trim(),
-            icon: selectedIcon,
+            icon: selectedIcon || 'paint-brush', 
             fixedTags: tagsInput.value.split(',').map(tag => tag.trim()).filter(Boolean)
         };
 

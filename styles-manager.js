@@ -221,30 +221,67 @@ class StylesManager {
     }
 
     async updateStyleParameters(id, parameters) {
-        if (!this.styles) {
-            await this.loadStyles();
+        console.log('Updating style parameters for ID:', id, 'with:', parameters);
+        
+        const style = this.getStyle(id);
+        if (!style) {
+            console.error('Style not found:', id);
+            return null;
         }
-        if (this.styles[id]) {
-            // Initialize modelParameters if it doesn't exist
-            if (!this.styles[id].modelParameters) {
-                this.styles[id].modelParameters = {
-                    temperature: 0.7,
-                    top_p: 0.9,
-                    top_k: 40,
-                    repeat_penalty: 1.1
+        
+        // Update the parameters
+        style.modelParameters = {
+            ...style.modelParameters,
+            ...parameters
+        };
+        
+        // Mark style as modified
+        style.isModified = true;
+        
+        // Save the changes
+        this.saveStyles(this.styles);
+        
+        console.log('Updated style:', style);
+        return style;
+    }
+    
+    async updateStyle(id, updatedStyle) {
+        try {
+            const styles = await this.getStyles();
+            if (styles[id]) {
+                // Ensure we preserve the icon if it's not being updated
+                const currentStyle = styles[id];
+                styles[id] = {
+                    ...currentStyle,
+                    ...updatedStyle,
+                    icon: updatedStyle.icon || currentStyle.icon || 'paint-brush', // Fallback chain for icon
+                    custom: true
                 };
+                await this.saveStyles(styles);
+                return styles[id];
             }
-            
-            // Update only the provided parameters
-            this.styles[id].modelParameters = {
-                ...this.styles[id].modelParameters,
-                ...parameters
-            };
-            
-            await this.saveStyles(this.styles);
-            return this.styles[id];
+            throw new Error(`Style with id ${id} not found`);
+        } catch (error) {
+            console.error('Error updating style:', error);
+            throw error;
         }
-        return null;
+    }
+
+    async addStyle(style) {
+        try {
+            const styles = await this.getStyles();
+            const id = `custom_${Date.now()}`;
+            styles[id] = {
+                ...style,
+                icon: style.icon || 'paint-brush', // Ensure default icon
+                custom: true
+            };
+            await this.saveStyles(styles);
+            return { id, ...styles[id] };
+        } catch (error) {
+            console.error('Error adding style:', error);
+            throw error;
+        }
     }
 }
 

@@ -248,6 +248,16 @@
             font-size: 13px;
         }
 
+        .value-display {
+            background: var(--card-background);
+            border: 1px solid var(--border);
+            border-radius: 4px;
+            padding: 4px 8px;
+            min-width: 50px;
+            text-align: center;
+            font-size: 13px;
+        }
+
         .buttons {
             position: fixed;
             bottom: 0;
@@ -316,56 +326,82 @@
             <h3>Generation Parameters</h3>
             
             <div class="parameter">
-                <label>Temperature</label>
-                <p class="parameter-description">Controls randomness in the generation. Higher values make the output more creative but less predictable.</p>
+                <div class="parameter-header">
+                    <div class="parameter-label">Temperature</div>
+                    <div class="parameter-description">Controls randomness in the output. Higher values make the output more random, while lower values make it more focused and deterministic.</div>
+                </div>
                 <div class="parameter-controls">
                     <div class="slider-container">
+                        <input type="range" id="temperature" min="0" max="2" step="0.1" value="0.7">
                         <div class="slider-scale">
-                            <div class="scale-mark" data-value="0.1" style="left: 0%"></div>
-                            <div class="scale-mark" data-value="0.5" style="left: 25%"></div>
-                            <div class="scale-mark" data-value="1.0" style="left: 50%"></div>
-                            <div class="scale-mark" data-value="1.5" style="left: 75%"></div>
-                            <div class="scale-mark" data-value="2.0" style="left: 100%"></div>
+                            <div class="scale-mark" style="left: 0%" data-value="0"></div>
+                            <div class="scale-mark" style="left: 25%" data-value="0.5"></div>
+                            <div class="scale-mark" style="left: 50%" data-value="1.0"></div>
+                            <div class="scale-mark" style="left: 75%" data-value="1.5"></div>
+                            <div class="scale-mark" style="left: 100%" data-value="2.0"></div>
                         </div>
-                        <input type="range" id="temperature" min="0.1" max="2.0" step="0.1" value="0.7">
                     </div>
-                    <div class="parameter-value">0.7</div>
+                    <div class="value-display" id="temperature-value">0.7</div>
                 </div>
             </div>
 
             <div class="parameter">
-                <label>Top P (Nucleus Sampling)</label>
-                <p class="parameter-description">Limits cumulative probability of next token selection. Lower values make output more focused and deterministic.</p>
+                <div class="parameter-header">
+                    <div class="parameter-label">Top P (Nucleus Sampling)</div>
+                    <div class="parameter-description">Limits the cumulative probability of tokens considered for sampling. Lower values make the output more focused.</div>
+                </div>
                 <div class="parameter-controls">
                     <div class="slider-container">
+                        <input type="range" id="top-p" min="0" max="1" step="0.05" value="0.9">
                         <div class="slider-scale">
-                            <div class="scale-mark" data-value="0.0" style="left: 0%"></div>
-                            <div class="scale-mark" data-value="0.25" style="left: 25%"></div>
-                            <div class="scale-mark" data-value="0.5" style="left: 50%"></div>
-                            <div class="scale-mark" data-value="0.75" style="left: 75%"></div>
-                            <div class="scale-mark" data-value="1.0" style="left: 100%"></div>
+                            <div class="scale-mark" style="left: 0%" data-value="0"></div>
+                            <div class="scale-mark" style="left: 25%" data-value="0.25"></div>
+                            <div class="scale-mark" style="left: 50%" data-value="0.5"></div>
+                            <div class="scale-mark" style="left: 75%" data-value="0.75"></div>
+                            <div class="scale-mark" style="left: 100%" data-value="1.0"></div>
                         </div>
-                        <input type="range" id="top-p" min="0.0" max="1.0" step="0.05" value="0.5">
                     </div>
-                    <div class="parameter-value">0.5</div>
+                    <div class="value-display" id="top-p-value">0.9</div>
                 </div>
             </div>
 
             <div class="parameter">
-                <label>Top K</label>
-                <p class="parameter-description">Limits the number of tokens considered for next token selection. Lower values produce more focused output.</p>
+                <div class="parameter-header">
+                    <div class="parameter-label">Top K</div>
+                    <div class="parameter-description">Limits the number of tokens considered for sampling. Lower values make the output more focused.</div>
+                </div>
                 <div class="parameter-controls">
                     <div class="slider-container">
-                        <div class="slider-scale">
-                            <div class="scale-mark" data-value="1" style="left: 0%"></div>
-                            <div class="scale-mark" data-value="25" style="left: 25%"></div>
-                            <div class="scale-mark" data-value="50" style="left: 50%"></div>
-                            <div class="scale-mark" data-value="75" style="left: 75%"></div>
-                            <div class="scale-mark" data-value="100" style="left: 100%"></div>
-                        </div>
                         <input type="range" id="top-k" min="1" max="100" step="1" value="40">
+                        <div class="slider-scale">
+                            <div class="scale-mark" style="left: 0%" data-value="1"></div>
+                            <div class="scale-mark" style="left: 25%" data-value="25"></div>
+                            <div class="scale-mark" style="left: 50%" data-value="50"></div>
+                            <div class="scale-mark" style="left: 75%" data-value="75"></div>
+                            <div class="scale-mark" style="left: 100%" data-value="100"></div>
+                        </div>
                     </div>
-                    <div class="parameter-value">40</div>
+                    <div class="value-display" id="top-k-value">40</div>
+                </div>
+            </div>
+
+            <div class="parameter">
+                <div class="parameter-header">
+                    <div class="parameter-label">Repeat Penalty</div>
+                    <div class="parameter-description">Controls how much to penalize repetitions. Higher values make the model less likely to repeat itself.</div>
+                </div>
+                <div class="parameter-controls">
+                    <div class="slider-container">
+                        <input type="range" id="repeat-penalty" min="1.0" max="2.0" step="0.1" value="1.1">
+                        <div class="slider-scale">
+                            <div class="scale-mark" style="left: 0%" data-value="1.0"></div>
+                            <div class="scale-mark" style="left: 25%" data-value="1.25"></div>
+                            <div class="scale-mark" style="left: 50%" data-value="1.5"></div>
+                            <div class="scale-mark" style="left: 75%" data-value="1.75"></div>
+                            <div class="scale-mark" style="left: 100%" data-value="2.0"></div>
+                        </div>
+                    </div>
+                    <div class="value-display" id="repeat-penalty-value">1.1</div>
                 </div>
             </div>
         </div>
@@ -374,20 +410,22 @@
             <h3>Context Window</h3>
             
             <div class="parameter">
-                <label>Max Tokens</label>
-                <p class="parameter-description">Maximum length of generated text. Higher values allow for longer responses but may take more time.</p>
+                <div class="parameter-header">
+                    <div class="parameter-label">Max Tokens</div>
+                    <div class="parameter-description">Maximum number of tokens to generate. Higher values allow for longer outputs.</div>
+                </div>
                 <div class="parameter-controls">
                     <div class="slider-container">
+                        <input type="range" id="max-tokens" min="256" max="4096" step="256" value="2048">
                         <div class="slider-scale">
-                            <div class="scale-mark" data-value="32" style="left: 0%"></div>
-                            <div class="scale-mark" data-value="1024" style="left: 25%"></div>
-                            <div class="scale-mark" data-value="2048" style="left: 50%"></div>
-                            <div class="scale-mark" data-value="3072" style="left: 75%"></div>
-                            <div class="scale-mark" data-value="4096" style="left: 100%"></div>
+                            <div class="scale-mark" style="left: 0%" data-value="256"></div>
+                            <div class="scale-mark" style="left: 25%" data-value="1024"></div>
+                            <div class="scale-mark" style="left: 50%" data-value="2048"></div>
+                            <div class="scale-mark" style="left: 75%" data-value="3072"></div>
+                            <div class="scale-mark" style="left: 100%" data-value="4096"></div>
                         </div>
-                        <input type="range" id="max-tokens" min="32" max="4096" step="32" value="2048">
                     </div>
-                    <div class="parameter-value">2048</div>
+                    <div class="value-display" id="max-tokens-value">2048</div>
                 </div>
             </div>
         </div>

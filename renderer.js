@@ -136,10 +136,72 @@ function createStyleCard(style) {
     
     const generateBtn = document.createElement('button');
     generateBtn.className = 'generate-btn';
-    generateBtn.textContent = 'Generate';
-    generateBtn.onclick = (e) => {
+    generateBtn.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i> Generate';
+    generateBtn.onclick = async (e) => {
         e.stopPropagation();
-        // Dodaj tutaj logikę generowania promptu
+        const promptInput = document.getElementById('promptInput');
+        const basePrompt = promptInput.value.trim();
+        
+        if (!basePrompt) {
+            showToast('Please enter a prompt first');
+            return;
+        }
+
+        try {
+            const promptContainer = card.querySelector('.prompt-container');
+            const loadingContainer = card.querySelector('.generating-container');
+            const promptDisplay = card.querySelector('.prompt-text');
+            
+            if (!promptContainer || !loadingContainer || !promptDisplay) {
+                console.error('Missing required elements for card:', style.id);
+                return;
+            }
+
+            // Show loading animation
+            promptDisplay.style.display = 'none';
+            loadingContainer.style.display = 'flex';
+            generateBtn.disabled = true;
+
+            // Generate prompt
+            console.log('Generating prompt for style:', style.id);
+            
+            // Get style parameters
+            const styleParams = await ipcRenderer.invoke('get-style', style.id);
+            console.log('Style parameters:', styleParams);
+            
+            const response = await ipcRenderer.invoke('generate-prompt', {
+                basePrompt: basePrompt,
+                styleId: style.id,
+                customStyle: styleParams
+            });
+            
+            console.log('Generate prompt response:', response);
+            
+            // Hide loading animation
+            loadingContainer.style.display = 'none';
+            promptDisplay.style.display = 'block';
+
+            if (response && response.prompt) {
+                // Show generated prompt with animation
+                await revealPrompt(response.prompt, promptDisplay);
+                
+                // Add to history
+                addToStyleHistory(style.id, response.prompt);
+                updateHistoryButtons(style.id);
+            } else {
+                console.error('Invalid response format:', response);
+                promptDisplay.textContent = 'Error: Invalid response format';
+            }
+        } catch (error) {
+            console.error('Error generating prompt:', error);
+            const promptDisplay = card.querySelector('.prompt-text');
+            const loadingContainer = card.querySelector('.generating-container');
+            loadingContainer.style.display = 'none';
+            promptDisplay.style.display = 'block';
+            promptDisplay.textContent = 'Error generating prompt';
+        } finally {
+            generateBtn.disabled = false;
+        }
     };
     
     const toggle = document.createElement('div');
@@ -156,10 +218,31 @@ function createStyleCard(style) {
 
     controls.appendChild(generateBtn);
     controls.appendChild(toggle);
+
+    // Create prompt container
+    const promptContainer = document.createElement('div');
+    promptContainer.className = 'prompt-container';
     
-    const preview = document.createElement('div');
-    preview.className = 'prompt-preview empty';
-    preview.textContent = 'Click Generate to create a prompt...';
+    // Create loading container
+    const loadingContainer = document.createElement('div');
+    loadingContainer.className = 'generating-container';
+    loadingContainer.style.display = 'none';
+    loadingContainer.innerHTML = `
+        <div class="generating-animation">
+            <div class="dot"></div>
+            <div class="dot"></div>
+            <div class="dot"></div>
+        </div>
+        <span>Generating...</span>
+    `;
+    
+    // Create prompt text container
+    const promptText = document.createElement('div');
+    promptText.className = 'prompt-text';
+    promptText.textContent = 'Click Generate to create a prompt...';
+    
+    promptContainer.appendChild(loadingContainer);
+    promptContainer.appendChild(promptText);
     
     const actions = document.createElement('div');
     actions.className = 'prompt-actions';
@@ -167,7 +250,7 @@ function createStyleCard(style) {
     const leftActions = document.createElement('div');
     leftActions.className = 'prompt-actions-left';
     
-    // Grupa przycisków historii
+    // History buttons group
     const historyButtons = document.createElement('div');
     historyButtons.className = 'history-buttons';
     
@@ -175,11 +258,13 @@ function createStyleCard(style) {
     undoBtn.className = 'prompt-action-btn';
     undoBtn.innerHTML = '<i class="fas fa-undo"></i>';
     undoBtn.title = 'Previous prompt';
+    undoBtn.onclick = () => navigateHistory(style.id, 'prev');
     
     const redoBtn = document.createElement('button');
     redoBtn.className = 'prompt-action-btn';
     redoBtn.innerHTML = '<i class="fas fa-redo"></i>';
     redoBtn.title = 'Next prompt';
+    redoBtn.onclick = () => navigateHistory(style.id, 'next');
     
     historyButtons.appendChild(undoBtn);
     historyButtons.appendChild(redoBtn);
@@ -188,6 +273,7 @@ function createStyleCard(style) {
     copyBtn.className = 'prompt-action-btn';
     copyBtn.innerHTML = '<i class="fas fa-copy"></i>';
     copyBtn.title = 'Copy prompt';
+    copyBtn.onclick = () => copyStylePrompt(style.id);
     
     const settingsBtn = document.createElement('button');
     settingsBtn.className = 'prompt-action-btn';
@@ -205,31 +291,38 @@ function createStyleCard(style) {
     const drawBtn = document.createElement('button');
     drawBtn.className = 'send-to-draw-btn';
     drawBtn.innerHTML = '<i class="fas fa-arrow-right"></i> Send to Draw Things';
+    drawBtn.onclick = () => sendToDrawThings(style.id);
     
     actions.appendChild(leftActions);
     actions.appendChild(drawBtn);
     
     card.appendChild(header);
     card.appendChild(controls);
-    card.appendChild(preview);
+    card.appendChild(promptContainer);
     card.appendChild(actions);
     
     return card;
 }
 
-// Function to check if style has custom parameters
+// Funkcja do sprawdzania czy styl ma parametry niestandardowe
 function hasCustomParameters(style) {
     if (!style.modelParameters) return false;
     
     const defaultParams = {
         temperature: 0.7,
-        topP: 0.9,
-        topK: 40,
-        maxTokens: 2048
+        top_p: 0.9,
+        top_k: 40,
+        max_tokens: 2048,
+        repeat_penalty: 1.1
     };
 
     return Object.entries(defaultParams).some(([key, value]) => {
-        return style.modelParameters[key] !== value;
+        const paramValue = style.modelParameters[key];
+        if (typeof paramValue === 'number' && typeof value === 'number') {
+            // Use small epsilon for floating point comparison
+            return Math.abs(paramValue - value) > 0.0001;
+        }
+        return paramValue !== value;
     });
 }
 
@@ -258,7 +351,7 @@ function setupStyleCardEventListeners(card, style) {
         promptDisplay.style.display = 'none';
         loadingContainer.style.display = 'flex';
         generateBtn.disabled = true;
-        
+
         try {
             // Pobierz parametry stylu
             const styleParams = await ipcRenderer.invoke('get-style', style.id);
@@ -273,12 +366,16 @@ function setupStyleCardEventListeners(card, style) {
             // Hide loading and show prompt with animation
             loadingContainer.style.display = 'none';
             promptDisplay.style.display = 'block';
-            
+
             if (response && response.prompt) {
+                // Show generated prompt with animation
                 await revealPrompt(response.prompt, promptDisplay);
+                
+                // Add to history
                 addToStyleHistory(style.id, response.prompt);
                 updateHistoryButtons(style.id);
             } else {
+                console.error('Invalid response format:', response);
                 promptDisplay.textContent = 'Error: Invalid response format';
             }
         } catch (error) {
@@ -887,6 +984,8 @@ async function generateTagsInBatches(text, batchSize = 6, totalBatches = 5) {
 
 // Funkcja do sekwencyjnego generowania promptów
 async function generatePromptsSequentially(basePrompt, view = 'active') {
+    console.log('Starting prompt generation with:', { basePrompt, view });
+    
     if (!basePrompt || !basePrompt.trim()) {
         showToast('Please enter a prompt first');
         return;
@@ -906,6 +1005,8 @@ async function generatePromptsSequentially(basePrompt, view = 'active') {
         cards = []; // Dla widoku 'inactive' nie generujemy promptów
     }
     
+    console.log('Found cards:', cards.length);
+    
     if (cards.length === 0) {
         showToast('No styles available for prompt generation');
         return;
@@ -919,7 +1020,17 @@ async function generatePromptsSequentially(basePrompt, view = 'active') {
         const promptDisplay = card.querySelector('.prompt-text');
         const generateBtn = card.querySelector('.generate-btn');
         
-        if (!promptContainer || !loadingContainer || !promptDisplay || !generateBtn) continue;
+        console.log('Card elements:', {
+            promptContainer: !!promptContainer,
+            loadingContainer: !!loadingContainer,
+            promptDisplay: !!promptDisplay,
+            generateBtn: !!generateBtn
+        });
+        
+        if (!promptContainer || !loadingContainer || !promptDisplay || !generateBtn) {
+            console.error('Missing required elements for card:', card.dataset.styleId);
+            continue;
+        }
 
         try {
             // Pokaż animację ładowania
@@ -931,15 +1042,37 @@ async function generatePromptsSequentially(basePrompt, view = 'active') {
             const styleId = card.dataset.styleId;
             console.log('Generating prompt for style:', styleId);
             
-            // Pobierz parametry stylu
+            // Pobierz parametry stylu i połącz z domyślnymi
             const styleParams = await ipcRenderer.invoke('get-style', styleId);
-            console.log('Style parameters:', styleParams);
+            console.log('Raw style parameters:', styleParams);
+            
+            // Define default parameters
+            const defaultParams = {
+                temperature: 0.7,
+                top_p: 0.9,
+                top_k: 40,
+                repeat_penalty: 1.1,
+                max_tokens: 2048
+            };
+            
+            // Merge with actual parameters
+            const mergedParams = {
+                ...defaultParams,
+                ...(styleParams.modelParameters || {})
+            };
+            
+            console.log('Merged style parameters:', mergedParams);
             
             const response = await ipcRenderer.invoke('generate-prompt', {
                 basePrompt: basePrompt.trim(),
                 styleId: styleId,
-                customStyle: styleParams
+                customStyle: {
+                    ...styleParams,
+                    modelParameters: mergedParams
+                }
             });
+            
+            console.log('Generate prompt response:', response);
             
             // Ukryj animację ładowania
             loadingContainer.style.display = 'none';
@@ -954,6 +1087,7 @@ async function generatePromptsSequentially(basePrompt, view = 'active') {
                 updateHistoryButtons(styleId);
                 generatedCount++;
             } else {
+                console.error('Invalid response format:', response);
                 promptDisplay.textContent = 'Error: Invalid response format';
             }
         } catch (error) {
@@ -966,9 +1100,7 @@ async function generatePromptsSequentially(basePrompt, view = 'active') {
         }
     }
 
-    if (generatedCount > 0) {
-        showToast(`Generated prompts for ${generatedCount} styles`);
-    }
+    showToast(`Generated prompts for ${generatedCount} styles`);
 }
 
 // Funkcja do animacji promptu
@@ -1049,21 +1181,44 @@ function updateGeneratePromptsButton() {
 
 // Funkcja do otwierania ustawień stylu
 function openStyleSettings(styleId) {
+    console.log('Opening style settings for styleId:', styleId);
+    
     // Get style data
     ipcRenderer.invoke('get-style', styleId).then(style => {
-        if (style) {
-            // Open model tuning window with style data
-            ipcRenderer.send('open-model-tuning', {
-                styleId: style.id,
-                styleName: style.name,
-                parameters: style.modelParameters || {
-                    temperature: 0.7,
-                    topP: 0.9,
-                    topK: 40,
-                    maxTokens: 2048
-                }
-            });
+        if (!style) {
+            console.error('Style not found:', styleId);
+            return;
         }
+        
+        console.log('Retrieved style:', style);
+        
+        // Define default parameters
+        const defaultParams = {
+            temperature: 0.7,
+            top_p: 0.9,
+            top_k: 40,
+            repeat_penalty: 1.1,
+            max_tokens: 2048
+        };
+        
+        // Merge with actual parameters, ensuring all fields exist
+        const parameters = {
+            ...defaultParams,
+            ...(style.modelParameters || {})
+        };
+        
+        const data = {
+            styleId: styleId,  // Use the original styleId, not style.id
+            styleName: style.name,
+            parameters: parameters
+        };
+        
+        console.log('Opening model tuning with data:', data);
+        
+        // Open model tuning window with style data
+        ipcRenderer.send('open-model-tuning', data);
+    }).catch(error => {
+        console.error('Error getting style:', error);
     });
 }
 
@@ -1072,7 +1227,39 @@ ipcRenderer.on('model-parameters-updated', (event, data) => {
     // Update style card if needed
     const styleCard = document.querySelector(`[data-style-id="${data.styleId}"]`);
     if (styleCard) {
-        // You can add visual feedback here if needed
+        // Get the title element that contains the custom indicator
+        const title = styleCard.querySelector('.style-card-title');
+        if (title) {
+            // Remove existing custom indicator if any
+            const existingIndicator = title.querySelector('.fa-sliders-h');
+            if (existingIndicator) {
+                existingIndicator.remove();
+            }
+            
+            // Add custom indicator if needed
+            const style = {
+                id: data.styleId,
+                modelParameters: data.parameters
+            };
+            
+            if (hasCustomParameters(style)) {
+                const customIcon = document.createElement('i');
+                customIcon.className = 'fas fa-sliders-h';
+                customIcon.style.fontSize = '12px';
+                customIcon.style.marginLeft = '8px';
+                customIcon.style.color = 'var(--accent)';
+                customIcon.title = 'Custom model parameters';
+                title.appendChild(customIcon);
+            }
+        }
+        
+        // Update the style card's data attributes
+        styleCard.setAttribute('data-temperature', data.parameters.temperature);
+        styleCard.setAttribute('data-top-p', data.parameters.top_p);
+        styleCard.setAttribute('data-top-k', data.parameters.top_k);
+        styleCard.setAttribute('data-repeat-penalty', data.parameters.repeat_penalty);
+        styleCard.setAttribute('data-max-tokens', data.parameters.max_tokens);
+        
         console.log(`Model parameters updated for style ${data.styleId}:`, data.parameters);
     }
 });

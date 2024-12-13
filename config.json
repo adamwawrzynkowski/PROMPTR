@@ -1,4 +1,4 @@
 {
-  "currentModel": "llava:latest",
+  "currentModel": "dolphin-mistral:7b",
   "visionModel": "llava:latest"
 }

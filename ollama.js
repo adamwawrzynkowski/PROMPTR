@@ -349,347 +349,47 @@ class OllamaManager {
         return this.currentModel;
     }
 
-    async generatePrompt(basePrompt, styleId, customStyle = null) {
-        if (!this.isConnected) {
-            const connected = await this.checkConnection();
-            if (!connected) {
-                throw new Error('Not connected to Ollama service');
-            }
-        }
-
-        // Ensure we have a text model selected
-        const model = await this.ensureTextModelSelected();
-        console.log('Using text model for prompt generation:', model);
-
-        const systemPrompt = `You are an expert prompt engineer specializing in creating detailed, natural-language prompts for Stable Diffusion image generation. Your goal is to enhance prompts while maintaining a natural, descriptive flow that captures both technical aspects and artistic vision.
-
-Key requirements:
-1. Create detailed, descriptive prompts that capture the essence of both the subject and style
-2. Include important visual elements: lighting, composition, atmosphere, colors, textures
-3. Incorporate style-specific elements naturally into the description
-4. Use flowing, natural language that reads well
-5. Focus on quality over length - be detailed but avoid unnecessary repetition
-6. Structure: Start with main subject/scene, then add style elements, then technical details`;
-
-        let stylePrompt;
-        if (customStyle) {
-            stylePrompt = `Create a detailed, style-specific prompt for image generation:
-
-Base prompt: ${basePrompt}
-
-Style requirements:
-- ${customStyle.description}
-- Key elements: ${customStyle.fixedTags.join(', ')}
-
-Guidelines:
-1. Start with the main subject/scene from the base prompt
-2. Incorporate style elements naturally throughout the description
-3. Add specific details about:
-   - Visual composition and framing
-   - Lighting and shadows
-   - Colors and textures
-   - Atmosphere and mood
-4. Use natural, flowing language
-5. Be detailed but avoid unnecessary repetition
-
-Return only the enhanced prompt, no additional text.`;
-        } else {
-            const styleInstructions = new Map([
-                ['realistic', {
-                    desc: "ultra-realistic photography with meticulous attention to detail",
-                    styleGuide: "Create a photorealistic scene with sharp focus, natural lighting, and precise details that make it indistinguishable from a professional photograph. Include subtle imperfections and real-world physics.",
-                    elements: [
-                        "8K resolution quality",
-                        "photographic lens effects",
-                        "natural light behavior",
-                        "realistic textures and materials",
-                        "subtle imperfections for authenticity"
-                    ]
-                }],
-                ['cinematic', {
-                    desc: "epic movie scene with dramatic cinematography",
-                    styleGuide: "Frame this as a scene from a blockbuster movie with dramatic camera angles, atmospheric effects, and emotional impact. Think of iconic movie moments with perfect timing and composition.",
-                    elements: [
-                        "anamorphic lens effects",
-                        "movie color grading",
-                        "dramatic lighting contrasts",
-                        "cinematic aspect ratio",
-                        "depth of field focus pulls"
-                    ]
-                }],
-                ['vintage', {
-                    desc: "nostalgic retro photography with authentic period characteristics",
-                    styleGuide: "Capture the essence of classic photography with period-specific imperfections and techniques. Include film grain, color shifts, and era-appropriate processing artifacts.",
-                    elements: [
-                        "film grain and noise",
-                        "faded color palette",
-                        "light leaks and vignetting",
-                        "slightly blurred edges",
-                        "retro color processing"
-                    ]
-                }],
-                ['artistic', {
-                    desc: "expressive fine art with bold artistic interpretation",
-                    styleGuide: "Transform the scene into a piece of fine art with visible brushstrokes, artistic liberties in color and form, and emotional expression. Think of master painters' techniques and artistic vision.",
-                    elements: [
-                        "visible brushstrokes",
-                        "exaggerated color palette",
-                        "artistic composition rules",
-                        "textural paint effects",
-                        "creative color harmony"
-                    ]
-                }],
-                ['abstract', {
-                    desc: "non-representational art focusing on form and emotion",
-                    styleGuide: "Break down the subject into abstract forms, focusing on shapes, colors, and emotional impact rather than literal representation. Create a bold, modern art piece that captures the essence without being literal.",
-                    elements: [
-                        "geometric abstraction",
-                        "non-literal interpretation",
-                        "bold color blocks",
-                        "simplified forms",
-                        "modern art techniques"
-                    ]
-                }],
-                ['poetic', {
-                    desc: "dreamy, ethereal atmosphere with soft, romantic qualities",
-                    styleGuide: "Create a dreamlike, ethereal scene with soft focus, glowing lights, and romantic atmosphere. Think of fairy tales and romantic poetry visualized through a dreamy lens.",
-                    elements: [
-                        "soft focus effect",
-                        "glowing light halos",
-                        "pastel color transitions",
-                        "ethereal particles",
-                        "dreamy blur effects"
-                    ]
-                }],
-                ['anime', {
-                    desc: "stylized Japanese anime art with characteristic features",
-                    styleGuide: "Render in authentic anime style with characteristic features like large eyes, dynamic poses, and distinctive lighting. Include typical anime elements and artistic techniques.",
-                    elements: [
-                        "large expressive eyes",
-                        "clean cel shading",
-                        "sharp line art",
-                        "anime-specific coloring",
-                        "dynamic action lines"
-                    ]
-                }],
-                ['cartoon', {
-                    desc: "bold, stylized cartoon with exaggerated features",
-                    styleGuide: "Create a vibrant cartoon with bold outlines, exaggerated features, and simplified forms. Think of professional animation with clean lines and striking designs.",
-                    elements: [
-                        "thick bold outlines",
-                        "exaggerated proportions",
-                        "flat color areas",
-                        "simplified shadows",
-                        "cartoon physics"
-                    ]
-                }],
-                ['cute', {
-                    desc: "adorable kawaii style with charming, playful elements",
-                    styleGuide: "Make everything extremely cute and adorable with rounded forms, big eyes, and kawaii aesthetics. Include typical cute elements like sparkles and pastel colors.",
-                    elements: [
-                        "super deformed proportions",
-                        "huge cute eyes",
-                        "pastel color scheme",
-                        "kawaii decorations",
-                        "rounded cute shapes"
-                    ]
-                }],
-                ['scifi', {
-                    desc: "futuristic science fiction with advanced technology",
-                    styleGuide: "Create a high-tech science fiction scene with advanced technology, futuristic lighting, and innovative designs. Include sci-fi elements like holographics and energy effects.",
-                    elements: [
-                        "holographic effects",
-                        "neon lighting",
-                        "advanced tech details",
-                        "energy field effects",
-                        "futuristic materials"
-                    ]
-                }]
-            ]);
-
-            if (!styleInstructions.has(styleId)) {
-                throw new Error(`Unknown style: ${styleId}`);
-            }
-
-            const style = styleInstructions.get(styleId);
-            stylePrompt = `Create a highly stylized prompt that perfectly matches this specific style:
-
-Base prompt: ${basePrompt}
-
-Style: ${style.desc}
-Style Guide: ${style.styleGuide}
-
-Required style elements to incorporate:
-${style.elements.map(e => '- ' + e).join('\n')}
-
-Guidelines:
-1. Transform the base prompt completely to match this specific style
-2. Include ALL the listed style elements naturally in the description
-3. Focus heavily on the unique aspects of this style
-4. Avoid generic descriptions - make it distinctly ${styleId}
-5. Be detailed and specific to this style
-
-Return only the enhanced prompt, no additional text.`;
-        }
-
+    async generatePrompt(basePrompt, styleId, style) {
         try {
-            console.log('Generating prompt for style:', styleId || 'custom');
+            console.log('Generating prompt with:', { basePrompt, styleId, style });
             
-            const response = await this.makeRequest(`${this.getBaseUrl()}/api/generate`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    model: model,
-                    prompt: stylePrompt,
-                    system: systemPrompt,
-                    stream: false,
-                    options: {
-                        temperature: 0.7
-                    }
-                })
+            if (!basePrompt) {
+                throw new Error('Base prompt is required');
+            }
+
+            // Default parameters if no style is provided
+            const defaultParameters = {
+                temperature: 0.7,
+                top_k: 40,
+                top_p: 0.9,
+                repeat_penalty: 1.1
+            };
+
+            // Use style parameters or defaults
+            const parameters = style?.modelParameters || defaultParameters;
+            
+            // Build the final prompt with prefix and suffix if provided
+            let finalPrompt = basePrompt;
+            if (style?.prefix) {
+                finalPrompt = `${style.prefix}\n${finalPrompt}`;
+            }
+            if (style?.suffix) {
+                finalPrompt = `${finalPrompt}\n${style.suffix}`;
+            }
+
+            console.log('Final prompt and parameters:', {
+                prompt: finalPrompt,
+                parameters
             });
 
-            if (!response.ok) {
-                throw new Error(`Failed to generate prompt: ${response.status}`);
-            }
-
-            const data = await response.json();
-            let prompt = data.response || '';
-            
-            // Clean up the prompt
-            prompt = prompt.trim()
-                .replace(/^["']|["']$/g, '') // Remove quotes
-                .replace(/\\n/g, ' ') // Replace newlines with spaces
-                .replace(/\s+/g, ' '); // Normalize spaces
-            
-            return prompt;
+            return {
+                prompt: finalPrompt,
+                parameters
+            };
         } catch (error) {
             console.error('Error generating prompt:', error);
             throw error;
         }
-    }
-
-    async generateTags(text) {
-        if (!text || text.trim().length === 0) {
-            throw new Error('No text provided for tag generation');
-        }
-
-        if (!this.isConnected) {
-            const connected = await this.checkConnection();
-            if (!connected) {
-                throw new Error('Not connected to Ollama service');
-            }
-        }
-
-        // Ensure we have a text model selected
-        const model = await this.ensureTextModelSelected();
-        console.log('Using text model for tag generation:', model);
-
-        try {
-            // Anuluj poprzednie generowanie jeśli istnieje
-            await this.cancelCurrentGeneration();
-
-            const prompt = `Generate relevant tags for this text. Return only tags separated by commas, without explanations: "${text}"`;
-            
-            console.log('Making tag generation request with model:', model);
-            
-            // Make the request to the correct Ollama API endpoint
-            const response = await this.makeRequest(`${this.getBaseUrl()}/api/generate`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    model: model,
-                    prompt: prompt,
-                    system: "You are a tag generator. Return ONLY tags separated by commas, without any additional text or explanations.",
-                    stream: false,
-                    options: {
-                        temperature: 0.7
-                    }
-                })
-            });
-
-            if (!response.ok) {
-                console.error('Failed to generate tags. Response:', response);
-                throw new Error(`Failed to generate tags: ${response.status}`);
-            }
-
-            const data = await response.json();
-            console.log('Raw API response:', data);
-
-            const responseText = data.response || '';
-            console.log('Response text:', responseText);
-            
-            if (!responseText.trim()) {
-                throw new Error('Empty response from API');
-            }
-
-            // Wyczyść i przetwórz tagi
-            const cleanedResponse = responseText
-                .trim()
-                .replace(/^(Here are|The tags|Tags:|Suggested tags:|Generated tags:)/i, '')
-                .replace(/["'`]/g, '')
-                .replace(/\.$/, '')
-                .replace(/^["'\s]+|["'\s]+$/g, '')
-                .replace(/\n+/g, ' ')
-                .replace(/\s+/g, ' ')
-                .trim();
-
-            console.log('Cleaned response:', cleanedResponse);
-
-            const tags = cleanedResponse
-                .split(',')
-                .map(tag => tag.trim())
-                .filter(tag => tag.length > 0 && !tag.includes('\n'));
-
-            if (tags.length === 0) {
-                throw new Error('No valid tags generated');
-            }
-
-            console.log('Final generated tags:', tags);
-            return tags;
-
-        } catch (error) {
-            console.error('Error in generateTags:', error);
-            throw error;
-        }
-    }
-
-    async ensureModelSelected() {
-        console.log('Current model from config:', this.currentModel);
-        
-        if (!this.currentModel) {
-            console.log('No model selected, getting available models...');
-            const models = await this.listModels();
-            console.log('Available models:', models);
-            
-            const installedModels = models.filter(m => m.installed);
-            console.log('Installed models:', installedModels);
-            
-            if (installedModels.length > 0) {
-                const selectedModel = installedModels[0].name;
-                console.log('Setting first installed model:', selectedModel);
-                await this.setModel(selectedModel);
-            } else {
-                throw new Error('No models available. Please install a model first.');
-            }
-        } else {
-            // Verify if the current model is actually installed
-            console.log('Verifying if current model is installed:', this.currentModel);
-            const models = await this.listModels();
-            const isInstalled = models.some(m => m.installed && (m.name === this.currentModel || m.name.split(':')[0] === this.currentModel));
-            
-            if (!isInstalled) {
-                console.log('Current model not found in installed models, resetting...');
-                this.currentModel = null;
-                return await this.ensureModelSelected();
-            }
-        }
-        
-        return this.currentModel;
     }
 
     async analyzeImage(imageData, systemPrompt, analysisType = 'content', useCustomModel = false, customModelName = null) {
@@ -973,6 +673,40 @@ Keep it brief and concise. Do not describe the content or subjects in the image.
                 error: error.message
             };
         }
+    }
+
+    async ensureModelSelected() {
+        console.log('Current model from config:', this.currentModel);
+        
+        if (!this.currentModel) {
+            console.log('No model selected, getting available models...');
+            const models = await this.listModels();
+            console.log('Available models:', models);
+            
+            const installedModels = models.filter(m => m.installed);
+            console.log('Installed models:', installedModels);
+            
+            if (installedModels.length > 0) {
+                const selectedModel = installedModels[0].name;
+                console.log('Setting first installed model:', selectedModel);
+                await this.setModel(selectedModel);
+            } else {
+                throw new Error('No models available. Please install a model first.');
+            }
+        } else {
+            // Verify if the current model is actually installed
+            console.log('Verifying if current model is installed:', this.currentModel);
+            const models = await this.listModels();
+            const isInstalled = models.some(m => m.installed && (m.name === this.currentModel || m.name.split(':')[0] === this.currentModel));
+            
+            if (!isInstalled) {
+                console.log('Current model not found in installed models, resetting...');
+                this.currentModel = null;
+                return await this.ensureModelSelected();
+            }
+        }
+        
+        return this.currentModel;
     }
 
     async getInstalledModels() {

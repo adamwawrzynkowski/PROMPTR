@@ -322,6 +322,16 @@ class AppStartupManager {
 // Create instance of AppStartupManager
 const appStartupManager = new AppStartupManager();
 
+// Initialize styles
+const initializeStyles = async () => {
+    try {
+        const styles = await stylesManager.getStyles();
+        console.log('Styles initialized successfully:', styles);
+    } catch (error) {
+        console.error('Error initializing styles:', error);
+    }
+};
+
 // Setup default models for the application
 async function setupDefaultModels(startup) {
     try {
@@ -429,8 +439,9 @@ function createStartupWindow() {
 }
 
 // Handle app ready
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
     initializePaths();
+    await initializeStyles();
     
     // Set up IPC handlers
     ipcMain.on('startup-window-ready', () => {
@@ -463,33 +474,38 @@ app.whenReady().then(() => {
         }
     });
 
-    ipcMain.handle('generate-prompt', async (event, { basePrompt, styleId, customStyle }) => {
+    ipcMain.handle('generate-prompt', async (event, data) => {
         try {
-            console.log('Generating prompt with:', { basePrompt, styleId, customStyle });
+            console.log('Received generate-prompt request:', data);
             
-            // Get style parameters
-            let style = null;
-            if (styleId) {
-                style = stylesManager.getStyle(styleId);
-                if (!style) {
-                    throw new Error(`Style not found: ${styleId}`);
+            if (!data || !data.basePrompt) {
+                throw new Error('No base prompt provided');
+            }
+            
+            const { basePrompt, styleId, customStyle } = data;
+            
+            // Get style data if not provided
+            let mergedStyle = customStyle;
+            if (!mergedStyle && styleId) {
+                const style = await stylesManager.getStyle(styleId);
+                if (style) {
+                    mergedStyle = style;
                 }
             }
-
-            // Merge style parameters with custom parameters
-            const mergedStyle = {
-                ...style,
-                modelParameters: {
-                    ...(style?.modelParameters || {}),
-                    ...(customStyle?.modelParameters || {})
-                },
-                prefix: customStyle?.prefix || style?.prefix,
-                suffix: customStyle?.suffix || style?.suffix
-            };
-
+            
             console.log('Using merged style:', mergedStyle);
             
-            return await ollamaManager.generatePrompt(basePrompt, styleId, mergedStyle);
+            // Generate the prompt
+            const result = await ollamaManager.generatePrompt(
+                basePrompt,
+                styleId,
+                mergedStyle
+            );
+            
+            return {
+                prompt: result.prompt,
+                parameters: result.parameters
+            };
         } catch (error) {
             console.error('Error in generate-prompt:', error);
             throw error;
@@ -497,18 +513,28 @@ app.whenReady().then(() => {
     });
 
     // Event handlers for style settings
-    ipcMain.on('open-style-settings', (event, styleId) => {
+    ipcMain.on('open-style-settings', async (event, styleId) => {
         const window = styleSettingsWindow.createStyleSettingsWindow(mainWindow);
         
         // Get style data from storage and send it to the settings window
-        stylesManager.getStyles().then(styles => {
-            const style = styles.find(s => s.id === styleId);
-            if (style) {
-                window.webContents.on('did-finish-load', () => {
-                    window.webContents.send('style-data', style);
+        const style = await stylesManager.getStyle(styleId);
+        if (style) {
+            window.webContents.on('did-finish-load', () => {
+                // Ensure modelParameters has default values
+                const modelParams = {
+                    temperature: 0.7,
+                    top_p: 0.9,
+                    top_k: 40,
+                    repeat_penalty: 1.1,
+                    ...(style.modelParameters || {})
+                };
+                
+                window.webContents.send('style-data', {
+                    ...style,
+                    modelParameters: modelParams
                 });
-            }
-        });
+            });
+        }
     });
 
     ipcMain.on('close-style-settings', () => {
@@ -516,14 +542,15 @@ app.whenReady().then(() => {
     });
 
     ipcMain.on('save-style-settings', async (event, updatedStyle) => {
-        const styles = await stylesManager.getStyles();
-        const index = styles.findIndex(s => s.id === updatedStyle.id);
-        if (index !== -1) {
-            styles[index] = updatedStyle;
-            await stylesManager.saveStyles(styles);
+        try {
+            console.log('Saving style settings:', updatedStyle);
+            await stylesManager.updateStyle(updatedStyle);
             mainWindow.webContents.send('style-updated', updatedStyle);
+            styleSettingsWindow.closeStyleSettingsWindow();
+        } catch (error) {
+            console.error('Error saving style settings:', error);
+            event.reply('style-settings-save-error', error.message);
         }
-        styleSettingsWindow.closeStyleSettingsWindow();
     });
 
     ipcMain.on('update-style-parameters', async (event, data) => {
@@ -705,12 +732,18 @@ app.whenReady().then(() => {
 
     ipcMain.on('save-model-parameters', async (event, data) => {
         try {
-            // Save parameters to style configuration
-            const style = await stylesManager.getStyle(data.styleId);
-            if (style) {
-                style.modelParameters = data.parameters;
-                await stylesManager.updateStyle(style);
-                
+            console.log('Received save-model-parameters with data:', data);
+            
+            if (!data || !data.styleId) {
+                console.error('Invalid data received:', data);
+                return;
+            }
+            
+            // Update parameters directly
+            const result = await stylesManager.updateStyleParameters(data.styleId, data.parameters);
+            console.log('Update result:', result);
+            
+            if (result) {
                 // Notify main window about the update
                 BrowserWindow.getAllWindows().forEach(window => {
                     window.webContents.send('model-parameters-updated', {
@@ -718,6 +751,8 @@ app.whenReady().then(() => {
                         parameters: data.parameters
                     });
                 });
+            } else {
+                console.error('Failed to update style parameters');
             }
         } catch (error) {
             console.error('Error saving model parameters:', error);

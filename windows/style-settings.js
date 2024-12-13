@@ -84,7 +84,7 @@ document.addEventListener('DOMContentLoaded', () => {
             ...currentStyle,
             name: nameInput.value,
             description: descriptionInput.value,
-            prompt: promptInput.value,
+            prefix: promptInput.value,
             modelParameters: {
                 temperature: parseFloat(temperatureInput.value),
                 top_p: parseFloat(topPInput.value),
@@ -92,25 +92,30 @@ document.addEventListener('DOMContentLoaded', () => {
                 repeat_penalty: parseFloat(repeatPenaltyInput.value)
             }
         };
+        console.log('Saving updated style:', updatedStyle);
         ipcRenderer.send('save-style-settings', updatedStyle);
     };
 
     // Nasłuchuj na dane stylu
     ipcRenderer.on('style-data', (event, style) => {
+        console.log('Received style data:', style);
         currentStyle = style;
         nameInput.value = style.name;
         descriptionInput.value = style.description || '';
-        promptInput.value = style.prompt || '';
+        promptInput.value = style.prefix || '';
         currentIconBtn.innerHTML = `<i class="fas fa-${style.icon}"></i>`;
 
         // Ustaw wartości parametrów modelu
         if (style.modelParameters) {
             temperatureInput.value = style.modelParameters.temperature || 0.7;
             temperatureValue.textContent = temperatureInput.value;
+            
             topPInput.value = style.modelParameters.top_p || 0.9;
             topPValue.textContent = topPInput.value;
+            
             topKInput.value = style.modelParameters.top_k || 40;
             topKValue.textContent = topKInput.value;
+            
             repeatPenaltyInput.value = style.modelParameters.repeat_penalty || 1.1;
             repeatPenaltyValue.textContent = repeatPenaltyInput.value;
         }
