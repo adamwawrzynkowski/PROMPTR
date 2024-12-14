@@ -4,20 +4,36 @@ const path = require('path');
 const fs = require('fs').promises;
 const fetch = require('node-fetch');
 
-const DEFAULT_MODEL = 'llama3.2';
-const DEFAULT_VISION_MODEL = 'llava';
-
 class OllamaManager {
     constructor() {
         this._baseUrl = null;
         this._isInitialized = false;
         this._currentPort = null;
         this._modelsPath = null;
-        this._defaultModel = DEFAULT_MODEL;
+        this._defaultModel = null;
         // Use explicit IPv4
         this._host = '127.0.0.1';
         this._port = 11434;
         this._progressCallback = null;
+
+        // List of available models with their properties
+        this._availableModels = {
+            // Text Models
+            'llama2': { type: 'text', tag: 'SFW' },
+            'llama3': { type: 'text', tag: 'SFW' },
+            'llama3.1': { type: 'text', tag: 'SFW' },
+            'llama3.2': { type: 'text', tag: 'SFW' },
+            'dolphin-llama3': { type: 'text', tag: 'NSFW' },
+            'mistral': { type: 'text', tag: 'SFW' },
+            'dolphin-mistral': { type: 'text', tag: 'NSFW' },
+            'gemma': { type: 'text', tag: 'SFW' },
+            'gemma2': { type: 'text', tag: 'SFW' },
+            'qwen2': { type: 'text', tag: 'SFW' },
+            // Vision Models
+            'llama3.2-vision': { type: 'vision', tag: 'SFW' },
+            'llava': { type: 'vision', tag: 'SFW' },
+            'bakllava': { type: 'vision', tag: 'SFW' }
+        };
     }
 
     get baseUrl() {
@@ -64,69 +80,20 @@ class OllamaManager {
                 throw error;
             }
 
-            // First, check if port is in use
+            // Try to connect to existing Ollama instance
             try {
-                const { stdout: psOutput } = await new Promise((resolve, reject) => {
-                    require('child_process').exec('lsof -i :11434 -t', (error, stdout, stderr) => {
-                        resolve({ stdout, stderr });
-                    });
-                });
-
-                if (psOutput.trim()) {
-                    const pid = psOutput.trim();
-                    console.log(`Found Ollama process (PID: ${pid})`);
-                    
-                    // Try to connect to existing process first
-                    try {
-                        const response = await fetch(`http://${this._host}:11434/api/version`);
-                        if (response.ok) {
-                            console.log('Successfully connected to existing Ollama instance');
-                            this._currentPort = 11434;
-                            this._isInitialized = true;
-                            
-                            // Check and pull default model if needed
-                            await this.checkAndPullDefaultModel();
-                            
-                            return true;
-                        }
-                    } catch (error) {
-                        console.log('Existing process not responding, attempting restart...');
-                        
-                        // Gracefully stop the process
-                        await new Promise((resolve) => {
-                            require('child_process').exec(`kill ${pid}`, (error) => {
-                                resolve();
-                            });
-                        });
-                        
-                        // Wait for process to stop
-                        await new Promise(resolve => setTimeout(resolve, 2000));
-                        
-                        // Double check if process is still there
-                        try {
-                            await new Promise((resolve, reject) => {
-                                require('child_process').exec(`ps -p ${pid}`, (error) => {
-                                    if (error) {
-                                        resolve(); // Process is gone
-                                    } else {
-                                        // Force kill if still running
-                                        require('child_process').exec(`kill -9 ${pid}`, () => resolve());
-                                    }
-                                });
-                            });
-                        } catch (error) {
-                            console.log('Error checking process:', error);
-                        }
-                        
-                        // Wait a bit more after force kill
-                        await new Promise(resolve => setTimeout(resolve, 2000));
-                    }
+                const response = await fetch(`http://${this._host}:${this._port}/api/version`);
+                if (response.ok) {
+                    console.log('Successfully connected to existing Ollama instance');
+                    this._currentPort = this._port;
+                    this._isInitialized = true;
+                    return true;
                 }
             } catch (error) {
-                console.log('Error checking for existing process:', error);
+                console.log('Could not connect to existing Ollama instance:', error);
             }
 
-            // Start new Ollama instance
+            // If we couldn't connect, start a new instance
             console.log('Starting new Ollama instance...');
             const ollamaProcess = require('child_process').spawn(ollamaPath, ['serve'], {
                 detached: true,
@@ -135,125 +102,74 @@ class OllamaManager {
             
             ollamaProcess.unref();
             
-            // Give Ollama time to start and verify connection
-            let connectionError = null;
+            // Wait for Ollama to start
             for (let attempt = 0; attempt < 15; attempt++) {
                 await new Promise(resolve => setTimeout(resolve, 1000));
                 try {
-                    const response = await fetch(`http://${this._host}:11434/api/version`);
+                    const response = await fetch(`http://${this._host}:${this._port}/api/version`);
                     if (response.ok) {
                         console.log('Successfully connected to new Ollama instance');
-                        this._currentPort = 11434;
+                        this._currentPort = this._port;
                         this._isInitialized = true;
-                        
-                        // Check and pull default model if needed
-                        await this.checkAndPullDefaultModel();
-                        
                         return true;
                     }
                 } catch (error) {
-                    connectionError = error;
                     console.log('Connection attempt', attempt + 1, 'failed:', error.message);
                 }
             }
-
-            console.error('Last connection error:', connectionError);
-            throw new Error('Could not establish connection to Ollama. Please check if Ollama is installed and running correctly.');
+            
+            throw new Error('Failed to start Ollama after multiple attempts');
         } catch (error) {
-            console.error('Failed to initialize Ollama manager:', error);
+            console.error('Error initializing Ollama:', error);
             throw error;
         }
     }
 
+    async setDefaultModel(model) {
+        console.log('Setting default model to:', model);
+        if (!model) {
+            throw new Error('Model name is required');
+        }
+        this._defaultModel = model;
+    }
+
     async checkAndPullDefaultModel() {
         try {
-            this.updateStartupProgress(10, 'Checking installed models...', '');
-            const response = await fetch(`http://${this._host}:11434/api/tags`);
-            if (!response.ok) {
-                throw new Error('Failed to fetch models list');
-            }
+            console.log('Checking for default model:', this._defaultModel);
             
-            const models = await response.json();
-            const installedModels = models.models?.map(m => m.name) || [];
-            console.log('Installed models:', installedModels.join(', ') || 'none');
+            // Get list of installed models
+            const models = await this.listModels();
+            const modelNames = models.map(m => m.name);
+            console.log('Available models:', modelNames);
             
-            this.updateStartupProgress(20, 'Checking required models...', '');
-            
-            const modelsToCheck = [
-                { name: DEFAULT_MODEL, reason: 'default text model' },
-                { name: DEFAULT_VISION_MODEL, reason: 'vision capabilities' }
-            ];
-
-            let totalProgress = 20;
-            const progressPerModel = 40;
-
-            for (const model of modelsToCheck) {
-                if (!installedModels.includes(model.name)) {
-                    console.log(`Downloading ${model.name} for ${model.reason}...`);
-                    this.updateStartupProgress(totalProgress, `Downloading ${model.name}...`, 'This might take a few minutes');
-                    
-                    const pullResponse = await fetch(`http://${this._host}:11434/api/pull`, {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                        },
-                        body: JSON.stringify({ name: model.name })
-                    });
-
-                    if (!pullResponse.ok) {
-                        throw new Error(`Failed to pull model ${model.name}: ${pullResponse.statusText}`);
-                    }
-
-                    const text = await pullResponse.text();
-                    const lines = text.split('\n').filter(Boolean);
-                    
-                    let downloadProgress = 0;
-                    for (const line of lines) {
-                        try {
-                            const data = JSON.parse(line);
-                            if (data.status) {
-                                if (data.status.includes('%')) {
-                                    const percent = parseInt(data.status.match(/(\d+)%/)[1]);
-                                    downloadProgress = percent;
-                                    const currentProgress = totalProgress + (downloadProgress * progressPerModel / 100);
-                                    this.updateStartupProgress(
-                                        currentProgress,
-                                        `Downloading ${model.name}...`,
-                                        `${data.status}`
-                                    );
-                                } else {
-                                    this.updateStartupProgress(
-                                        totalProgress,
-                                        `Downloading ${model.name}...`,
-                                        data.status
-                                    );
-                                }
-                            }
-                            if (data.error) {
-                                throw new Error(data.error);
-                            }
-                        } catch (e) {
-                            if (e.message !== 'Unexpected end of JSON input') {
-                                console.error('Error parsing model download progress:', e);
-                            }
-                        }
-                    }
-                    
-                    console.log(`${model.name} downloaded successfully`);
-                    totalProgress += progressPerModel;
-                    this.updateStartupProgress(totalProgress, `${model.name} downloaded successfully`, '');
-                } else {
-                    console.log(`${model.name} is already installed`);
-                    totalProgress += progressPerModel;
-                    this.updateStartupProgress(totalProgress, `${model.name} is already installed`, '');
+            if (!modelNames.includes(this._defaultModel)) {
+                console.log(`Default model ${this._defaultModel} not found, pulling from Ollama...`);
+                
+                // Pull the model
+                const response = await fetch(`http://${this._host}:${this._currentPort}/api/pull`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        name: this._defaultModel
+                    })
+                });
+                
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Error pulling model:', errorText);
+                    throw new Error(`Failed to pull model: ${response.status} ${response.statusText}`);
                 }
+                
+                console.log(`Successfully pulled model ${this._defaultModel}`);
+            } else {
+                console.log(`Model ${this._defaultModel} is already installed`);
             }
             
-            this.updateStartupProgress(100, 'Initialization complete', '');
             return true;
         } catch (error) {
-            console.error('Error checking/pulling models:', error);
-            this.updateStartupProgress(0, 'Error', error.message);
+            console.error('Error checking/pulling default model:', error);
             throw error;
         }
     }
@@ -334,13 +250,40 @@ class OllamaManager {
 
     async listModels() {
         try {
+            console.log('Fetching models from Ollama...');
             const response = await fetch(`http://${this._host}:${this._currentPort}/api/tags`);
-            if (!response.ok) throw new Error('Failed to fetch models');
+            if (!response.ok) {
+                throw new Error(`Failed to fetch models: ${response.status} ${response.statusText}`);
+            }
             const data = await response.json();
-            return data.models || [];
+            console.log('Received models from Ollama:', data);
+
+            // Get installed models
+            const installedModels = new Set(data.models.map(m => {
+                console.log('Processing model:', m);
+                const name = m.name.split(':')[0]; // Remove any version tags
+                console.log('Extracted name:', name);
+                return name;
+            }));
+            console.log('Installed models:', [...installedModels]);
+            
+            // Create complete model list with installation status and properties
+            const allModels = Object.entries(this._availableModels).map(([name, props]) => {
+                const model = {
+                    name,
+                    installed: installedModels.has(name),
+                    type: props.type,
+                    tag: props.tag,
+                    size: data.models.find(m => m.name.startsWith(name))?.size || 0
+                };
+                console.log('Model status:', name, model.installed);
+                return model;
+            });
+
+            return { models: allModels };
         } catch (error) {
             console.error('Error listing models:', error);
-            return [];
+            return { models: [] };
         }
     }
 
@@ -348,6 +291,18 @@ class OllamaManager {
         if (!prompt) return { prompt: '' };
 
         try {
+            // Check if Ollama is initialized
+            if (!this._isInitialized) {
+                console.error('Ollama not initialized');
+                throw new Error('Ollama not initialized');
+            }
+
+            // Check if we have a valid model
+            if (!this._defaultModel) {
+                console.error('No text model selected. Please select a model in settings.');
+                throw new Error('No text model selected. Please select a model in settings.');
+            }
+
             let options = {
                 temperature: 0.7,
                 top_p: 0.9,
@@ -375,7 +330,12 @@ class OllamaManager {
                 enhancedPrompt = `${enhancedPrompt} ${customStyle.suffix}`;
             }
 
-            console.log('Generating prompt with options:', { styleId, options, enhancedPrompt });
+            console.log('Generating prompt with:', {
+                model: this._defaultModel,
+                styleId,
+                options,
+                enhancedPrompt
+            });
 
             const response = await fetch(`http://${this._host}:${this._currentPort}/api/generate`, {
                 method: 'POST',
@@ -390,10 +350,19 @@ class OllamaManager {
                 })
             });
 
-            if (!response.ok) throw new Error('Failed to generate prompt');
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('Failed to generate prompt:', errorText);
+                throw new Error(`Failed to generate prompt: ${response.status} ${response.statusText}`);
+            }
             
             const data = await response.json();
-            return { prompt: data.response || '' };
+            if (!data.response) {
+                console.error('No response in data:', data);
+                throw new Error('No response from model');
+            }
+            
+            return { prompt: data.response, parameters: options };
         } catch (error) {
             console.error('Error generating prompt:', error);
             throw error;
@@ -437,10 +406,6 @@ class OllamaManager {
     setPort(port) {
         this._currentPort = port;
         this._baseUrl = `http://${this._host}:${port}`;
-    }
-
-    setDefaultModel(model) {
-        this._defaultModel = model;
     }
 }
 

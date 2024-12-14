@@ -48,6 +48,7 @@ const store = new Store({
 
 // Global variables
 let mainWindow = null;
+let ollamaConfigWindow = null;
 
 // Constants
 const APP_VERSION = 'v1.0';
@@ -122,7 +123,7 @@ class AppStartupManager {
             modelImportWindow.setupIpcHandlers();
 
             this.updateStartupProgress('Setting up models...', 50);
-            await setupDefaultModels(this.startup);
+            await setupDefaultModels();
 
             this.updateStartupProgress('Creating main window...', 90);
             try {
@@ -349,51 +350,61 @@ const initializeStyles = async () => {
 };
 
 // Setup default models for the application
-async function setupDefaultModels(startup) {
+async function setupDefaultModels() {
     try {
-        // Ensure models directory exists
-        await fs.mkdir(SAFETENSORS_MODELS_PATH, { recursive: true });
-        await fs.mkdir(CUSTOM_MODELS_PATH, { recursive: true });
-
-        // Check if Ollama is running
-        const isOllamaRunning = await ollamaManager.checkConnection();
-        if (!isOllamaRunning) {
-            throw new Error('Ollama service is not running. Please start Ollama and try again.');
-        }
-
-        // Check for required models
+        console.log('Setting up default models...');
         const installedModels = await ollamaManager.listModels();
-        
-        // Check if we have at least one model installed
-        if (!installedModels || installedModels.length === 0) {
-            throw new Error('No Ollama models found. Please install at least one model to continue.');
+        console.log('Installed models:', installedModels);
+
+        if (!installedModels || !installedModels.models || installedModels.models.length === 0) {
+            console.log('No models installed');
+            return;
         }
 
-        // Update config with available models if needed
-        const config = configManager.getConfig();
-        if (!config.currentModel || !installedModels.some(m => m.name?.toLowerCase() === config.currentModel.toLowerCase())) {
-            // Set first available model as default text model
-            config.currentModel = installedModels[0].name;
-            configManager.updateConfig(config);
+        // Get current config
+        const configPath = path.join(app.getPath('userData'), 'config.json');
+        let config;
+        try {
+            const configData = await fs.readFile(configPath, 'utf8');
+            config = JSON.parse(configData);
+        } catch (error) {
+            config = {};
         }
-        
-        if (!config.visionModel || !installedModels.some(m => m.name?.toLowerCase() === config.visionModel.toLowerCase())) {
-            // Try to find a vision-capable model (llava, bakllava, etc.)
-            const visionModel = installedModels.find(m => 
-                m.name?.toLowerCase().includes('llava') || 
-                m.name?.toLowerCase().includes('vision')
+
+        const isVisionModel = (model) => {
+            const name = model.name.toLowerCase();
+            return name.includes('llava') || 
+                   name.includes('vision') || 
+                   name.includes('bakllava');
+        };
+
+        // Set default text model if none is set
+        if (!config.currentModel) {
+            const defaultTextModel = installedModels.models.find(model => 
+                !isVisionModel(model)
             );
-            
-            if (visionModel) {
-                config.visionModel = visionModel.name;
-            } else {
-                // If no vision-specific model found, use the same as text model
-                config.visionModel = config.currentModel;
+            if (defaultTextModel) {
+                config.currentModel = defaultTextModel.name;
+                console.log('Set default text model:', defaultTextModel.name);
             }
-            configManager.updateConfig(config);
         }
 
-        return true;
+        // Set default vision model if none is set
+        if (!config.visionModel) {
+            const defaultVisionModel = installedModels.models.find(model => 
+                isVisionModel(model)
+            );
+            if (defaultVisionModel) {
+                config.visionModel = defaultVisionModel.name;
+                console.log('Set default vision model:', defaultVisionModel.name);
+            }
+        }
+
+        // Save config if changes were made
+        if (config.currentModel || config.visionModel) {
+            await fs.writeFile(configPath, JSON.stringify(config, null, 2));
+            console.log('Saved default models config:', config);
+        }
     } catch (error) {
         console.error('Error setting up default models:', error);
         throw error;
@@ -454,6 +465,106 @@ function createStartupWindow() {
     return startup;
 }
 
+// Ollama configuration window
+function createOllamaConfigWindow() {
+    if (ollamaConfigWindow) {
+        ollamaConfigWindow.focus();
+        return;
+    }
+
+    ollamaConfigWindow = new BrowserWindow({
+        width: 800,
+        height: 600,
+        webPreferences: {
+            nodeIntegration: true,
+            contextIsolation: false
+        },
+        frame: false,
+        parent: mainWindow,
+        modal: true,
+        show: false
+    });
+
+    ollamaConfigWindow.loadFile('config.html');
+
+    ollamaConfigWindow.once('ready-to-show', () => {
+        ollamaConfigWindow.show();
+    });
+
+    ollamaConfigWindow.on('closed', () => {
+        ollamaConfigWindow = null;
+    });
+}
+
+// Helper function to format model name
+function formatModelName(name) {
+    // Remove any existing tags first
+    const baseName = name.split(':')[0];
+    
+    // Map our display names to Ollama model names
+    const modelMap = {
+        'llama3.2': 'llama2',
+        'llama3.1': 'llama2',
+        'llama3': 'llama2',
+        'llama2': 'llama2',
+        'dolphin-mistral': 'dolphin-mixtral',
+        'dolphin-llama3': 'dolphin-phi',
+        'mistral': 'mistral',
+        'gemma': 'gemma',
+        'gemma2': 'gemma',
+        'qwen2': 'qwen',
+        'llama3.2-vision': 'llama2',
+        'llava': 'llava',
+        'bakllava': 'bakllava'
+    };
+
+    // Get the correct model name
+    const ollamaName = modelMap[baseName] || baseName;
+    
+    // Add :latest tag
+    return `${ollamaName}:latest`;
+}
+
+// Ollama IPC handlers
+ipcMain.handle('check-ollama-connection', async () => {
+    try {
+        const response = await fetch('http://localhost:11434/api/tags');
+        return response.ok;
+    } catch (error) {
+        console.error('Failed to connect to Ollama:', error);
+        return false;
+    }
+});
+
+ipcMain.handle('remove-model', async (event, modelName) => {
+    try {
+        const formattedName = formatModelName(modelName);
+        console.log('Removing model:', formattedName);
+        
+        const response = await fetch(`http://localhost:11434/api/delete`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ name: formattedName })
+        });
+        
+        if (!response.ok) {
+            const text = await response.text();
+            console.error('Delete response:', response.status, text);
+            throw new Error(`Failed to remove model: ${response.status} ${response.statusText} ${text ? `- ${text}` : ''}`);
+        }
+        return true;
+    } catch (error) {
+        console.error('Failed to remove model:', error);
+        throw error;
+    }
+});
+
+ipcMain.on('close-config', () => {
+    if (ollamaConfigWindow) {
+        ollamaConfigWindow.close();
+    }
+});
+
 // Handle app ready
 app.whenReady().then(async () => {
     initializePaths();
@@ -470,7 +581,25 @@ app.whenReady().then(async () => {
         appStartupManager.retry();
     });
 
-    // IPC Handlers
+    // Add list-models and get-config handlers
+    ipcMain.handle('list-models', async () => {
+        return await ollamaManager.listModels();
+    });
+
+    ipcMain.handle('get-config', async () => {
+        try {
+            const configPath = path.join(app.getPath('userData'), 'config.json');
+            const configData = await fs.readFile(configPath, 'utf8');
+            return JSON.parse(configData);
+        } catch (error) {
+            console.error('Error reading config:', error);
+            return {
+                currentModel: null,
+                visionModel: null
+            };
+        }
+    });
+
     ipcMain.handle('detect-and-translate', async (event, text) => {
         try {
             return await ollamaManager.detectAndTranslateText(text);
@@ -524,6 +653,18 @@ app.whenReady().then(async () => {
             };
         } catch (error) {
             console.error('Error in generate-prompt:', error);
+            throw error;
+        }
+    });
+
+    // Add save-config handler
+    ipcMain.handle('save-config', async (event, config) => {
+        try {
+            const configPath = path.join(app.getPath('userData'), 'config.json');
+            await fs.writeFile(configPath, JSON.stringify(config, null, 2));
+            return true;
+        } catch (error) {
+            console.error('Error saving config:', error);
             throw error;
         }
     });
@@ -645,6 +786,10 @@ app.whenReady().then(async () => {
         creditsWindow.create();
     });
 
+    ipcMain.on('open-ollama-config', () => {
+        createOllamaConfigWindow();
+    });
+
     // Ollama status handlers
     ipcMain.handle('check-ollama-status', async () => {
         return await getStatus();
@@ -663,14 +808,53 @@ app.whenReady().then(async () => {
         return await ollamaManager.getCustomModels();
     });
 
-    ipcMain.handle('list-models', async () => {
-        return await ollamaManager.listModels();
-    });
-
     ipcMain.handle('install-model', async (event, modelName) => {
-        return await ollamaManager.installModel(modelName, (progress) => {
-            event.sender.send('model-install-progress', { modelName, progress });
-        });
+        try {
+            const formattedName = formatModelName(modelName);
+            console.log('Installing model:', formattedName);
+            
+            const response = await fetch('http://localhost:11434/api/pull', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: formattedName })
+            });
+            
+            if (!response.ok) {
+                const text = await response.text();
+                console.error('Install response:', response.status, text);
+                throw new Error(`Failed to install model: ${response.status} ${response.statusText} ${text ? `- ${text}` : ''}`);
+            }
+            
+            const text = await response.text();
+            const lines = text.split('\n').filter(line => line.trim());
+            
+            for (let i = 0; i < lines.length; i++) {
+                try {
+                    const data = JSON.parse(lines[i]);
+                    if (data.status === 'downloading' && data.total && data.completed) {
+                        event.sender.send('model-install-progress', { 
+                            modelName, 
+                            progress: Math.min(99, (data.completed / data.total) * 100),
+                            downloadSize: data.completed,
+                            totalSize: data.total
+                        });
+                    }
+                } catch (e) {
+                    // Ignore parse errors for non-JSON lines
+                }
+            }
+            
+            // Send final progress update
+            event.sender.send('model-install-progress', { 
+                modelName, 
+                progress: 100
+            });
+            
+            return true;
+        } catch (error) {
+            console.error('Failed to install model:', error);
+            throw error;
+        }
     });
 
     ipcMain.handle('delete-model', async (event, modelName) => {
@@ -797,6 +981,28 @@ app.whenReady().then(async () => {
             console.error('Error saving model parameters:', error);
         }
     });
+
+    // Handle model-changed event
+    ipcMain.on('model-changed', (event, config) => {
+        // Update Ollama manager
+        ollamaManager.setDefaultModel(config.currentModel);
+        
+        // Notify all windows about the change
+        BrowserWindow.getAllWindows().forEach(window => {
+            window.webContents.send('model-changed', config);
+        });
+    });
+
+    ipcMain.on('show-ollama-config', () => {
+        configWindow.create();
+    });
+
+    // Update Ollama connection status
+    function updateOllamaStatus(isConnected) {
+        if (mainWindow) {
+            mainWindow.webContents.send('ollama-status', isConnected);
+        }
+    }
 
     // Create and set startup window
     appStartupManager.startup = createStartupWindow();

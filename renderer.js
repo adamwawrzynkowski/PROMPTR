@@ -363,6 +363,8 @@ function setupStyleCardEventListeners(card, style) {
                 customStyle: styleParams
             });
             
+            console.log('Generate prompt response:', response);
+            
             // Hide loading and show prompt with animation
             loadingContainer.style.display = 'none';
             promptDisplay.style.display = 'block';
@@ -1264,6 +1266,165 @@ ipcRenderer.on('model-parameters-updated', (event, data) => {
     }
 });
 
+// Model selector functionality
+let installedModels = [];
+
+const isVisionModel = (model) => {
+    const name = (model.name || '').toLowerCase();
+    const isVision = name.includes('llava') || 
+                    name.includes('vision') || 
+                    name.includes('bakllava');
+    console.log('Checking if vision model:', model.name, isVision);
+    return isVision;
+};
+
+async function initializeModelSelectors() {
+    console.log('Initializing model selectors');
+    const textModelTag = document.querySelector('.text-model');
+    const visionModelTag = document.querySelector('.vision-model');
+    
+    if (!textModelTag || !visionModelTag) {
+        console.error('Could not find model tags:', { textModelTag, visionModelTag });
+        return;
+    }
+    
+    // Get installed models
+    try {
+        console.log('Fetching installed models...');
+        const response = await ipcRenderer.invoke('list-models');
+        console.log('Got models response:', response);
+        installedModels = response.models || [];
+        
+        // Get current config
+        const config = await ipcRenderer.invoke('get-config');
+        console.log('Got config:', config);
+        
+        // Update dropdowns
+        updateModelDropdowns(config);
+        
+        // Add click listeners
+        textModelTag.addEventListener('click', (e) => {
+            console.log('Text model tag clicked');
+            toggleDropdown(e, 'text');
+        });
+        visionModelTag.addEventListener('click', (e) => {
+            console.log('Vision model tag clicked');
+            toggleDropdown(e, 'vision');
+        });
+        
+        // Close dropdowns when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('.model-tag')) {
+                console.log('Clicking outside, closing dropdowns');
+                textModelTag.classList.remove('active');
+                visionModelTag.classList.remove('active');
+            }
+        });
+    } catch (error) {
+        console.error('Error initializing model selectors:', error);
+    }
+}
+
+function updateModelDropdowns(config) {
+    console.log('Updating model dropdowns with config:', config);
+    
+    const textDropdown = document.getElementById('text-model-dropdown');
+    const visionDropdown = document.getElementById('vision-model-dropdown');
+    const textModelName = document.getElementById('text-model-name');
+    const visionModelName = document.getElementById('vision-model-name');
+    
+    if (!textDropdown || !visionDropdown || !textModelName || !visionModelName) {
+        console.error('Could not find dropdown elements:', { textDropdown, visionDropdown, textModelName, visionModelName });
+        return;
+    }
+    
+    // Update model names
+    textModelName.textContent = config?.currentModel || 'Not selected';
+    visionModelName.textContent = config?.visionModel || 'Not selected';
+    
+    // Clear existing items
+    textDropdown.innerHTML = '';
+    visionDropdown.innerHTML = '';
+    
+    console.log('Available models:', installedModels);
+    
+    // Filter models by type
+    const textModels = installedModels.filter(model => !isVisionModel(model));
+    const visionModels = installedModels.filter(model => isVisionModel(model));
+    
+    console.log('Filtered models:', { textModels, visionModels });
+    
+    // Populate text models dropdown
+    textModels.forEach(model => {
+        const item = createDropdownItem(model.name, config?.currentModel === model.name);
+        item.addEventListener('click', (e) => {
+            console.log('Selected text model:', model.name);
+            e.stopPropagation();
+            selectModel('text', model.name);
+        });
+        textDropdown.appendChild(item);
+    });
+    
+    // Populate vision models dropdown
+    visionModels.forEach(model => {
+        const item = createDropdownItem(model.name, config?.visionModel === model.name);
+        item.addEventListener('click', (e) => {
+            console.log('Selected vision model:', model.name);
+            e.stopPropagation();
+            selectModel('vision', model.name);
+        });
+        visionDropdown.appendChild(item);
+    });
+}
+
+function createDropdownItem(modelName, isSelected) {
+    const item = document.createElement('div');
+    item.className = `model-dropdown-item${isSelected ? ' selected' : ''}`;
+    item.textContent = modelName;
+    return item;
+}
+
+function toggleDropdown(event, type) {
+    event.stopPropagation();
+    const currentTag = event.currentTarget;
+    const otherTag = type === 'text' ? 
+        document.querySelector('.vision-model') : 
+        document.querySelector('.text-model');
+    
+    console.log('Toggling dropdown for', type, 'model');
+    otherTag.classList.remove('active');
+    currentTag.classList.toggle('active');
+}
+
+async function selectModel(type, modelName) {
+    try {
+        console.log('Selecting', type, 'model:', modelName);
+        const config = await ipcRenderer.invoke('get-config');
+        const newConfig = {
+            ...config,
+            [type === 'text' ? 'currentModel' : 'visionModel']: modelName
+        };
+        
+        console.log('Saving new config:', newConfig);
+        await ipcRenderer.invoke('save-config', newConfig);
+        ipcRenderer.send('model-changed', newConfig);
+        
+        // Close dropdown
+        const tag = document.querySelector(`.${type}-model`);
+        tag.classList.remove('active');
+    } catch (error) {
+        console.error('Error selecting model:', error);
+    }
+}
+
+// Initialize model selectors when the window loads
+window.addEventListener('DOMContentLoaded', initializeModelSelectors);
+
+// Update dropdowns when models change
+ipcRenderer.on('model-changed', (event, config) => {
+    updateModelDropdowns(config);
+});
+
 // Funkcja do aktualizacji statusu połączenia
 function updateConnectionStatus(status) {
     const connectionBtn = document.getElementById('connection-btn');
@@ -1299,6 +1460,64 @@ function updateConnectionStatus(status) {
         if (visionModelName) visionModelName.textContent = 'Not selected';
     }
 }
+
+// Funkcja do aktualizacji tagów modelu
+function updateModelTags(status) {
+    const textModelName = document.getElementById('text-model-name');
+    const visionModelName = document.getElementById('vision-model-name');
+    
+    if (!textModelName || !visionModelName) {
+        console.warn('Model tag elements not found');
+        return;
+    }
+    
+    // Get current models from config
+    ipcRenderer.invoke('get-config').then(config => {
+        if (config) {
+            // Update text model
+            if (config.currentModel) {
+                textModelName.textContent = config.currentModel;
+                textModelName.title = `Current Text Model: ${config.currentModel}`;
+            } else {
+                textModelName.textContent = 'Not selected';
+                textModelName.title = 'No text model selected';
+            }
+            
+            // Update vision model
+            if (config.visionModel) {
+                visionModelName.textContent = config.visionModel;
+                visionModelName.title = `Current Vision Model: ${config.visionModel}`;
+            } else {
+                visionModelName.textContent = 'Not selected';
+                visionModelName.title = 'No vision model selected';
+            }
+        }
+    }).catch(error => {
+        console.error('Error getting config:', error);
+        textModelName.textContent = 'Error';
+        visionModelName.textContent = 'Error';
+    });
+}
+
+// Listen for model changes
+ipcRenderer.on('model-changed', (event, config) => {
+    updateModelTags();
+});
+
+// Connection status handling
+const connectionStatus = document.querySelector('.connection-status');
+if (connectionStatus) {
+    connectionStatus.addEventListener('click', () => {
+        ipcRenderer.send('show-ollama-config');
+    });
+}
+
+ipcRenderer.on('ollama-status', (event, isConnected) => {
+    if (connectionStatus) {
+        connectionStatus.classList.toggle('connected', isConnected);
+        connectionStatus.classList.toggle('disconnected', !isConnected);
+    }
+});
 
 // Funkcja do obsługi tłumaczenia
 async function handleTranslation(text) {

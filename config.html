@@ -3,6 +3,7 @@
 <head>
     <title>Ollama Configuration</title>
     <link rel="stylesheet" href="styles/main.css">
+    <link rel="stylesheet" href="styles/ollama-config.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
     <style>
         /* Custom styles specific to config.html */
@@ -48,143 +49,78 @@
     </style>
 </head>
 <body>
-    <div class="container">
-        <div class="title-bar">
-            <div class="title">Ollama Configuration</div>
+    <div class="config-window">
+        <!-- Titlebar -->
+        <div class="config-titlebar">
+            <h1>Ollama Configuration</h1>
             <button class="close-button" id="close-btn">
                 <i class="fas fa-times"></i>
             </button>
         </div>
 
-        <div class="content">
-            <div class="status-section">
-                <div class="status-indicator">
+        <!-- Main Content -->
+        <div class="config-content">
+            <!-- Connection Status -->
+            <div class="connection-panel" id="connection-panel">
+                <div class="connection-icon">
                     <i class="fas fa-plug"></i>
-                    <span id="status-text">Checking connection...</span>
+                </div>
+                <div class="connection-info">
+                    <div class="connection-status" id="connection-status">Checking connection...</div>
+                    <div class="connection-details" id="connection-details">Attempting to connect to Ollama service</div>
                 </div>
             </div>
 
-            <div class="installed-models-section">
-                <div class="installed-models-group">
-                    <h3>Text Models</h3>
-                    <div class="model-tiles" id="text-model-tiles"></div>
-                </div>
-                <div class="installed-models-group">
-                    <h3>Vision Models</h3>
-                    <div class="model-tiles" id="vision-model-tiles"></div>
-                </div>
-            </div>
-
-            <div class="collapsible-section">
-                <div class="section-header">
-                    <h3><i class="fas fa-chevron-down"></i> Model Selection</h3>
-                </div>
-                <div class="section-content expanded">
-                    <div class="model-select-wrapper">
-                        <h4>Text Generation Model</h4>
-                        <select id="model-select" class="model-select">
-                            <option value="">Select a model</option>
-                            <optgroup label="SFW Models">
-                                <!-- Będzie wypełnione przez JavaScript -->
-                            </optgroup>
-                            <optgroup label="NSFW Models">
-                                <!-- Będzie wypełnione przez JavaScript -->
-                            </optgroup>
-                            <optgroup label="Other Models">
-                                <!-- Będzie wypełnione przez JavaScript -->
-                            </optgroup>
-                        </select>
-                    </div>
-
-                    <div class="model-select-wrapper">
-                        <h4>Vision Model</h4>
-                        <select id="vision-model-select" class="model-select">
-                            <option value="">Select a vision model</option>
-                            <optgroup label="Vision Models">
-                                <!-- Będzie wypełnione przez JavaScript -->
-                            </optgroup>
-                        </select>
-                    </div>
-                </div>
-            </div>
-
+            <!-- Text Models -->
             <div class="models-section">
-                <h2 class="models-section-title">Available Models</h2>
-                <div class="model-tags"></div>
-                
-                <!-- SFW Models -->
-                <div class="model-category">
-                    <div class="category-header">
-                        <h3>
-                            <i class="fas fa-shield-alt"></i>
-                            SFW Models
-                        </h3>
-                        <i class="fas fa-chevron-down"></i>
-                    </div>
-                    <div class="category-description">
-                        <p>Standard text models for general use. These models are focused on safe-for-work content generation, including coding assistance, mathematical calculations, and general text analysis.</p>
-                    </div>
-                    <div class="category-content" id="sfw-models"></div>
+                <div class="section-header">
+                    <h2>Text Models</h2>
+                    <span class="model-count" id="text-model-count">0 models</span>
                 </div>
-
-                <!-- NSFW Models -->
-                <div class="model-category">
-                    <div class="category-header">
-                        <h3>
-                            <i class="fas fa-exclamation-triangle"></i>
-                            NSFW Models
-                        </h3>
-                        <i class="fas fa-chevron-down"></i>
-                    </div>
-                    <div class="category-description">
-                        <p>Models specialized in generating mature and explicit content descriptions. These models are designed to handle adult themes and should be used with appropriate content warnings.</p>
-                    </div>
-                    <div class="category-content" id="nsfw-models"></div>
-                </div>
-
-                <!-- Vision Models -->
-                <div class="model-category">
-                    <div class="category-header">
-                        <h3>
-                            <i class="fas fa-eye"></i>
-                            Vision Models
-                        </h3>
-                        <i class="fas fa-chevron-down"></i>
-                    </div>
-                    <div class="category-description">
-                        <p>Specialized models for image analysis and understanding. These models can process images to generate descriptions, analyze content, and understand visual context.</p>
-                    </div>
-                    <div class="category-content" id="vision-models"></div>
-                </div>
-
-                <!-- Other Models -->
-                <div class="model-category">
-                    <div class="category-header">
-                        <h3>
-                            <i class="fas fa-cube"></i>
-                            Other Models
-                        </h3>
-                        <i class="fas fa-chevron-down"></i>
-                    </div>
-                    <div class="category-description">
-                        <p>Additional specialized models with unique capabilities. This category includes experimental models, smaller variants, and models optimized for specific tasks or languages.</p>
-                    </div>
-                    <div class="category-content" id="other-models"></div>
-                </div>
+                <div class="models-grid" id="text-models-grid"></div>
             </div>
 
-            <div class="actions">
-                <button id="refresh-btn" class="action-button">
-                    <i class="fas fa-sync-alt"></i>
-                    Refresh
-                </button>
-                <button id="save-btn" class="action-button primary" disabled>
-                    <i class="fas fa-save"></i>
-                    Save Configuration
-                </button>
+            <!-- Vision Models -->
+            <div class="models-section">
+                <div class="section-header">
+                    <h2>Vision Models</h2>
+                    <span class="model-count" id="vision-model-count">0 models</span>
+                </div>
+                <div class="models-grid" id="vision-models-grid"></div>
             </div>
         </div>
     </div>
+
+    <!-- Model Card Template -->
+    <template id="model-card-template">
+        <div class="model-card">
+            <div class="model-info">
+                <div class="model-header">
+                    <span class="model-name"></span>
+                    <div class="model-status">
+                        <button class="remove-button" title="Remove model"><i class="fas fa-trash"></i></button>
+                        <span class="model-tag"></span>
+                    </div>
+                </div>
+                <div class="model-details">
+                    <span class="model-size"><i class="fas fa-hdd"></i> <span></span></span>
+                </div>
+            </div>
+            <div class="model-actions">
+                <div class="progress-container" style="display: none;">
+                    <div class="progress-info">
+                        <span class="progress-text">0%</span>
+                        <span class="download-size"></span>
+                    </div>
+                    <div class="progress-bar">
+                        <div class="progress"></div>
+                    </div>
+                </div>
+                <button class="install-button"><i class="fas fa-download"></i> Install</button>
+            </div>
+        </div>
+    </template>
+
     <script src="config-renderer.js"></script>
 </body>
 </html>

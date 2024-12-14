@@ -1,0 +1,32 @@
+{
+    "realistic": {
+        "id": "realistic",
+        "name": "Realistic",
+        "description": "Ultra-realistic photography with meticulous attention to detail",
+        "icon": "camera",
+        "active": true,
+        "prefix": "Generate a realistic, detailed description:",
+        "suffix": "Make it ultra-realistic and professional.",
+        "modelParameters": {
+            "temperature": 0.7,
+            "top_k": 40,
+            "top_p": 0.9,
+            "repeat_penalty": 1.1
+        }
+    },
+    "cinematic": {
+        "id": "cinematic",
+        "name": "Cinematic",
+        "description": "Epic movie scene aesthetics with dramatic cinematography",
+        "icon": "film",
+        "active": true,
+        "prefix": "Create a cinematic scene description:",
+        "suffix": "Make it dramatic and visually striking.",
+        "modelParameters": {
+            "temperature": 0.8,
+            "top_k": 45,
+            "top_p": 0.9,
+            "repeat_penalty": 1.1
+        }
+    }
+}
