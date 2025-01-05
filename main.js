@@ -362,6 +362,7 @@ const appStartupManager = new AppStartupManager();
 async function initializeStyles() {
     try {
         console.log('Initializing styles...');
+        await stylesManager.initialize();  // Make sure to initialize first
         const styles = await stylesManager.getAllStyles();
         console.log('Loaded styles:', styles);
         return styles;
@@ -683,29 +684,30 @@ app.whenReady().then(async () => {
                 throw new Error('No base prompt provided');
             }
             
-            const { basePrompt, styleId, customStyle } = data;
+            const { basePrompt, styleId } = data;
             
             // Ensure we have the current model from Ollama manager
             if (!ollamaManager.currentModel) {
                 throw new Error('No text model selected. Please select a model in settings.');
             }
             
-            // Get style data if not provided
-            let mergedStyle = customStyle;
-            if (!mergedStyle && styleId) {
-                const style = await stylesManager.getStyle(styleId);
-                if (style) {
-                    mergedStyle = style;
-                }
+            // Always get the latest style data from the styles manager
+            if (!styleId) {
+                throw new Error('No style ID provided');
             }
             
-            console.log('Using merged style:', mergedStyle);
+            const style = await stylesManager.getStyle(styleId);
+            if (!style) {
+                throw new Error(`Style ${styleId} not found`);
+            }
+            
+            console.log('Using style from styles manager:', style);
             
             // Generate the prompt
             const result = await ollamaManager.generatePrompt(
                 basePrompt,
                 styleId,
-                mergedStyle
+                style
             );
             
             return {
@@ -714,6 +716,25 @@ app.whenReady().then(async () => {
             };
         } catch (error) {
             console.error('Error in generate-prompt:', error);
+            throw error;
+        }
+    });
+
+    ipcMain.handle('select-model', async (event, { type, modelName }) => {
+        try {
+            if (type.toLowerCase() === 'text') {
+                await ollamaManager.setModel(modelName);
+            } else if (type.toLowerCase() === 'vision') {
+                await ollamaManager.setVisionModel(modelName);
+            }
+            
+            // Get updated status
+            const status = await ollamaManager.getStatus();
+            mainWindow.webContents.send('ollama-status', status);
+            
+            return status;
+        } catch (error) {
+            console.error('Error selecting model:', error);
             throw error;
         }
     });

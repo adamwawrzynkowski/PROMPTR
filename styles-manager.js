@@ -184,10 +184,34 @@ class StylesManager {
 
     async loadStyles() {
         try {
+            console.log('Loading styles from:', this.stylesPath);
             if (await fs.access(this.stylesPath).then(() => true).catch(() => false)) {
                 const data = await fs.readFile(this.stylesPath, 'utf8');
-                this.styles = JSON.parse(data);
-                console.log('Loaded styles from file:', this.styles);
+                const loadedStyles = JSON.parse(data);
+                console.log('Loaded styles from file:', loadedStyles);
+                
+                // Compare with default styles and update if needed
+                this.styles = DEFAULT_STYLES.map(defaultStyle => {
+                    const savedStyle = loadedStyles.find(s => s.id === defaultStyle.id);
+                    if (savedStyle && !savedStyle.custom) {
+                        // For non-custom styles, ensure we use the default prefix and suffix
+                        return {
+                            ...savedStyle,
+                            prefix: defaultStyle.prefix,
+                            suffix: defaultStyle.suffix
+                        };
+                    }
+                    return savedStyle || defaultStyle;
+                });
+                
+                // Add any custom styles that aren't in defaults
+                const customStyles = loadedStyles.filter(s => 
+                    s.custom && !this.styles.some(ds => ds.id === s.id)
+                );
+                this.styles = [...this.styles, ...customStyles];
+                
+                console.log('Final merged styles:', this.styles);
+                await this.saveStyles(); // Save back the merged styles
             } else {
                 console.log('No styles file found, using defaults');
                 this.styles = DEFAULT_STYLES;
@@ -220,20 +244,30 @@ class StylesManager {
         
         try {
             await this.loadStyles();
+            this.initialized = true;
+            console.log('Styles manager initialized with styles:', this.styles);
         } catch (error) {
-            console.error('Error initializing styles:', error);
+            console.error('Error initializing styles manager:', error);
+            this.styles = DEFAULT_STYLES;
+            this.initialized = true;
         }
-        
-        this.initialized = true;
-        console.log('Initialization complete, styles:', this.styles);
+    }
+
+    async getAllStyles() {
+        if (!this.initialized) {
+            console.log('Getting styles before initialization, initializing now');
+            await this.initialize();
+        }
+        return this.styles;
     }
 
     async getStyle(styleId) {
-        await this.initialize();
-        console.log('Getting style with ID:', styleId);
-        
-        const style = this.styles.find(style => style.id === styleId);
-        console.log('Found style:', style);
+        if (!this.initialized) {
+            console.log('Getting style before initialization, initializing now');
+            await this.initialize();
+        }
+        const style = this.styles.find(s => s.id === styleId);
+        console.log('Getting style:', styleId, 'Found:', style);
         return style;
     }
 
@@ -286,12 +320,6 @@ class StylesManager {
             return true;
         }
         return false;
-    }
-
-    async getAllStyles() {
-        await this.initialize();
-        console.log('Getting all styles:', this.styles);
-        return this.styles;
     }
 
     async activateStyle(styleId) {

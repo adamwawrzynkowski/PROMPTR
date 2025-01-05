@@ -292,25 +292,26 @@ class OllamaManager {
                 throw new Error(`Model ${modelName} is not available`);
             }
             this.currentModel = modelName;
-            configManager.updateConfig({
-                currentModel: this.currentModel,
-                visionModel: this.visionModel
+            await configManager.saveConfig({
+                ...configManager.getConfig(),
+                currentModel: this.currentModel
+            });
+            
+            // Notify all windows about the model change
+            BrowserWindow.getAllWindows().forEach(window => {
+                window.webContents.send('model-changed', {
+                    currentModel: this.currentModel,
+                    visionModel: this.visionModel
+                });
             });
         }
     }
 
-    async setVisionModel(modelName) {
-        if (modelName) {
-            const isAvailable = await this.checkModelAvailability(modelName);
-            if (!isAvailable) {
-                throw new Error(`Vision model ${modelName} is not available`);
-            }
-            this.visionModel = modelName;
-            configManager.updateConfig({
-                currentModel: this.currentModel,
-                visionModel: this.visionModel
-            });
-        }
+    async getCurrentModel() {
+        // Always get the latest from config
+        const config = configManager.getConfig();
+        this.currentModel = config.currentModel;
+        return this.currentModel;
     }
 
     async getStatus() {
@@ -350,66 +351,51 @@ class OllamaManager {
     }
 
     async generatePrompt(basePrompt, styleId, style) {
+        // Get the latest model
+        const currentModel = await this.getCurrentModel();
+        if (!currentModel) {
+            throw new Error('No text model selected. Please select a model in settings.');
+        }
+
+        // Verify the model is available
+        const isAvailable = await this.checkModelAvailability(currentModel);
+        if (!isAvailable) {
+            throw new Error(`Selected model ${currentModel} is not available. Please check your model settings.`);
+        }
+
         try {
-            console.log('Generating prompt with:', { basePrompt, styleId, style });
+            console.log('Generating prompt with model:', currentModel);
             
-            if (!basePrompt) {
-                throw new Error('Base prompt is required');
-            }
-
-            // Default parameters if no style is provided
-            const defaultParameters = {
-                temperature: 0.7,
-                top_k: 40,
-                top_p: 0.9,
-                repeat_penalty: 1.1
-            };
-
-            // Use style parameters or defaults
-            const parameters = style?.modelParameters || defaultParameters;
-            
-            // Build the final prompt with prefix and suffix if provided
-            let finalPrompt = basePrompt;
-            if (style?.prefix) {
-                finalPrompt = `${style.prefix}\n${finalPrompt}`;
-            }
-            if (style?.suffix) {
-                finalPrompt = `${finalPrompt}\n${style.suffix}`;
-            }
-
-            console.log('Final prompt and parameters:', {
-                prompt: finalPrompt,
-                parameters
-            });
-
-            // Ensure we have a model selected
-            await this.ensureTextModelSelected();
-
-            // Make the actual API call to Ollama
-            const response = await fetch(`http://${this.endpoint.host}:${this.endpoint.port}/api/generate`, {
+            const response = await this.makeRequest(`${this.getBaseUrl()}/api/generate`, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    model: this.currentModel,
-                    prompt: finalPrompt,
-                    options: parameters,
-                    stream: false
+                    model: currentModel,
+                    prompt: basePrompt,
+                    stream: false,
+                    options: {
+                        temperature: style?.modelParameters?.temperature || 0.7,
+                        top_p: style?.modelParameters?.top_p || 0.9,
+                        top_k: style?.modelParameters?.top_k || 40,
+                        repeat_penalty: style?.modelParameters?.repeat_penalty || 1.1
+                    }
                 })
             });
 
             if (!response.ok) {
-                throw new Error(`Failed to generate prompt: ${response.statusText}`);
+                const errorText = await response.text();
+                throw new Error(`Failed to generate prompt: ${errorText}`);
             }
 
-            const result = await response.json();
+            const data = await response.json();
             return {
-                prompt: result.response,
-                parameters
+                prompt: data.response,
+                parameters: style?.modelParameters || {}
             };
         } catch (error) {
-            console.error('Error generating prompt:', error);
+            console.error('Error in generatePrompt:', error);
             throw error;
         }
     }

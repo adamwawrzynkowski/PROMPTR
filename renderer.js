@@ -157,8 +157,7 @@ function createStyleCard(style) {
             
             const response = await ipcRenderer.invoke('generate-prompt', {
                 basePrompt: basePrompt,
-                styleId: style.id,
-                customStyle: styleParams
+                styleId: style.id
             });
             
             console.log('Generate prompt response:', response);
@@ -333,10 +332,10 @@ function setupStyleCardEventListeners(card, style) {
             return;
         }
         
-        // Show loading animation
-        promptDisplay.style.display = 'none';
-        loadingContainer.style.display = 'flex';
-        generateBtn.disabled = true;
+        // Show loading state
+        if (promptContainer) promptContainer.style.display = 'none';
+        if (loadingContainer) loadingContainer.style.display = 'flex';
+        if (generateBtn) generateBtn.disabled = true;
 
         try {
             // Pobierz parametry stylu
@@ -345,8 +344,7 @@ function setupStyleCardEventListeners(card, style) {
             
             const response = await ipcRenderer.invoke('generate-prompt', {
                 basePrompt: basePrompt,
-                styleId: style.id,
-                customStyle: styleParams
+                styleId: style.id
             });
             
             console.log('Generate prompt response:', response);
@@ -971,116 +969,92 @@ async function generatePromptsSequentially(basePrompt, view = 'active') {
         return;
     }
 
-    // Wybierz karty w zależności od widoku
-    let cards;
+    // Get active style IDs based on view
+    let styleIds;
     if (view === 'favorites') {
-        cards = Array.from(document.querySelectorAll('.style-card')).filter(card => 
-            card.dataset.favorite === 'true' || localStorage.getItem(`style_${card.dataset.styleId}_favorite`) === 'true'
-        );
+        styleIds = Array.from(document.querySelectorAll('.style-card'))
+            .filter(card => card.dataset.favorite === 'true' || 
+                          localStorage.getItem(`style_${card.dataset.styleId}_favorite`) === 'true')
+            .map(card => card.dataset.styleId);
     } else if (view === 'active') {
-        cards = Array.from(document.querySelectorAll('.style-card')).filter(card => 
-            localStorage.getItem(`style_${card.dataset.styleId}_active`) === 'true'
-        );
+        styleIds = Array.from(document.querySelectorAll('.style-card'))
+            .filter(card => localStorage.getItem(`style_${card.dataset.styleId}_active`) === 'true')
+            .map(card => card.dataset.styleId);
     } else {
-        cards = []; // Dla widoku 'inactive' nie generujemy promptów
+        styleIds = [];
     }
     
-    console.log('Found cards:', cards.length);
+    console.log('Found style IDs:', styleIds);
     
-    if (cards.length === 0) {
+    if (styleIds.length === 0) {
         showToast('No styles available for prompt generation');
         return;
     }
 
     let generatedCount = 0;
 
-    for (const card of cards) {
+    for (const styleId of styleIds) {
+        const card = document.querySelector(`[data-style-id="${styleId}"]`);
+        if (!card) continue;
+
         const promptContainer = card.querySelector('.prompt-container');
         const loadingContainer = card.querySelector('.generating-container');
         const promptDisplay = card.querySelector('.prompt-text');
         const generateBtn = card.querySelector('.generate-btn');
-        
-        console.log('Card elements:', {
-            promptContainer: !!promptContainer,
-            loadingContainer: !!loadingContainer,
-            promptDisplay: !!promptDisplay,
-            generateBtn: !!generateBtn
-        });
-        
-        if (!promptContainer || !loadingContainer || !promptDisplay || !generateBtn) {
-            console.error('Missing required elements for card:', card.dataset.styleId);
-            continue;
-        }
 
         try {
-            // Pokaż animację ładowania
-            promptDisplay.style.display = 'none';
-            loadingContainer.style.display = 'flex';
-            generateBtn.disabled = true;
+            // Show loading state
+            if (promptContainer) promptContainer.style.display = 'none';
+            if (loadingContainer) loadingContainer.style.display = 'flex';
+            if (generateBtn) generateBtn.disabled = true;
 
-            // Generuj prompt
-            const styleId = card.dataset.styleId;
-            console.log('Generating prompt for style:', styleId);
-            
-            // Pobierz parametry stylu i połącz z domyślnymi
-            const styleParams = await ipcRenderer.invoke('get-style', styleId);
-            console.log('Raw style parameters:', styleParams);
-            
-            // Define default parameters
-            const defaultParams = {
-                temperature: 0.7,
-                top_p: 0.9,
-                top_k: 40,
-                repeat_penalty: 1.1,
-                max_tokens: 2048
-            };
-            
-            // Merge with actual parameters
-            const mergedParams = {
-                ...defaultParams,
-                ...(styleParams.modelParameters || {})
-            };
-            
-            console.log('Merged style parameters:', mergedParams);
-            
-            const response = await ipcRenderer.invoke('generate-prompt', {
-                basePrompt: basePrompt.trim(),
-                styleId: styleId,
-                customStyle: {
-                    ...styleParams,
-                    modelParameters: mergedParams
-                }
-            });
-            
-            console.log('Generate prompt response:', response);
-            
-            // Ukryj animację ładowania
-            loadingContainer.style.display = 'none';
-            promptDisplay.style.display = 'block';
-
-            if (response && response.prompt) {
-                // Pokaż wygenerowany prompt z animacją
-                await revealPrompt(response.prompt, promptDisplay);
-                
-                // Dodaj do historii
-                addToStyleHistory(styleId, response.prompt);
-                updateHistoryButtons(styleId);
-                generatedCount++;
-            } else {
-                console.error('Invalid response format:', response);
-                promptDisplay.textContent = 'Error: Invalid response format';
+            // Get the latest style data from the styles manager
+            const style = await ipcRenderer.invoke('get-style', styleId);
+            if (!style) {
+                console.error('Style not found:', styleId);
+                continue;
             }
+
+            console.log('Generating with style:', style);
+
+            // Build the complete prompt
+            let finalPrompt = basePrompt;
+            if (style.prefix) finalPrompt = `${style.prefix}${finalPrompt}`;
+            if (style.suffix) finalPrompt = `${finalPrompt}${style.suffix}`;
+
+            // Generate the prompt
+            const result = await ipcRenderer.invoke('generate-prompt', {
+                basePrompt: finalPrompt,
+                styleId: style.id
+            });
+
+            // Update UI with result
+            if (promptDisplay) {
+                promptDisplay.textContent = result.prompt;
+                revealPrompt(result.prompt, promptDisplay);
+            }
+
+            // Add to history
+            addToStyleHistory(styleId, result.prompt);
+            updateHistoryButtons(styleId);
+
+            generatedCount++;
         } catch (error) {
             console.error('Error generating prompt:', error);
-            loadingContainer.style.display = 'none';
-            promptDisplay.style.display = 'block';
-            promptDisplay.textContent = `Error: ${error.message || 'Failed to generate prompt'}`;
+            if (promptDisplay) {
+                promptDisplay.textContent = `Error: ${error.message}`;
+                promptDisplay.classList.add('error');
+            }
         } finally {
-            generateBtn.disabled = false;
+            // Reset UI state
+            if (promptContainer) promptContainer.style.display = 'block';
+            if (loadingContainer) loadingContainer.style.display = 'none';
+            if (generateBtn) generateBtn.disabled = false;
         }
     }
 
-    showToast(`Generated prompts for ${generatedCount} styles`);
+    // Show completion message
+    showToast(`Generated ${generatedCount} prompt${generatedCount !== 1 ? 's' : ''}`);
 }
 
 // Funkcja do animacji promptu
@@ -1376,22 +1350,27 @@ function toggleDropdown(event, type) {
 
 async function selectModel(type, modelName) {
     try {
-        console.log('Selecting', type, 'model:', modelName);
-        const config = await ipcRenderer.invoke('get-config');
-        const newConfig = {
-            ...config,
-            [type === 'text' ? 'currentModel' : 'visionModel']: modelName
-        };
+        console.log(`Selecting ${type} model:`, modelName);
+        await ipcRenderer.invoke('select-model', { type, modelName });
         
-        console.log('Saving new config:', newConfig);
-        await ipcRenderer.invoke('save-config', newConfig);
-        ipcRenderer.send('model-changed', newConfig);
+        // Update UI immediately
+        const dropdown = document.querySelector(`#${type.toLowerCase()}-model-dropdown`);
+        if (dropdown) {
+            const button = dropdown.querySelector('.dropdown-button');
+            if (button) {
+                button.textContent = modelName || 'Select Model';
+            }
+        }
         
-        // Close dropdown
-        const tag = document.querySelector(`.${type}-model`);
-        tag.classList.remove('active');
+        // Update connection status to reflect the new model
+        const status = await ipcRenderer.invoke('get-ollama-status');
+        updateConnectionStatus(status);
+        
+        // Show confirmation
+        showToast(`${type} model set to: ${modelName}`);
     } catch (error) {
         console.error('Error selecting model:', error);
+        showToast(`Error selecting model: ${error.message}`);
     }
 }
 
