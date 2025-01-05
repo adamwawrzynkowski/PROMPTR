@@ -4,20 +4,6 @@ const { ipcRenderer } = require('electron');
 const HISTORY_LIMIT = 10;
 const styleHistories = new Map(); // Przechowuje historię promptów dla każdego stylu
 
-// Dodaj na początku pliku, po innych importach
-const DEFAULT_STYLES = {
-    'realistic': { name: 'Realistic', description: 'Ultra-realistic photography with meticulous attention to detail', icon: 'camera', active: true },
-    'cinematic': { name: 'Cinematic', description: 'Epic movie scene aesthetics with dramatic cinematography', icon: 'film', active: true },
-    'vintage': { name: 'Vintage', description: 'Nostalgic retro photography with authentic period characteristics', icon: 'clock-rotate-left', active: true },
-    'artistic': { name: 'Artistic', description: 'Expressive fine art with bold artistic interpretation', icon: 'palette', active: true },
-    'abstract': { name: 'Abstract', description: 'Non-representational art focusing on form and emotion', icon: 'shapes', active: true },
-    'poetic': { name: 'Poetic', description: 'Dreamy, ethereal atmosphere with soft, romantic qualities', icon: 'feather', active: true },
-    'anime': { name: 'Anime', description: 'Stylized Japanese anime art with characteristic features', icon: 'star', active: true },
-    'cartoon': { name: 'Cartoon', description: 'Bold, stylized cartoon with exaggerated features', icon: 'pen-nib', active: true },
-    'cute': { name: 'Cute', description: 'Adorable kawaii style with charming, playful elements', icon: 'heart', active: true },
-    'scifi': { name: 'Sci-Fi', description: 'Futuristic science fiction with advanced technology', icon: 'rocket', active: true }
-};
-
 // Dodaj na początku pliku
 const DEFAULT_TAGS = [
     'realistic',
@@ -198,7 +184,7 @@ function createStyleCard(style) {
             const loadingContainer = card.querySelector('.generating-container');
             loadingContainer.style.display = 'none';
             promptDisplay.style.display = 'block';
-            promptDisplay.textContent = 'Error generating prompt';
+            promptDisplay.textContent = `Error: ${error.message || 'Failed to generate prompt'}`;
         } finally {
             generateBtn.disabled = false;
         }
@@ -382,7 +368,7 @@ function setupStyleCardEventListeners(card, style) {
             }
         } catch (error) {
             console.error('Error generating prompt:', error);
-            promptDisplay.textContent = 'Error generating prompt';
+            promptDisplay.textContent = `Error: ${error.message || 'Failed to generate prompt'}`;
             loadingContainer.style.display = 'none';
             promptDisplay.style.display = 'block';
         } finally {
@@ -566,38 +552,30 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // Funkcja do ładowania stylów
-function loadStyles() {
-    const stylesList = document.querySelector('.styles-list');
-    if (!stylesList) {
-        console.error('Styles list container not found');
-        return;
-    }
-
-    stylesList.innerHTML = '';
-
-    // Załaduj style z localStorage lub użyj domyślnych
-    Object.entries(DEFAULT_STYLES).forEach(([id, style]) => {
-        const savedState = localStorage.getItem(`style_${id}_active`);
-        const isActive = savedState !== null ? savedState === 'true' : style.active;
+async function loadStyles() {
+    try {
+        const styles = await ipcRenderer.invoke('get-styles');
+        console.log('Loaded styles:', styles);
         
-        const card = createStyleCard({
-            id,
-            name: style.name,
-            description: style.description,
-            icon: style.icon,
-            active: isActive
+        const stylesList = document.querySelector('.styles-list');
+        if (!stylesList) {
+            console.error('Styles list container not found');
+            return;
+        }
+
+        stylesList.innerHTML = '';
+
+        styles.forEach(style => {
+            const card = createStyleCard(style);
+            stylesList.appendChild(card);
         });
-
-        stylesList.appendChild(card);
-    });
-
-    // Update initial visibility based on current view
-    const currentView = document.querySelector('.switch-btn.active')?.dataset?.view || 'active';
-    toggleStylesView(currentView);
-    
-    // Update style counts and Generate Prompts button after loading
-    updateStyleCounts();
-    updateGeneratePromptsButton();
+        
+        updateStyleCounts();
+        updateGeneratePromptsButton();
+    } catch (error) {
+        console.error('Error loading styles:', error);
+        showToast('Error loading styles');
+    }
 }
 
 // Funkcja do aktualizacji promptu w karcie stylu
@@ -1096,7 +1074,7 @@ async function generatePromptsSequentially(basePrompt, view = 'active') {
             console.error('Error generating prompt:', error);
             loadingContainer.style.display = 'none';
             promptDisplay.style.display = 'block';
-            promptDisplay.textContent = 'Error generating prompt';
+            promptDisplay.textContent = `Error: ${error.message || 'Failed to generate prompt'}`;
         } finally {
             generateBtn.disabled = false;
         }

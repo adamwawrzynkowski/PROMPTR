@@ -1,9 +1,11 @@
 const fs = require('fs');
 const path = require('path');
+const { app } = require('electron');
 
 class ConfigManager {
     constructor() {
-        this.configPath = path.join(__dirname, 'config.json');
+        // Use user data directory instead of app directory
+        this.configPath = path.join(app.getPath('userData'), 'config.json');
         this.config = this.loadConfig();
     }
 
@@ -12,18 +14,36 @@ class ConfigManager {
             if (fs.existsSync(this.configPath)) {
                 const data = fs.readFileSync(this.configPath, 'utf8');
                 return JSON.parse(data);
+            } else {
+                // Create default config if it doesn't exist
+                const defaultConfig = {
+                    currentModel: null,
+                    visionModel: null,
+                    firstLaunch: true,
+                    theme: 'dark'
+                };
+                this.saveConfig(defaultConfig);
+                return defaultConfig;
             }
         } catch (error) {
             console.error('Error loading config:', error);
+            // Return default config on error
+            return {
+                currentModel: null,
+                visionModel: null,
+                firstLaunch: true,
+                theme: 'dark'
+            };
         }
-        return {
-            currentModel: null,
-            visionModel: null
-        };
     }
 
     saveConfig(config) {
         try {
+            // Create directory if it doesn't exist
+            const configDir = path.dirname(this.configPath);
+            if (!fs.existsSync(configDir)) {
+                fs.mkdirSync(configDir, { recursive: true });
+            }
             fs.writeFileSync(this.configPath, JSON.stringify(config, null, 2));
             this.config = config;
         } catch (error) {
@@ -42,4 +62,4 @@ class ConfigManager {
     }
 }
 
-module.exports = new ConfigManager(); 
+module.exports = new ConfigManager();

@@ -8,13 +8,16 @@ class OllamaManager {
     constructor() {
         this._baseUrl = null;
         this._isInitialized = false;
-        this._currentPort = null;
+        this._currentPort = 11434; // Set default port
         this._modelsPath = null;
         this._defaultModel = null;
         // Use explicit IPv4
         this._host = '127.0.0.1';
         this._port = 11434;
         this._progressCallback = null;
+
+        // Import głównego managera Ollama
+        this._ollamaManager = require('./ollama');
 
         // List of available models with their properties
         this._availableModels = {
@@ -23,9 +26,9 @@ class OllamaManager {
             'llama3': { type: 'text', tag: 'SFW' },
             'llama3.1': { type: 'text', tag: 'SFW' },
             'llama3.2': { type: 'text', tag: 'SFW' },
-            'dolphin-llama3': { type: 'text', tag: 'NSFW' },
+            'dolphin-llama3:8b': { type: 'text', tag: 'NSFW' },
             'mistral': { type: 'text', tag: 'SFW' },
-            'dolphin-mistral': { type: 'text', tag: 'NSFW' },
+            'dolphin-mistral:7b': { type: 'text', tag: 'NSFW' },
             'gemma': { type: 'text', tag: 'SFW' },
             'gemma2': { type: 'text', tag: 'SFW' },
             'qwen2': { type: 'text', tag: 'SFW' },
@@ -37,7 +40,7 @@ class OllamaManager {
     }
 
     get baseUrl() {
-        return this._baseUrl || `http://${this._host}:${this._currentPort}`;
+        return `http://${this._host}:${this._currentPort}`;
     }
 
     get modelsPath() {
@@ -45,6 +48,19 @@ class OllamaManager {
             this._modelsPath = path.join(app.getPath('userData'), 'PROMPTR', 'models');
         }
         return this._modelsPath;
+    }
+
+    setDefaultModel(model) {
+        if (!model) {
+            throw new Error('Model name is required');
+        }
+        // Synchronizuj z głównym managerem Ollama
+        this._defaultModel = model;
+        console.log('Set default model in ollama-manager:', this._defaultModel);
+    }
+
+    getDefaultModel() {
+        return this._defaultModel;
     }
 
     updateStartupProgress(progress, status, message) {
@@ -123,14 +139,6 @@ class OllamaManager {
             console.error('Error initializing Ollama:', error);
             throw error;
         }
-    }
-
-    async setDefaultModel(model) {
-        console.log('Setting default model to:', model);
-        if (!model) {
-            throw new Error('Model name is required');
-        }
-        this._defaultModel = model;
     }
 
     async checkAndPullDefaultModel() {
@@ -250,8 +258,17 @@ class OllamaManager {
 
     async listModels() {
         try {
+            // Ensure we have a valid port
+            if (!this._currentPort) {
+                console.log('No port set, using default port 11434');
+                this._currentPort = 11434;
+            }
+
             console.log('Fetching models from Ollama...');
-            const response = await fetch(`http://${this._host}:${this._currentPort}/api/tags`);
+            const url = `${this.baseUrl}/api/tags`;
+            console.log('Fetching from URL:', url);
+            
+            const response = await fetch(url);
             if (!response.ok) {
                 throw new Error(`Failed to fetch models: ${response.status} ${response.statusText}`);
             }
@@ -297,7 +314,8 @@ class OllamaManager {
                 throw new Error('Ollama not initialized');
             }
 
-            // Check if we have a valid model
+            // Synchronize model before using
+            this._defaultModel = this._ollamaManager.currentModel;
             if (!this._defaultModel) {
                 console.error('No text model selected. Please select a model in settings.');
                 throw new Error('No text model selected. Please select a model in settings.');
@@ -373,6 +391,18 @@ class OllamaManager {
         if (!text) return [];
 
         try {
+            // Synchronizuj model przed użyciem
+            this._defaultModel = this._ollamaManager.currentModel;
+            if (!this._defaultModel) {
+                throw new Error('No model selected in Ollama configuration');
+            }
+
+            const prompt = `Task: Generate relevant tags for the given text. Return only comma-separated tags without any additional text.
+Example output format: tag1, tag2, tag3
+
+Text: ${text}`;
+
+            console.log('Generating tags with model:', this._defaultModel);
             const response = await fetch(`http://${this._host}:${this._currentPort}/api/generate`, {
                 method: 'POST',
                 headers: {
@@ -380,7 +410,7 @@ class OllamaManager {
                 },
                 body: JSON.stringify({
                     model: this._defaultModel,
-                    prompt: `Generate relevant tags for this text: ${text}`,
+                    prompt: prompt,
                     stream: false,
                     options: {
                         temperature: 0.7
@@ -388,18 +418,121 @@ class OllamaManager {
                 })
             });
 
-            if (!response.ok) throw new Error('Failed to generate tags');
+            if (!response.ok) {
+                const errorText = await response.text();
+                console.error('Tag generation API error:', errorText);
+                throw new Error(`Failed to generate tags: ${response.status} ${response.statusText}`);
+            }
             
             const data = await response.json();
+            console.log('Raw tag generation response:', data.response);
+            
             const tags = data.response
                 .split(',')
                 .map(tag => tag.trim())
-                .filter(tag => tag.length > 0);
+                .filter(tag => tag.length > 0 && !tag.includes('\n'));
             
+            console.log('Processed tags:', tags);
             return tags;
         } catch (error) {
             console.error('Error generating tags:', error);
-            return [];
+            throw error;
+        }
+    }
+
+    async detectAndTranslateText(text) {
+        if (!text) return { detectedLanguage: null, translatedText: null };
+
+        try {
+            // Synchronizuj model przed użyciem
+            this._defaultModel = this._ollamaManager.currentModel;
+            if (!this._defaultModel) {
+                throw new Error('No model selected in Ollama configuration');
+            }
+
+            console.log('Detecting language for text:', text.substring(0, 100) + '...');
+            
+            const detectPrompt = `Task: Detect the language of the given text. Return only the ISO 639-1 language code (2 letters).
+Example: For English text return "en", for Spanish "es", for Polish "pl", etc.
+Do not include any other text in your response.
+
+Text: ${text}`;
+
+            console.log('Language detection with model:', this._defaultModel);
+            const detectResponse = await fetch(`http://${this._host}:${this._currentPort}/api/generate`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    model: this._defaultModel,
+                    prompt: detectPrompt,
+                    stream: false,
+                    options: {
+                        temperature: 0.1
+                    }
+                })
+            });
+
+            if (!detectResponse.ok) {
+                const errorText = await detectResponse.text();
+                console.error('Language detection API error:', errorText);
+                throw new Error(`Failed to detect language: ${detectResponse.status} ${detectResponse.statusText}`);
+            }
+
+            const detectData = await detectResponse.json();
+            console.log('Raw language detection response:', detectData.response);
+            
+            const detectedLanguage = detectData.response.trim().toLowerCase().slice(0, 2);
+            console.log('Detected language:', detectedLanguage);
+
+            // If the text is already in English, return it as is
+            if (detectedLanguage === 'en') {
+                return {
+                    detectedLanguage: 'en',
+                    translatedText: text
+                };
+            }
+
+            // For now, let's skip the Google Translate part and use Ollama for translation
+            const translatePrompt = `Task: Translate the following text from ${detectedLanguage} to English. Return only the translation without any additional text.
+
+Text to translate: ${text}`;
+
+            console.log('Translating with model:', this._defaultModel);
+            const translateResponse = await fetch(`http://${this._host}:${this._currentPort}/api/generate`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    model: this._defaultModel,
+                    prompt: translatePrompt,
+                    stream: false,
+                    options: {
+                        temperature: 0.3
+                    }
+                })
+            });
+
+            if (!translateResponse.ok) {
+                const errorText = await translateResponse.text();
+                console.error('Translation API error:', errorText);
+                throw new Error(`Failed to translate text: ${translateResponse.status} ${translateResponse.statusText}`);
+            }
+
+            const translateData = await translateResponse.json();
+            console.log('Raw translation response:', translateData.response);
+            
+            const translatedText = translateData.response.trim();
+
+            return {
+                detectedLanguage,
+                translatedText
+            };
+        } catch (error) {
+            console.error('Error in detectAndTranslateText:', error);
+            throw error;
         }
     }
 

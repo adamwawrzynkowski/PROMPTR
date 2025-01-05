@@ -43,20 +43,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Funkcja do ładowania stylów
     async function loadStyles() {
         try {
-            const styles = await ipcRenderer.invoke('get-available-styles');
+            const styles = await ipcRenderer.invoke('get-styles');
             
             // Podziel style na wbudowane i customowe
-            const builtInStyles = Object.entries(styles).filter(([id]) => !id.startsWith('custom_'));
-            const customStyles = Object.entries(styles).filter(([id]) => id.startsWith('custom_'));
+            const builtInStyles = styles.filter(style => !style.custom);
+            const customStyles = styles.filter(style => style.custom);
 
             // Renderuj style
             stylesList.innerHTML = `
-                ${builtInStyles.map(([id, style]) => renderStyle(id, style)).join('')}
+                ${builtInStyles.map(style => renderStyle(style.id, style)).join('')}
                 
                 <div class="custom-styles-header">
                     <span>Custom Styles</span>
                 </div>
-                ${customStyles.map(([id, style]) => renderStyle(id, style)).join('')}
+                ${customStyles.map(style => renderStyle(style.id, style)).join('')}
             `;
 
             // Dodaj event listenery

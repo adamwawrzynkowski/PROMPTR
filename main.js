@@ -3,6 +3,7 @@ const { BrowserWindow, ipcMain, dialog, shell } = electron;
 const app = electron.app;
 const path = require('path');
 const Store = require('electron-store');
+const fs = require('fs').promises;
 const http = require('http');
 const { ollamaManager, getStatus } = require('./ollama-manager');
 const configWindow = require('./config-window');
@@ -21,6 +22,7 @@ const configManager = require('./config-manager');
 const styleEditWindow = require('./style-edit-window');
 const fsSync = require('fs');
 const modelImportWindow = require('./model-import-window');
+const styleSelectionWindow = require('./style-selection-window');
 const sharp = require('sharp');
 const { PythonShell } = require('python-shell');
 const ort = require('onnxruntime-node');
@@ -29,7 +31,6 @@ const https = require('https');
 const dependenciesWindow = require('./dependencies-window');
 const creditsWindow = require('./credits-window');
 const fetch = require('node-fetch');
-const fs = require('fs').promises;
 
 // Initialize electron store with schema
 const store = new Store({
@@ -40,6 +41,10 @@ const store = new Store({
                 theme: {
                     type: 'string',
                     default: 'purple'
+                },
+                firstLaunch: {
+                    type: 'boolean',
+                    default: true
                 }
             }
         }
@@ -263,10 +268,24 @@ class AppStartupManager {
 
     async initializeConfiguration() {
         try {
-            // configManager auto-initializes in constructor, no need to call initialize
+            console.log('Initializing configuration...');
+            // Ensure user data directory exists
+            const userDataPath = app.getPath('userData');
+            try {
+                await fs.mkdir(userDataPath, { recursive: true });
+            } catch (mkdirError) {
+                // Ignore if directory already exists
+                if (mkdirError.code !== 'EEXIST') {
+                    console.error('Error creating user data directory:', mkdirError);
+                }
+            }
+            
+            // Initialize managers
             await settingsManager.loadSettings();
-            await stylesManager.loadStyles();
-            // themeManager is ready after construction
+            const styles = await initializeStyles();
+            await stylesManager.loadStyles(styles);
+            
+            console.log('Configuration initialized successfully');
         } catch (error) {
             console.error('Error initializing configuration:', error);
             throw new Error('Failed to initialize application configuration: ' + error.message);
@@ -340,12 +359,15 @@ class AppStartupManager {
 const appStartupManager = new AppStartupManager();
 
 // Initialize styles
-const initializeStyles = async () => {
+async function initializeStyles() {
     try {
-        const styles = await stylesManager.getStyles();
-        console.log('Styles initialized successfully:', styles);
+        console.log('Initializing styles...');
+        const styles = await stylesManager.getAllStyles();
+        console.log('Loaded styles:', styles);
+        return styles;
     } catch (error) {
         console.error('Error initializing styles:', error);
+        throw error;
     }
 };
 
@@ -379,14 +401,37 @@ async function setupDefaultModels() {
         };
 
         // Set default text model if none is set
-        if (!config.currentModel) {
+        let currentModel = config.currentModel;
+        if (!currentModel) {
             const defaultTextModel = installedModels.models.find(model => 
                 !isVisionModel(model)
             );
             if (defaultTextModel) {
-                config.currentModel = defaultTextModel.name;
+                currentModel = defaultTextModel.name;
+                config.currentModel = currentModel;
                 console.log('Set default text model:', defaultTextModel.name);
             }
+        }
+
+        // Validate that the current model exists in installed models
+        const modelExists = installedModels.models.some(model => model.name === currentModel);
+        if (!modelExists) {
+            console.log('Current model not found in installed models, selecting first available text model');
+            const defaultTextModel = installedModels.models.find(model => !isVisionModel(model));
+            if (defaultTextModel) {
+                currentModel = defaultTextModel.name;
+                config.currentModel = currentModel;
+                console.log('Set default text model:', defaultTextModel.name);
+            }
+        }
+
+        // Set the default model in OllamaManager
+        if (currentModel) {
+            ollamaManager.setDefaultModel(currentModel);
+            console.log('Set OllamaManager default model to:', currentModel);
+        } else {
+            console.error('No suitable text model found');
+            throw new Error('No suitable text model found');
         }
 
         // Set default vision model if none is set
@@ -570,6 +615,17 @@ app.whenReady().then(async () => {
     initializePaths();
     await initializeStyles();
     
+    // Check if this is the first launch
+    const isFirstLaunch = store.get('settings.firstLaunch', true);
+    
+    if (isFirstLaunch) {
+        // Create and show style selection window
+        styleSelectionWindow.createStyleSelectionWindow();
+    } else {
+        // Create and set startup window as normal
+        appStartupManager.startup = createStartupWindow();
+    }
+
     // Set up IPC handlers
     ipcMain.on('startup-window-ready', () => {
         appStartupManager.initializeApp().catch(error => {
@@ -628,6 +684,11 @@ app.whenReady().then(async () => {
             }
             
             const { basePrompt, styleId, customStyle } = data;
+            
+            // Ensure we have the current model from Ollama manager
+            if (!ollamaManager.currentModel) {
+                throw new Error('No text model selected. Please select a model in settings.');
+            }
             
             // Get style data if not provided
             let mergedStyle = customStyle;
@@ -863,7 +924,12 @@ app.whenReady().then(async () => {
 
     // Style management handlers
     ipcMain.handle('get-styles', async () => {
-        return await stylesManager.getStyles();
+        console.log('Handling get-styles request');
+        return await stylesManager.getAllStyles();
+    });
+
+    ipcMain.handle('get-style', async (event, styleId) => {
+        return await stylesManager.getStyle(styleId);
     });
 
     ipcMain.handle('save-style', async (event, style) => {
@@ -949,10 +1015,6 @@ app.whenReady().then(async () => {
         modelTuningWindows.set(styleData.styleId, modelTuningWindow);
     });
 
-    ipcMain.handle('get-style', async (event, styleId) => {
-        return await stylesManager.getStyle(styleId);
-    });
-
     ipcMain.on('save-model-parameters', async (event, data) => {
         try {
             console.log('Received save-model-parameters with data:', data);
@@ -984,13 +1046,23 @@ app.whenReady().then(async () => {
 
     // Handle model-changed event
     ipcMain.on('model-changed', (event, config) => {
-        // Update Ollama manager
-        ollamaManager.setDefaultModel(config.currentModel);
-        
-        // Notify all windows about the change
-        BrowserWindow.getAllWindows().forEach(window => {
-            window.webContents.send('model-changed', config);
-        });
+        try {
+            console.log('Model changed event received:', config);
+            
+            // Update both Ollama managers
+            const ollamaManagerModule = require('./ollama-manager');
+            ollamaManagerModule.ollamaManager.setDefaultModel(config.currentModel);
+            ollamaManager.setDefaultModel(config.currentModel);
+            
+            console.log('Updated model in both managers:', config.currentModel);
+            
+            // Notify all windows about the change
+            BrowserWindow.getAllWindows().forEach(window => {
+                window.webContents.send('model-changed', config);
+            });
+        } catch (error) {
+            console.error('Error updating model:', error);
+        }
     });
 
     ipcMain.on('show-ollama-config', () => {
@@ -1004,9 +1076,50 @@ app.whenReady().then(async () => {
         }
     }
 
-    // Create and set startup window
-    appStartupManager.startup = createStartupWindow();
+    // Handle style selection completion
+    ipcMain.on('style-selection-complete', async (event, selectedStyleIds) => {
+        try {
+            console.log('Style selection complete with styles:', selectedStyleIds);
+            
+            // Get all styles
+            const allStyles = await stylesManager.getAllStyles();
+            
+            // Update each style's active state based on selection
+            for (const style of allStyles) {
+                const isSelected = selectedStyleIds.includes(style.id);
+                style.active = isSelected;
+                await stylesManager.updateStyle(style);
+                console.log(`Style ${style.id} active state updated to:`, style.active);
+            }
+            
+            // Find and close the style selection window
+            const styleWindow = BrowserWindow.getAllWindows().find(win => {
+                try {
+                    return win.webContents === event.sender;
+                } catch (e) {
+                    return false;
+                }
+            });
+            
+            if (styleWindow && !styleWindow.isDestroyed()) {
+                styleWindow.close();
+            }
+            
+            // Mark first launch as complete
+            store.set('settings.firstLaunch', false);
+            
+            // Create startup window and initialize app
+            appStartupManager.startup = createStartupWindow();
+            appStartupManager.initializeApp().catch(error => {
+                console.error('Failed to initialize app:', error);
+            });
+            
+        } catch (error) {
+            console.error('Error handling style selection:', error);
+        }
+    });
 
+    // Create and set startup window
     app.on('activate', () => {
         if (BrowserWindow.getAllWindows().length === 0) {
             appStartupManager.startup = createStartupWindow();

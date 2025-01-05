@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Select Styles</title>
+    <link rel="stylesheet" href="styles/variables.css">
+    <link rel="stylesheet" href="styles/themes.css">
+    <link rel="stylesheet" href="styles/reset.css">
+    <link rel="stylesheet" href="styles/base.css">
+    <link rel="stylesheet" href="styles/cards.css">
+    <link rel="stylesheet" href="styles/buttons.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--background-primary);
+            color: var(--text-primary);
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        .container {
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        h1 {
+            font-size: 24px;
+            font-weight: 500;
+            color: var(--text-primary);
+            margin: 0;
+        }
+
+        .styles-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+            gap: 20px;
+            padding: 10px;
+            overflow-y: auto;
+            flex: 1;
+        }
+
+        .style-card {
+            background: var(--background-secondary);
+            border-radius: 12px;
+            padding: 20px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            position: relative;
+            border: 2px solid transparent;
+            height: 200px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .style-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+        }
+
+        .style-card.selected {
+            border-color: var(--accent-primary);
+            background: linear-gradient(
+                to bottom right,
+                var(--background-secondary),
+                var(--background-tertiary)
+            );
+        }
+
+        .style-card.selected::before {
+            content: '✓';
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: var(--accent-primary);
+            color: white;
+            width: 24px;
+            height: 24px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        .style-icon {
+            width: 60px;
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            color: var(--accent-primary);
+            margin-bottom: 15px;
+            border-radius: 50%;
+            background: var(--background-tertiary);
+            transition: all 0.2s ease;
+        }
+
+        .style-card:hover .style-icon {
+            transform: scale(1.1);
+        }
+
+        .style-info {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .style-info h3 {
+            margin: 0;
+            font-size: 16px;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .style-info p {
+            margin: 0;
+            font-size: 14px;
+            color: var(--text-secondary);
+            line-height: 1.4;
+            overflow: hidden;
+            display: -webkit-box;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            flex: 1;
+        }
+
+        .button-container {
+            display: flex;
+            justify-content: flex-end;
+            align-items: center;
+            padding: 20px 10px;
+            border-top: 1px solid var(--border-color);
+            margin-top: 20px;
+        }
+
+        .continue-button {
+            padding: 10px 24px;
+            font-size: 14px;
+            font-weight: 500;
+            color: white;
+            background: var(--accent-primary);
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .continue-button:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .continue-button:disabled {
+            background: var(--background-tertiary);
+            color: var(--text-secondary);
+            cursor: not-allowed;
+        }
+
+        /* Scrollbar */
+        .styles-grid::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .styles-grid::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .styles-grid::-webkit-scrollbar-thumb {
+            background: var(--scrollbar-thumb);
+            border-radius: 4px;
+        }
+
+        .styles-grid::-webkit-scrollbar-thumb:hover {
+            background: var(--scrollbar-thumb-hover);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Choose Styles</h1>
+        </div>
+        <div class="styles-grid" id="stylesGrid">
+            <!-- Styles will be dynamically added here -->
+        </div>
+        <div class="button-container">
+            <button id="continueButton" class="continue-button" disabled>Continue (0)</button>
+        </div>
+    </div>
+
+    <script>
+        const { ipcRenderer } = require('electron');
+        const selectedStyles = new Set();
+        
+        document.addEventListener('DOMContentLoaded', () => {
+            initializeStyles();
+            
+            document.getElementById('continueButton').addEventListener('click', () => {
+                ipcRenderer.send('style-selection-complete', Array.from(selectedStyles));
+            });
+        });
+        
+        async function initializeStyles() {
+            const stylesGrid = document.getElementById('stylesGrid');
+            const continueButton = document.getElementById('continueButton');
+            
+            try {
+                const styles = await ipcRenderer.invoke('get-styles');
+                
+                if (!styles || !Array.isArray(styles) || styles.length === 0) {
+                    stylesGrid.innerHTML = '<div class="error-message">No styles available</div>';
+                    return;
+                }
+                
+                stylesGrid.innerHTML = '';
+                
+                const sortedStyles = [...styles].sort((a, b) => {
+                    if (a.custom === b.custom) return 0;
+                    return a.custom ? 1 : -1;
+                });
+                
+                sortedStyles.forEach(style => {
+                    const card = document.createElement('div');
+                    card.className = 'style-card';
+                    card.setAttribute('data-style-id', style.id);
+                    
+                    card.innerHTML = `
+                        <div class="style-icon">
+                            <i class="fas fa-${style.icon}"></i>
+                        </div>
+                        <div class="style-info">
+                            <h3>${style.name}</h3>
+                            <p>${style.description}</p>
+                        </div>
+                    `;
+                    
+                    card.addEventListener('click', () => {
+                        card.classList.toggle('selected');
+                        if (card.classList.contains('selected')) {
+                            selectedStyles.add(style.id);
+                        } else {
+                            selectedStyles.delete(style.id);
+                        }
+                        
+                        continueButton.disabled = selectedStyles.size === 0;
+                        continueButton.textContent = `Continue (${selectedStyles.size})`;
+                    });
+                    
+                    stylesGrid.appendChild(card);
+                });
+                
+                continueButton.disabled = selectedStyles.size === 0;
+                
+            } catch (error) {
+                console.error('Error:', error);
+                stylesGrid.innerHTML = `<div class="error-message">Error loading styles: ${error.message}</div>`;
+            }
+        }
+    </script>
+</body>
+</html>

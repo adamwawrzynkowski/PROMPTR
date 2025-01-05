@@ -46,6 +46,7 @@
   "dependencies": {
     "@emotion/react": "^11.11.0",
     "@emotion/styled": "^11.11.0",
+    "@google-cloud/translate": "^8.5.0",
     "@heroicons/react": "^2.1.5",
     "electron-store": "^8.1.0",
     "framer-motion": "^10.12.16",

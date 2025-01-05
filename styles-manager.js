@@ -2,286 +2,307 @@ const fs = require('fs').promises;
 const path = require('path');
 const { app } = require('electron');
 
-// Domyślne style z ikonami (teraz używamy ścieżek do własnych ikon)
-const DEFAULT_STYLES = {
-    'realistic': {
+const DEFAULT_STYLES = [
+    {
+        id: 'realistic',
         name: 'Realistic',
-        description: 'Ultra-realistic photography with meticulous attention to detail. Creates photorealistic scenes with sharp focus, natural lighting, and precise details that make images indistinguishable from professional photographs.',
+        description: 'Ultra-realistic photography with meticulous attention to detail',
         icon: 'camera',
-        fixedTags: ['8K resolution', 'photographic quality', 'natural lighting', 'realistic details'],
-        active: true,
+        prefix: 'Create a detailed and realistic description of: ',
+        suffix: '. Focus on lifelike textures, accurate lighting, and intricate details to bring the scene or subject to life. Ensure the description includes environmental elements, physical textures, and small features that enhance the realism.',
+        fixedTags: ['realistic', 'natural', 'detailed'],
+        custom: false,
+        active: false,
         modelParameters: {
             temperature: 0.7,
+            top_k: 50,
             top_p: 0.9,
-            top_k: 40,
             repeat_penalty: 1.1
         }
     },
-    'cinematic': {
+    {
+        id: 'cinematic',
         name: 'Cinematic',
-        description: 'Epic movie scene aesthetics with dramatic cinematography. Features professional movie-like composition, atmospheric effects, and emotional impact, as if captured from a blockbuster film.',
+        description: 'Epic movie scene aesthetics with dramatic cinematography',
         icon: 'film',
-        fixedTags: ['cinematic lighting', 'movie grade', 'dramatic atmosphere', 'depth of field'],
-        active: true,
+        prefix: 'Compose an immersive cinematic scene of: ',
+        suffix: '. Emphasize dynamic composition, dramatic lighting, and a movie-like atmosphere. Incorporate vivid environmental details, movement, and perspective to give a sense of storytelling as if captured in a film still.',
+        fixedTags: ['cinematic', 'dramatic', 'movie'],
+        custom: false,
+        active: false,
         modelParameters: {
             temperature: 0.8,
-            top_p: 0.9,
-            top_k: 40,
-            repeat_penalty: 1.1
-        }
-    },
-    'vintage': {
-        name: 'Vintage',
-        description: 'Nostalgic retro photography with authentic period characteristics. Captures the essence of classic photography with film grain, color shifts, and era-appropriate processing artifacts.',
-        icon: 'clock-rotate-left',
-        fixedTags: ['film grain', 'retro colors', 'light leaks', 'nostalgic mood'],
-        active: true,
-        modelParameters: {
-            temperature: 0.75,
-            top_p: 0.9,
-            top_k: 40,
-            repeat_penalty: 1.1
-        }
-    },
-    'artistic': {
-        name: 'Artistic',
-        description: 'Expressive fine art with bold artistic interpretation. Transforms scenes with visible brushstrokes, artistic color choices, and emotional expression, inspired by master painters.',
-        icon: 'palette',
-        fixedTags: ['brushstrokes', 'artistic style', 'creative colors', 'expressive'],
-        active: true,
-        modelParameters: {
-            temperature: 0.85,
+            top_k: 60,
             top_p: 0.95,
-            top_k: 45,
-            repeat_penalty: 1.05
+            repeat_penalty: 1.2
         }
     },
-    'abstract': {
-        name: 'Abstract',
-        description: 'Non-representational art focusing on form and emotion. Breaks down subjects into abstract forms, emphasizing shapes, colors, and emotional impact rather than literal representation.',
-        icon: 'shapes',
-        fixedTags: ['geometric forms', 'abstract shapes', 'bold colors', 'non-literal'],
-        active: true,
+    {
+        id: 'vintage',
+        name: 'Vintage',
+        description: 'Nostalgic retro photography with authentic period characteristics',
+        icon: 'clock-rotate-left',
+        prefix: 'Design a richly detailed vintage depiction of: ',
+        suffix: '. Include aged textures, sepia or muted tones, and retro aesthetics that evoke a sense of nostalgia. Focus on historical details and wear that show the passage of time, making the scene feel authentically old-fashioned.',
+        fixedTags: ['vintage', 'retro', 'classic'],
+        custom: false,
+        active: false,
+        modelParameters: {
+            temperature: 0.7,
+            top_k: 50,
+            top_p: 0.9,
+            repeat_penalty: 1.1
+        }
+    },
+    {
+        id: 'artistic',
+        name: 'Artistic',
+        description: 'Expressive fine art with bold artistic interpretation',
+        icon: 'palette',
+        prefix: 'Craft a long, expressive artistic interpretation of: ',
+        suffix: '. Highlight creative and unique elements, focusing on emotional impact and visual storytelling. Include rich textures, bold colors, and imaginative details that blur the line between reality and artistic vision.',
+        fixedTags: ['artistic', 'expressive', 'creative'],
+        custom: false,
+        active: false,
         modelParameters: {
             temperature: 0.9,
+            top_k: 70,
             top_p: 0.95,
-            top_k: 50,
+            repeat_penalty: 1.1
+        }
+    },
+    {
+        id: 'abstract',
+        name: 'Abstract',
+        description: 'Non-representational art focusing on form and emotion',
+        icon: 'shapes',
+        prefix: 'Describe an intricate abstract representation of: ',
+        suffix: '. Emphasize surreal forms, unconventional shapes, and vibrant, otherworldly colors. Focus on the emotional or conceptual impression rather than physical accuracy, incorporating fluid or fragmented elements for a striking visual impact.',
+        fixedTags: ['abstract', 'conceptual', 'artistic'],
+        custom: false,
+        active: false,
+        modelParameters: {
+            temperature: 0.9,
+            top_k: 80,
+            top_p: 0.98,
             repeat_penalty: 1.0
         }
     },
-    'poetic': {
+    {
+        id: 'poetic',
         name: 'Poetic',
-        description: 'Dreamy, ethereal atmosphere with soft, romantic qualities. Creates dreamlike scenes with soft focus, glowing lights, and romantic atmosphere, perfect for ethereal and emotional imagery.',
+        description: 'Dreamy, ethereal atmosphere with soft, romantic qualities',
         icon: 'feather',
-        fixedTags: ['soft focus', 'dreamy glow', 'ethereal mood', 'romantic'],
-        active: true,
-        modelParameters: {
-            temperature: 0.8,
-            top_p: 0.92,
-            top_k: 42,
-            repeat_penalty: 1.08
-        }
-    },
-    'anime': {
-        name: 'Anime',
-        description: 'Stylized Japanese anime art with characteristic features. Renders in authentic anime style with distinctive elements like large eyes, dynamic poses, and cel shading techniques.',
-        icon: 'star',
-        fixedTags: ['anime style', 'cel shading', 'dynamic poses', 'characteristic anime'],
-        active: true,
-        modelParameters: {
-            temperature: 0.82,
-            top_p: 0.9,
-            top_k: 40,
-            repeat_penalty: 1.1
-        }
-    },
-    'cartoon': {
-        name: 'Cartoon',
-        description: 'Bold, stylized cartoon with exaggerated features. Creates vibrant cartoon imagery with bold outlines, exaggerated proportions, and simplified forms, perfect for animation-style art.',
-        icon: 'pen-nib',
-        fixedTags: ['bold outlines', 'cartoon style', 'exaggerated', 'vibrant colors'],
-        active: true,
-        modelParameters: {
-            temperature: 0.8,
-            top_p: 0.9,
-            top_k: 40,
-            repeat_penalty: 1.1
-        }
-    },
-    'cute': {
-        name: 'Cute',
-        description: 'Adorable kawaii style with charming, playful elements. Makes everything extremely cute with rounded forms, big eyes, and kawaii aesthetics, including sparkles and pastel colors.',
-        icon: 'heart',
-        fixedTags: ['kawaii style', 'adorable', 'pastel colors', 'rounded shapes'],
-        active: true,
-        modelParameters: {
-            temperature: 0.75,
-            top_p: 0.9,
-            top_k: 38,
-            repeat_penalty: 1.12
-        }
-    },
-    'scifi': {
-        name: 'Sci-Fi',
-        description: 'Futuristic science fiction with advanced technology. Creates high-tech scenes with futuristic lighting, innovative designs, and sci-fi elements like holographics and energy effects.',
-        icon: 'rocket',
-        fixedTags: ['futuristic', 'high-tech', 'sci-fi effects', 'advanced tech'],
-        active: true,
+        prefix: 'Write a deeply evocative and poetic visualization of: ',
+        suffix: '. Use lyrical language to infuse the description with emotion and beauty. Include vivid imagery, metaphorical details, and atmospheric elements that create a dreamlike and moving impression.',
+        fixedTags: ['poetic', 'dreamy', 'romantic'],
+        custom: false,
+        active: false,
         modelParameters: {
             temperature: 0.85,
+            top_k: 65,
+            top_p: 0.93,
+            repeat_penalty: 1.15
+        }
+    },
+    {
+        id: 'anime',
+        name: 'Anime',
+        description: 'Stylized Japanese anime art with characteristic features',
+        icon: 'star',
+        prefix: 'Illustrate a vibrant and detailed anime-style portrayal of: ',
+        suffix: '. Focus on bold outlines, vibrant colors, and exaggerated emotional expressions. Incorporate dynamic poses, dramatic perspectives, and background details typical of anime art to create a scene full of energy and life.',
+        fixedTags: ['anime', 'manga', 'japanese'],
+        custom: false,
+        active: false,
+        modelParameters: {
+            temperature: 0.85,
+            top_k: 65,
+            top_p: 0.93,
+            repeat_penalty: 1.15
+        }
+    },
+    {
+        id: 'cartoon',
+        name: 'Cartoon',
+        description: 'Bold, stylized cartoon with exaggerated features',
+        icon: 'pen-nib',
+        prefix: 'Create a lively and detailed cartoon depiction of: ',
+        suffix: '. Include whimsical and exaggerated features, bold outlines, and bright, playful colors. Add fun, quirky details to make the scene or character engaging and visually appealing.',
+        fixedTags: ['cartoon', 'playful', 'fun'],
+        custom: false,
+        active: false,
+        modelParameters: {
+            temperature: 0.8,
+            top_k: 55,
             top_p: 0.92,
-            top_k: 45,
-            repeat_penalty: 1.08
+            repeat_penalty: 1.1
+        }
+    },
+    {
+        id: 'cute',
+        name: 'Cute',
+        description: 'Adorable kawaii style with charming, playful elements',
+        icon: 'heart',
+        prefix: 'Describe a detailed and irresistibly cute version of: ',
+        suffix: '. Focus on soft textures, bright pastel colors, and small, endearing details. Incorporate an overall adorable appeal that exudes warmth and charm, making the subject captivatingly lovable.',
+        fixedTags: ['cute', 'kawaii', 'adorable'],
+        custom: false,
+        active: false,
+        modelParameters: {
+            temperature: 0.8,
+            top_k: 55,
+            top_p: 0.92,
+            repeat_penalty: 1.1
+        }
+    },
+    {
+        id: 'scifi',
+        name: 'Sci-Fi',
+        description: 'Futuristic science fiction with advanced technology',
+        icon: 'rocket',
+        prefix: 'Design a futuristic and detailed sci-fi vision of: ',
+        suffix: '. Focus on advanced technology, glowing elements, and an otherworldly atmosphere. Include intricate details of machinery, alien environments, and futuristic settings to immerse the viewer in a high-tech world.',
+        fixedTags: ['sci-fi', 'futuristic', 'tech'],
+        custom: false,
+        active: false,
+        modelParameters: {
+            temperature: 0.8,
+            top_k: 60,
+            top_p: 0.95,
+            repeat_penalty: 1.2
         }
     }
-};
+];
 
 class StylesManager {
     constructor() {
-        this.styles = null;
-        this._stylesPath = null;
-        this._iconsPath = null;
-    }
-
-    get stylesPath() {
-        if (!this._stylesPath) {
-            this._stylesPath = path.join(app.getPath('userData'), 'styles.json');
-        }
-        return this._stylesPath;
-    }
-
-    get iconsPath() {
-        if (!this._iconsPath) {
-            this._iconsPath = path.join(__dirname, '..', 'assets', 'stylesicons');
-        }
-        return this._iconsPath;
-    }
-
-    getIconPath(iconName) {
-        return path.join(this.iconsPath, iconName);
+        this.stylesPath = path.join(app.getPath('userData'), 'styles.json');
+        this.styles = [];
+        this.initialized = false;
     }
 
     async loadStyles() {
         try {
-            const data = await fs.readFile(this.stylesPath, 'utf8');
-            this.styles = JSON.parse(data);
+            if (await fs.access(this.stylesPath).then(() => true).catch(() => false)) {
+                const data = await fs.readFile(this.stylesPath, 'utf8');
+                this.styles = JSON.parse(data);
+                console.log('Loaded styles from file:', this.styles);
+            } else {
+                console.log('No styles file found, using defaults');
+                this.styles = DEFAULT_STYLES;
+                await this.saveStyles();
+            }
         } catch (error) {
-            console.log('No existing styles found, using defaults');
+            console.error('Error loading styles:', error);
             this.styles = DEFAULT_STYLES;
-            await this.saveStyles(this.styles);
+            await this.saveStyles();
         }
-        return this.styles;
     }
 
-    async getStyles() {
-        if (!this.styles) {
-            await this.loadStyles();
-        }
-        return this.styles;
-    }
-
-    async saveStyles(styles) {
+    async saveStyles() {
         try {
-            await fs.writeFile(this.stylesPath, JSON.stringify(styles, null, 2));
-            this.styles = styles;
+            const stylesDir = path.dirname(this.stylesPath);
+            await fs.mkdir(stylesDir, { recursive: true });
+            await fs.writeFile(this.stylesPath, JSON.stringify(this.styles, null, 2));
+            console.log('Saved styles:', this.styles);
         } catch (error) {
             console.error('Error saving styles:', error);
-            throw error;
         }
     }
 
-    getStyle(id) {
-        return this.styles ? this.styles[id] : null;
-    }
-
-    isCustomStyle(id) {
-        return id.startsWith('custom_');
-    }
-
-    async addCustomStyle(id, style) {
-        if (!this.styles) {
+    async initialize() {
+        console.log('Initialize called, initialized status:', this.initialized);
+        if (this.initialized) {
+            console.log('Already initialized, returning');
+            return;
+        }
+        
+        try {
             await this.loadStyles();
+        } catch (error) {
+            console.error('Error initializing styles:', error);
         }
-        this.styles[id] = {
-            ...style,
-            isCustom: true,
-            icon: style.icon || 'custom.png' // domyślna ikona dla stylów użytkownika
-        };
-        await this.saveStyles(this.styles);
+        
+        this.initialized = true;
+        console.log('Initialization complete, styles:', this.styles);
     }
 
-    async removeCustomStyle(id) {
-        if (!this.styles) {
-            await this.loadStyles();
-        }
-        if (this.styles[id]) {
-            delete this.styles[id];
-            await this.saveStyles(this.styles);
-        }
-    }
-
-    async updateStyleParameters(id, parameters) {
-        console.log('Updating style parameters for ID:', id, 'with:', parameters);
+    async getStyle(styleId) {
+        await this.initialize();
+        console.log('Getting style with ID:', styleId);
         
-        const style = this.getStyle(id);
-        if (!style) {
-            console.error('Style not found:', id);
-            return null;
-        }
-        
-        // Update the parameters
-        style.modelParameters = {
-            ...style.modelParameters,
-            ...parameters
-        };
-        
-        // Mark style as modified
-        style.isModified = true;
-        
-        // Save the changes
-        this.saveStyles(this.styles);
-        
-        console.log('Updated style:', style);
+        const style = this.styles.find(style => style.id === styleId);
+        console.log('Found style:', style);
         return style;
     }
-    
-    async updateStyle(id, updatedStyle) {
-        try {
-            const styles = await this.getStyles();
-            if (styles[id]) {
-                // Ensure we preserve the icon if it's not being updated
-                const currentStyle = styles[id];
-                styles[id] = {
-                    ...currentStyle,
-                    ...updatedStyle,
-                    icon: updatedStyle.icon || currentStyle.icon || 'paint-brush', // Fallback chain for icon
-                    custom: true
-                };
-                await this.saveStyles(styles);
-                return styles[id];
-            }
-            throw new Error(`Style with id ${id} not found`);
-        } catch (error) {
-            console.error('Error updating style:', error);
-            throw error;
+
+    async updateStyle(updatedStyle) {
+        const index = this.styles.findIndex(style => style.id === updatedStyle.id);
+        if (index !== -1) {
+            this.styles[index] = { ...this.styles[index], ...updatedStyle };
+            await this.saveStyles();
+            return this.styles[index];
         }
+        return null;
     }
 
-    async addStyle(style) {
-        try {
-            const styles = await this.getStyles();
-            const id = `custom_${Date.now()}`;
-            styles[id] = {
-                ...style,
-                icon: style.icon || 'paint-brush', // Ensure default icon
-                custom: true
-            };
-            await this.saveStyles(styles);
-            return { id, ...styles[id] };
-        } catch (error) {
-            console.error('Error adding style:', error);
-            throw error;
+    async createStyle(style) {
+        await this.initialize();
+        console.log('Creating new style:', style);
+        
+        const newStyle = {
+            id: style.id || `custom_${Date.now()}`,
+            name: style.name || 'New Style',
+            description: style.description || '',
+            icon: style.icon || 'paint-brush',
+            prefix: style.prefix || '',
+            suffix: style.suffix || '',
+            fixedTags: style.fixedTags || [],
+            custom: true,
+            active: false,
+            modelParameters: {
+                temperature: 0.7,
+                top_k: 50,
+                top_p: 0.9,
+                repeat_penalty: 1.1,
+                ...(style.modelParameters || {})
+            }
+        };
+        
+        this.styles.push(newStyle);
+        await this.saveStyles();
+        return newStyle;
+    }
+
+    async deleteStyle(styleId) {
+        await this.initialize();
+        console.log('Deleting style:', styleId);
+        
+        const index = this.styles.findIndex(style => style.id === styleId);
+        if (index !== -1) {
+            this.styles.splice(index, 1);
+            await this.saveStyles();
+            return true;
         }
+        return false;
+    }
+
+    async getAllStyles() {
+        await this.initialize();
+        console.log('Getting all styles:', this.styles);
+        return this.styles;
+    }
+
+    async activateStyle(styleId) {
+        await this.initialize();
+        const style = await this.getStyle(styleId);
+        if (style) {
+            style.active = true;
+            await this.updateStyle(style);
+            return true;
+        }
+        return false;
     }
 }
 
