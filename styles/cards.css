@@ -161,6 +161,7 @@
     gap: 15px;
     position: relative;
     overflow: hidden;
+    min-height: 400px;
 }
 
 .style-card input[type="checkbox"] {
@@ -322,6 +323,61 @@
 
 .favorite-btn.active:hover {
     color: #ffc800;
+}
+
+/* Prompt container styles */
+.prompt-container {
+    position: relative;
+    flex: 1;
+    min-height: 100px;
+    max-height: 400px;
+    overflow: hidden;
+    margin: 10px 0;
+}
+
+.prompt-text {
+    font-family: var(--font-mono);
+    font-size: 14px;
+    line-height: 1;
+    color: var(--text);
+    background: var(--card-background-secondary);
+    border-radius: 8px;
+    overflow-y: auto;
+    height: 100%;
+    min-height: 100px;
+    max-height: 400px;
+    white-space: normal;
+    word-break: break-word;
+    mask-image: linear-gradient(to bottom, 
+        black calc(100% - 40px),
+        transparent 100%
+    );
+    -webkit-mask-image: linear-gradient(to bottom, 
+        black calc(100% - 40px),
+        transparent 100%
+    );
+}
+
+.prompt-text::-webkit-scrollbar {
+    width: 6px;
+}
+
+.prompt-text::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.prompt-text::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+}
+
+.prompt-text::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.prompt-text.error {
+    color: var(--error);
+    background: var(--error-background);
 }
 
 /* Responsiveness */

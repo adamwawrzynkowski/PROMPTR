@@ -5,7 +5,7 @@ const path = require('path');
 const Store = require('electron-store');
 const fs = require('fs').promises;
 const http = require('http');
-const { ollamaManager, getStatus } = require('./ollama-manager');
+const ollamaManager = require('./ollama');
 const configWindow = require('./config-window');
 const stylesManager = require('./styles-manager');
 const stylesWindow = require('./styles-window');
@@ -574,7 +574,7 @@ function formatModelName(name) {
 // Ollama IPC handlers
 ipcMain.handle('check-ollama-connection', async () => {
     try {
-        const response = await fetch('http://localhost:11434/api/tags');
+        const response = await fetch('http://127.0.0.1:11434/api/tags');
         return response.ok;
     } catch (error) {
         console.error('Failed to connect to Ollama:', error);
@@ -666,12 +666,14 @@ app.whenReady().then(async () => {
         }
     });
 
-    ipcMain.handle('generate-tags', async (event, { text }) => {
+    ipcMain.handle('generate-tags', async (event, text) => {
         try {
+            console.log('Generating tags for:', text);
             const tags = await ollamaManager.generateTags(text);
+            console.log('Generated tags:', tags);
             return tags;
         } catch (error) {
-            console.error('Error in generate-tags:', error);
+            console.error('Error generating tags:', error);
             throw error;
         }
     });
@@ -874,11 +876,11 @@ app.whenReady().then(async () => {
 
     // Ollama status handlers
     ipcMain.handle('check-ollama-status', async () => {
-        return await getStatus();
+        return await ollamaManager.getStatus();
     });
 
     ipcMain.handle('refresh-ollama-status', async () => {
-        return await getStatus();
+        return await ollamaManager.getStatus();
     });
 
     // Model handlers

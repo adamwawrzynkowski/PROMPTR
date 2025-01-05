@@ -6,16 +6,7 @@ const styleHistories = new Map(); // Przechowuje historię promptów dla każdeg
 
 // Dodaj na początku pliku
 const DEFAULT_TAGS = [
-    'realistic',
-    'detailed',
-    'quality',
-    'cinematic',
-    'sharp',
-    'hd',
-    'masterpiece',
-    'professional',
-    'vibrant',
-    'dramatic'
+    'test'
 ];
 
 // Dodaj na początku pliku
@@ -122,9 +113,11 @@ function createStyleCard(style) {
     
     const generateBtn = document.createElement('button');
     generateBtn.className = 'generate-btn';
+    generateBtn.setAttribute('type', 'button');
     generateBtn.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i> Generate';
     generateBtn.onclick = async (e) => {
         e.stopPropagation();
+        e.preventDefault();
         const promptInput = document.getElementById('promptInput');
         const basePrompt = promptInput.value.trim();
         
@@ -146,6 +139,7 @@ function createStyleCard(style) {
             // Show loading animation
             promptDisplay.style.display = 'none';
             loadingContainer.style.display = 'flex';
+            generateBtn.classList.add('disabled', 'loading');
             generateBtn.disabled = true;
 
             // Generate prompt
@@ -185,6 +179,7 @@ function createStyleCard(style) {
             promptDisplay.style.display = 'block';
             promptDisplay.textContent = `Error: ${error.message || 'Failed to generate prompt'}`;
         } finally {
+            generateBtn.classList.remove('disabled', 'loading');
             generateBtn.disabled = false;
         }
     };
@@ -313,84 +308,48 @@ function hasCustomParameters(style) {
 
 // Funkcja do zarządzania zdarzeniami karty stylu
 function setupStyleCardEventListeners(card, style) {
-    const generateBtn = card.querySelector('.generate-btn');
+    if (!card || !style) {
+        console.error('Missing card or style in setupStyleCardEventListeners');
+        return;
+    }
+
     const copyBtn = card.querySelector('.copy-btn');
     const drawThingsBtn = card.querySelector('.draw-things-btn');
     const toggleInput = card.querySelector('input[type="checkbox"]');
     const prevBtn = card.querySelector('.history-btn.prev-btn');
     const nextBtn = card.querySelector('.history-btn.next-btn');
-    const promptContainer = card.querySelector('.prompt-container');
-    const loadingContainer = card.querySelector('.generating-container');
     const promptDisplay = card.querySelector('.prompt-text');
 
-    generateBtn.addEventListener('click', async () => {
-        const promptInput = document.getElementById('promptInput');
-        const basePrompt = promptInput?.value?.trim() || '';
-        
-        if (!basePrompt) {
-            showToast('Please enter a prompt first');
-            return;
-        }
-        
-        // Show loading state
-        if (promptContainer) promptContainer.style.display = 'none';
-        if (loadingContainer) loadingContainer.style.display = 'flex';
-        if (generateBtn) generateBtn.disabled = true;
-
-        try {
-            // Pobierz parametry stylu
-            const styleParams = await ipcRenderer.invoke('get-style', style.id);
-            console.log('Style parameters:', styleParams);
-            
-            const response = await ipcRenderer.invoke('generate-prompt', {
-                basePrompt: basePrompt,
-                styleId: style.id
-            });
-            
-            console.log('Generate prompt response:', response);
-            
-            // Hide loading and show prompt with animation
-            loadingContainer.style.display = 'none';
-            promptDisplay.style.display = 'block';
-
-            if (response && response.prompt) {
-                // Show generated prompt with animation
-                await revealPrompt(response.prompt, promptDisplay);
-                
-                // Add to history
-                addToStyleHistory(style.id, response.prompt);
+    // Only add event listeners if elements exist
+    if (copyBtn) {
+        copyBtn.addEventListener('click', () => copyStylePrompt(style.id));
+    }
+    
+    if (drawThingsBtn) {
+        drawThingsBtn.addEventListener('click', () => sendToDrawThings(style.id));
+    }
+    
+    if (toggleInput) {
+        toggleInput.addEventListener('change', (e) => toggleStyle(style.id, e.target.checked));
+    }
+    
+    if (prevBtn && nextBtn && promptDisplay) {
+        prevBtn.addEventListener('click', () => {
+            const prompt = navigateHistory(style.id, -1);
+            if (prompt) {
+                revealPrompt(prompt, promptDisplay);
                 updateHistoryButtons(style.id);
-            } else {
-                console.error('Invalid response format:', response);
-                promptDisplay.textContent = 'Error: Invalid response format';
             }
-        } catch (error) {
-            console.error('Error generating prompt:', error);
-            promptDisplay.textContent = `Error: ${error.message || 'Failed to generate prompt'}`;
-            loadingContainer.style.display = 'none';
-            promptDisplay.style.display = 'block';
-        } finally {
-            generateBtn.disabled = false;
-        }
-    });
-
-    copyBtn.addEventListener('click', () => copyStylePrompt(style.id));
-    drawThingsBtn.addEventListener('click', () => sendToDrawThings(style.id));
-    toggleInput.addEventListener('change', (e) => toggleStyle(style.id, e.target.checked));
-    prevBtn.addEventListener('click', () => {
-        const prompt = navigateHistory(style.id, -1);
-        if (prompt) {
-            revealPrompt(prompt, promptDisplay);
-            updateHistoryButtons(style.id);
-        }
-    });
-    nextBtn.addEventListener('click', () => {
-        const prompt = navigateHistory(style.id, 1);
-        if (prompt) {
-            revealPrompt(prompt, promptDisplay);
-            updateHistoryButtons(style.id);
-        }
-    });
+        });
+        
+        nextBtn.addEventListener('click', () => {
+            const prompt = navigateHistory(style.id, 1);
+            if (prompt) {
+                revealPrompt(prompt, promptDisplay);
+                updateHistoryButtons(style.id);
+            }
+        });
+    }
 }
 
 // Funkcja do wyświetlania promptu
@@ -414,26 +373,39 @@ function revealPrompt(promptText, container) {
 
 // Funkcja do aktualizacji przycisków historii
 function updateHistoryButtons(styleId) {
-    const history = styleHistories.get(styleId);
-    if (!history) return;
-
-    const card = document.querySelector(`.style-card[data-style-id="${styleId}"]`);
+    const card = document.querySelector(`[data-style-id="${styleId}"]`);
     if (!card) return;
 
-    const [prevButton, nextButton] = card.querySelectorAll('.history-btn');
-    
-    prevButton.disabled = history.currentIndex <= 0;
-    nextButton.disabled = history.currentIndex >= history.prompts.length - 1;
+    const prevButton = card.querySelector('.prev-btn');
+    const nextButton = card.querySelector('.next-btn');
+    if (!prevButton || !nextButton) return;
+
+    const history = styleHistories.get(styleId) || { prompts: [], currentIndex: -1 };
+
+    // Update button states using CSS classes
+    if (history.currentIndex <= 0) {
+        prevButton.classList.add('disabled');
+    } else {
+        prevButton.classList.remove('disabled');
+    }
+
+    if (history.currentIndex >= history.prompts.length - 1) {
+        nextButton.classList.add('disabled');
+    } else {
+        nextButton.classList.remove('disabled');
+    }
 }
 
 // Funkcja do aktualizacji przycisku Draw Things
 function updateDrawThingsButton(button) {
-    checkDrawThingsConnection().then(isConnected => {
-        button.disabled = !isConnected;
-        button.title = isConnected ? 
-            'Send to Draw Things' : 
-            'Draw Things not connected';
-    });
+    if (!button) return;
+    
+    const isConnected = checkDrawThingsConnection();
+    if (isConnected) {
+        button.classList.remove('disabled');
+    } else {
+        button.classList.add('disabled');
+    }
 }
 
 // Funkcja do przełączania aktywności stylu
@@ -716,7 +688,6 @@ function initializePromptInput() {
 
 // Funkcja inicjalizująca przyciski
 function initializeButtons() {
-    // Przycisk generowania promptów
     const generatePromptsBtn = document.getElementById('generatePrompts');
     if (generatePromptsBtn) {
         generatePromptsBtn.addEventListener('click', async () => {
@@ -729,36 +700,37 @@ function initializeButtons() {
                 return;
             }
 
-            // Sprawdź aktualny widok
+            // Get current view
             const currentView = document.querySelector('.switch-btn.active')?.dataset?.view;
             if (!currentView) return;
-
-            // Wyłącz przycisk podczas generowania
-            generatePromptsBtn.disabled = true;
-            generatePromptsBtn.classList.add('loading');
 
             try {
                 if (currentView === 'inactive') {
                     showToast('Cannot generate prompts in Inactive view');
                     return;
                 }
-                await generatePromptsSequentially(text, currentView);
+
+                // Disable button and show loading state
+                generatePromptsBtn.classList.add('loading');
+                try {
+                    await generatePromptsSequentially(text, currentView);
+                } finally {
+                    generatePromptsBtn.classList.remove('loading');
+                }
             } catch (error) {
                 console.error('Error generating prompts:', error);
                 showToast('Error generating prompts: ' + error.message);
             } finally {
-                generatePromptsBtn.disabled = false;
-                generatePromptsBtn.classList.remove('loading');
                 updateGeneratePromptsButton();
             }
         });
 
-        // Nasłuchuj zmiany widoku
+        // Listen for view changes
         document.querySelectorAll('.switch-btn').forEach(btn => {
             btn.addEventListener('click', updateGeneratePromptsButton);
         });
 
-        // Inicjalizuj stan przycisku
+        // Initialize button state
         updateGeneratePromptsButton();
     }
 
@@ -969,92 +941,90 @@ async function generatePromptsSequentially(basePrompt, view = 'active') {
         return;
     }
 
-    // Get active style IDs based on view
-    let styleIds;
-    if (view === 'favorites') {
-        styleIds = Array.from(document.querySelectorAll('.style-card'))
-            .filter(card => card.dataset.favorite === 'true' || 
-                          localStorage.getItem(`style_${card.dataset.styleId}_favorite`) === 'true')
-            .map(card => card.dataset.styleId);
-    } else if (view === 'active') {
-        styleIds = Array.from(document.querySelectorAll('.style-card'))
-            .filter(card => localStorage.getItem(`style_${card.dataset.styleId}_active`) === 'true')
-            .map(card => card.dataset.styleId);
-    } else {
-        styleIds = [];
-    }
-    
-    console.log('Found style IDs:', styleIds);
-    
-    if (styleIds.length === 0) {
-        showToast('No styles available for prompt generation');
-        return;
-    }
+    try {
+        const styleCards = Array.from(document.querySelectorAll(`.style-card`))
+            .filter(card => {
+                if (view === 'favorites') {
+                    return card.dataset.favorite === 'true';
+                } else if (view === 'active') {
+                    return localStorage.getItem(`style_${card.dataset.styleId}_active`) === 'true';
+                }
+                return false;
+            });
 
-    let generatedCount = 0;
+        console.log(`Found ${styleCards.length} style cards for view: ${view}`);
+        let successCount = 0;
 
-    for (const styleId of styleIds) {
-        const card = document.querySelector(`[data-style-id="${styleId}"]`);
-        if (!card) continue;
+        for (const card of styleCards) {
+            const generateBtn = card.querySelector('.generate-btn');
+            const promptContainer = card.querySelector('.prompt-container');
+            const loadingContainer = card.querySelector('.generating-container');
+            const promptDisplay = card.querySelector('.prompt-text');
+            const styleId = card.dataset.styleId;
 
-        const promptContainer = card.querySelector('.prompt-container');
-        const loadingContainer = card.querySelector('.generating-container');
-        const promptDisplay = card.querySelector('.prompt-text');
-        const generateBtn = card.querySelector('.generate-btn');
-
-        try {
-            // Show loading state
-            if (promptContainer) promptContainer.style.display = 'none';
-            if (loadingContainer) loadingContainer.style.display = 'flex';
-            if (generateBtn) generateBtn.disabled = true;
-
-            // Get the latest style data from the styles manager
-            const style = await ipcRenderer.invoke('get-style', styleId);
-            if (!style) {
-                console.error('Style not found:', styleId);
+            if (!card || !promptContainer || !loadingContainer || !promptDisplay) {
+                console.error('Missing required elements for card:', styleId);
                 continue;
             }
 
-            console.log('Generating with style:', style);
+            try {
+                // Show loading state
+                promptContainer.style.display = 'none';
+                loadingContainer.style.display = 'flex';
+                if (generateBtn) {
+                    generateBtn.classList.add('disabled');
+                }
 
-            // Build the complete prompt
-            let finalPrompt = basePrompt;
-            if (style.prefix) finalPrompt = `${style.prefix}${finalPrompt}`;
-            if (style.suffix) finalPrompt = `${finalPrompt}${style.suffix}`;
+                // Get the latest style data
+                const style = await window.electronAPI.getStyle(styleId);
+                if (!style) {
+                    console.error('Style not found:', styleId);
+                    continue;
+                }
 
-            // Generate the prompt
-            const result = await ipcRenderer.invoke('generate-prompt', {
-                basePrompt: finalPrompt,
-                styleId: style.id
-            });
+                // Build the complete prompt
+                let finalPrompt = basePrompt;
+                if (style.prefix) finalPrompt = `${style.prefix}${finalPrompt}`;
+                if (style.suffix) finalPrompt = `${finalPrompt}${style.suffix}`;
 
-            // Update UI with result
-            if (promptDisplay) {
-                promptDisplay.textContent = result.prompt;
-                revealPrompt(result.prompt, promptDisplay);
-            }
+                const result = await window.electronAPI.generatePrompt(finalPrompt, styleId);
+                
+                // Update UI with result
+                if (result && result.prompt) {
+                    promptDisplay.textContent = result.prompt;
+                    await revealPrompt(result.prompt, promptDisplay);
+                    successCount++;
 
-            // Add to history
-            addToStyleHistory(styleId, result.prompt);
-            updateHistoryButtons(styleId);
+                    // Add to history
+                    addToStyleHistory(styleId, result.prompt);
+                    updateHistoryButtons(styleId);
+                } else {
+                    console.error('Invalid response format:', result);
+                    promptDisplay.textContent = 'Error: Invalid response format';
+                    promptDisplay.classList.add('error');
+                }
 
-            generatedCount++;
-        } catch (error) {
-            console.error('Error generating prompt:', error);
-            if (promptDisplay) {
-                promptDisplay.textContent = `Error: ${error.message}`;
+            } catch (error) {
+                console.error(`Error generating prompt for style ${styleId}:`, error);
+                promptDisplay.textContent = `Error: ${error.message || 'Failed to generate prompt'}`;
                 promptDisplay.classList.add('error');
+            } finally {
+                // Reset UI state
+                promptDisplay.style.display = 'block';
+                loadingContainer.style.display = 'none';
+                if (generateBtn) {
+                    generateBtn.classList.remove('disabled');
+                }
             }
-        } finally {
-            // Reset UI state
-            if (promptContainer) promptContainer.style.display = 'block';
-            if (loadingContainer) loadingContainer.style.display = 'none';
-            if (generateBtn) generateBtn.disabled = false;
         }
-    }
 
-    // Show completion message
-    showToast(`Generated ${generatedCount} prompt${generatedCount !== 1 ? 's' : ''}`);
+        showToast(`Generated ${successCount} prompt${successCount !== 1 ? 's' : ''}`);
+        return successCount;
+    } catch (error) {
+        console.error('Error in generatePromptsSequentially:', error);
+        showToast('Error generating prompts');
+        throw error;
+    }
 }
 
 // Funkcja do animacji promptu
@@ -1101,36 +1071,27 @@ function updateStyleCounts() {
 // Funkcja do aktualizacji tekstu przycisku Generate Prompts
 function updateGeneratePromptsButton() {
     const generatePromptsBtn = document.getElementById('generatePrompts');
-    if (!generatePromptsBtn) {
-        console.error('Generate Prompts button not found');
-        return;
+    if (!generatePromptsBtn) return;
+
+    try {
+        const currentView = document.querySelector('.switch-btn.active')?.dataset?.view;
+        if (!currentView) return;
+
+        // Update button state based on view
+        if (currentView === 'inactive') {
+            generatePromptsBtn.classList.add('disabled');
+            generatePromptsBtn.title = 'Cannot generate prompts in Inactive view';
+        } else {
+            generatePromptsBtn.classList.remove('disabled');
+            generatePromptsBtn.title = currentView === 'favorites' ? 'Generate prompts for favorite styles' : 'Generate prompts for active styles';
+        }
+
+        // Update button text
+        const cardsCount = document.querySelectorAll(`.style-card${currentView === 'favorites' ? '[data-favorite="true"]' : ''}`).length;
+        generatePromptsBtn.innerHTML = `<i class="fas fa-wand-magic-sparkles"></i><span>Generate Prompts (${cardsCount})</span>`;
+    } catch (err) {
+        console.warn('Could not update generate button:', err);
     }
-
-    const currentView = document.querySelector('.switch-btn.active')?.dataset?.view;
-    if (!currentView) {
-        console.error('No active view found');
-        return;
-    }
-
-    console.log('Updating Generate Prompts button for view:', currentView);
-
-    let cardsCount = 0;
-    if (currentView === 'favorites') {
-        cardsCount = Array.from(document.querySelectorAll('.style-card')).filter(card => 
-            card.dataset.favorite === 'true' || localStorage.getItem(`style_${card.dataset.styleId}_favorite`) === 'true'
-        ).length;
-    } else if (currentView === 'active') {
-        cardsCount = Array.from(document.querySelectorAll('.style-card')).filter(card => 
-            localStorage.getItem(`style_${card.dataset.styleId}_active`) === 'true'
-        ).length;
-    }
-
-    console.log('Cards count:', cardsCount);
-
-    // Zachowaj ikonę podczas aktualizacji tekstu
-    generatePromptsBtn.innerHTML = `<i class="fas fa-wand-magic-sparkles"></i><span>Generate Prompts (${cardsCount})</span>`;
-    generatePromptsBtn.disabled = currentView === 'inactive' || cardsCount === 0;
-    generatePromptsBtn.style.opacity = (currentView === 'inactive' || cardsCount === 0) ? '0.5' : '1';
 }
 
 // Funkcja do otwierania ustawień stylu
@@ -1182,10 +1143,10 @@ ipcRenderer.on('model-parameters-updated', (event, data) => {
     const styleCard = document.querySelector(`[data-style-id="${data.styleId}"]`);
     if (styleCard) {
         // Get the title element that contains the custom indicator
-        const title = styleCard.querySelector('.style-card-title');
-        if (title) {
+        const titleEl = styleCard.querySelector('.style-card-title');
+        if (titleEl) {
             // Remove existing custom indicator if any
-            const existingIndicator = title.querySelector('.fa-sliders-h');
+            const existingIndicator = titleEl.querySelector('.fa-sliders-h');
             if (existingIndicator) {
                 existingIndicator.remove();
             }
@@ -1203,7 +1164,7 @@ ipcRenderer.on('model-parameters-updated', (event, data) => {
                 customIcon.style.marginLeft = '8px';
                 customIcon.style.color = 'var(--accent)';
                 customIcon.title = 'Custom model parameters';
-                title.appendChild(customIcon);
+                titleEl.appendChild(customIcon);
             }
         }
         
@@ -1384,13 +1345,23 @@ ipcRenderer.on('model-changed', (event, config) => {
 
 // Funkcja do aktualizacji statusu połączenia
 function updateConnectionStatus(status) {
+    console.log('Updating connection status:', status);
     const connectionBtn = document.getElementById('connection-btn');
-    if (!connectionBtn) return;
+    const generatePromptsBtn = document.getElementById('generate-prompts-btn');
 
-    if (status.isConnected) {
+    if (!connectionBtn) {
+        console.warn('Connection button not found');
+        return;
+    }
+
+    if (status && status.isConnected) {
         connectionBtn.classList.remove('disconnected');
         connectionBtn.classList.add('connected');
         connectionBtn.title = 'Ollama Connected';
+        
+        if (generatePromptsBtn) {
+            generatePromptsBtn.classList.remove('disabled');
+        }
         
         // Update model names when connection is established
         if (status.currentModel) {
@@ -1408,7 +1379,11 @@ function updateConnectionStatus(status) {
     } else {
         connectionBtn.classList.remove('connected');
         connectionBtn.classList.add('disconnected');
-        connectionBtn.title = 'Ollama Disconnected';
+        connectionBtn.title = status?.lastError || 'Ollama Disconnected';
+        
+        if (generatePromptsBtn) {
+            generatePromptsBtn.classList.add('disabled');
+        }
         
         // Reset model names when disconnected
         const textModelName = document.getElementById('text-model-name');

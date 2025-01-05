@@ -95,7 +95,7 @@ async function downloadFile(url, destPath) {
 class OllamaManager {
     constructor() {
         this.endpoint = {
-            host: '127.0.0.1',
+            host: '127.0.0.1',  // Always use IPv4
             port: 11434
         };
         this.isConnected = false;
@@ -119,94 +119,119 @@ class OllamaManager {
         return `http://${this.endpoint.host}:${this.endpoint.port}`;
     }
 
-    makeRequest(url, options = {}) {
-        return new Promise((resolve, reject) => {
-            const parsedUrl = new URL(url);
-            const requestOptions = {
-                hostname: parsedUrl.hostname,
-                port: parsedUrl.port,
-                path: parsedUrl.pathname,
+    async startServer() {
+        if (this.startingServer) {
+            console.log('Server startup already in progress');
+            return false;
+        }
+        
+        this.startingServer = true;
+        console.log('Starting Ollama server...');
+
+        return new Promise((resolve) => {
+            // First, check if ollama is installed
+            exec('which ollama', async (error) => {
+                if (error) {
+                    console.error('Ollama not found:', error);
+                    this.lastError = 'Ollama is not installed';
+                    this.startingServer = false;
+                    resolve(false);
+                    return;
+                }
+                
+                // Try to start the server
+                const ollamaProcess = spawn('ollama', ['serve'], {
+                    detached: true,
+                    stdio: 'ignore'
+                });
+
+                ollamaProcess.unref(); // Allow the process to run independently
+
+                // Give the server some time to start
+                await new Promise(resolve => setTimeout(resolve, 2000));
+
+                // Check connection with retries
+                let retries = 5;
+                const checkConnection = async () => {
+                    try {
+                        console.log('Checking if server is up (attempt', 6 - retries, 'of 5)...');
+                        const response = await this.makeRequest(`${this.getBaseUrl()}/api/tags`);
+                        if (response.ok) {
+                            console.log('Ollama server started successfully');
+                            this.startingServer = false;
+                            this.isConnected = true;
+                            resolve(true);
+                            return;
+                        }
+                    } catch (error) {
+                        console.log('Server not ready yet:', error.message);
+                        if (--retries <= 0) {
+                            console.error('Failed to start Ollama server after 5 attempts');
+                            this.lastError = 'Failed to start Ollama server';
+                            this.startingServer = false;
+                            this.isConnected = false;
+                            resolve(false);
+                            return;
+                        }
+                    }
+                    setTimeout(checkConnection, 2000);
+                };
+
+                checkConnection();
+            });
+        });
+    }
+
+    async makeRequest(url, options = {}) {
+        try {
+            console.log('Making request with options:', {
+                url,
+                method: options.method || 'GET',
+                headers: options.headers,
+                body: options.body
+            });
+
+            const response = await fetch(url, {
                 method: options.method || 'GET',
                 headers: {
                     'Content-Type': 'application/json',
                     ...options.headers
-                }
-            };
-
-            console.log('Making request with options:', {
-                url,
-                method: requestOptions.method,
-                headers: requestOptions.headers,
-                body: options.body
+                },
+                body: options.body ? JSON.stringify(options.body) : undefined
             });
 
-            const req = http.request(requestOptions, (res) => {
-                let rawData = '';
-                
-                res.on('data', (chunk) => {
-                    rawData += chunk;
-                });
-                
-                res.on('end', () => {
-                    // Dla odpowiedzi strumieniowych
-                    if (url.includes('/api/pull') || url.includes('/api/create')) {
-                        const lines = rawData.split('\n').filter(line => line.trim());
-                        const responses = lines.map(line => {
-                            try {
-                                return JSON.parse(line);
-                            } catch (e) {
-                                console.warn('Could not parse line:', line);
-                                return null;
-                            }
-                        }).filter(Boolean);
-
-                        resolve({
-                            ok: res.statusCode === 200,
-                            status: res.statusCode,
-                            responses: responses
-                        });
-                    } else {
-                        // Dla normalnych odpowiedzi JSON
-                        try {
-                            const jsonData = rawData ? JSON.parse(rawData) : {};
-                            resolve({
-                                ok: res.statusCode === 200,
-                                status: res.statusCode,
-                                json: () => Promise.resolve(jsonData)
-                            });
-                        } catch (error) {
-                            console.error('Error parsing JSON response:', error);
-                            console.log('Raw response:', rawData);
-                            reject(new Error(`Failed to parse JSON response: ${error.message}`));
-                        }
-                    }
-                });
-            });
-
-            req.on('error', (error) => {
-                console.error('Request error:', error);
-                reject(error);
-            });
-
-            if (options.body) {
-                const bodyData = typeof options.body === 'string' ? options.body : JSON.stringify(options.body);
-                req.write(bodyData);
-            }
-
-            req.end();
-        });
+            return response;
+        } catch (error) {
+            console.error('Request failed:', error);
+            throw error;
+        }
     }
 
     async checkConnection() {
         console.log('Checking Ollama connection...');
         try {
-            const response = await this.makeRequest(`${this.getBaseUrl()}/api/version`);
-            console.log('Ollama connection response:', response);
-            
-            this.isConnected = response.ok;
-            this.lastError = response.ok ? null : 'Failed to connect to Ollama';
-            
-            return this.isConnected;
+            console.log('Trying connection to:', this.getBaseUrl());
+            const response = await fetch(this.getBaseUrl() + '/api/tags', {
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (response.ok) {
+                this.isConnected = true;
+                this.lastError = null;
+                console.log('Successfully connected to Ollama');
+                
+                // Update available models
+                const data = await response.json();
+                this.availableModels = data.models || [];
+                
+                return true;
+            }
+
+            this.isConnected = false;
+            this.lastError = 'Failed to connect to Ollama';
+            return false;
         } catch (error) {
             console.error('Ollama connection error:', error);
             this.isConnected = false;
@@ -215,40 +240,63 @@ class OllamaManager {
         }
     }
 
-    async startServer() {
-        if (this.startingServer) return;
-        this.startingServer = true;
-
-        return new Promise((resolve) => {
-            console.log('Starting Ollama server...');
-            const ollamaProcess = exec('ollama serve', (error) => {
-                if (error) {
-                    console.error('Error starting Ollama:', error);
-                    this.lastError = 'Failed to start Ollama server';
-                    this.startingServer = false;
-                    resolve(false);
-                }
-            });
-
-            // Poczekaj na uruchomienie serwera
-            const checkConnection = async () => {
-                try {
-                    console.log('Checking if server is up...');
-                    const response = await this.makeRequest(`${this.getBaseUrl()}/api/tags`);
-                    if (response.ok) {
-                        console.log('Ollama server started successfully');
-                        this.startingServer = false;
-                        resolve(true);
-                        return;
-                    }
-                } catch (error) {
-                    console.log('Server not ready yet, retrying...');
-                }
-                setTimeout(checkConnection, 1000);
+    async getStatus() {
+        try {
+            await this.checkConnection();
+            const status = {
+                isConnected: this.isConnected,
+                currentModel: this.currentModel,
+                visionModel: this.visionModel,
+                lastError: this.lastError,
+                availableModels: this.availableModels
             };
+            console.log('Current Ollama status:', status);
+            return status;
+        } catch (error) {
+            console.error('Error getting status:', error);
+            return {
+                isConnected: false,
+                lastError: error.message,
+                currentModel: null,
+                visionModel: null,
+                availableModels: []
+            };
+        }
+    }
 
-            checkConnection();
-        });
+    async initialize(progressCallback) {
+        try {
+            progressCallback?.(0, 'startup', 'Checking Ollama connection...');
+            let isConnected = await this.checkConnection();
+            
+            if (!isConnected) {
+                progressCallback?.(20, 'startup', 'Starting Ollama server...');
+                const serverStarted = await this.startServer();
+                if (!serverStarted) {
+                    return false;
+                }
+                isConnected = await this.checkConnection();
+            }
+            
+            if (isConnected) {
+                progressCallback?.(40, 'startup', 'Loading available models...');
+                await this.listModels();
+                
+                progressCallback?.(60, 'startup', 'Checking model configuration...');
+                const config = configManager.getConfig();
+                this.currentModel = config.currentModel;
+                this.visionModel = config.visionModel;
+                
+                progressCallback?.(100, 'startup', 'Ollama initialized successfully');
+                return true;
+            }
+            
+            return false;
+        } catch (error) {
+            console.error('Error initializing Ollama:', error);
+            this.lastError = error.message;
+            return false;
+        }
     }
 
     async listModels() {
@@ -286,102 +334,303 @@ class OllamaManager {
     }
 
     async setModel(modelName) {
+        console.log('Setting model to:', modelName);
         if (modelName) {
             const isAvailable = await this.checkModelAvailability(modelName);
             if (!isAvailable) {
                 throw new Error(`Model ${modelName} is not available`);
             }
             this.currentModel = modelName;
-            await configManager.saveConfig({
-                ...configManager.getConfig(),
-                currentModel: this.currentModel
-            });
+            
+            // Save to config and update our instance
+            const currentConfig = configManager.getConfig();
+            const newConfig = {
+                ...currentConfig,
+                currentModel: modelName
+            };
+            await configManager.saveConfig(newConfig);
+            console.log('Saved model to config:', newConfig);
             
             // Notify all windows about the model change
             BrowserWindow.getAllWindows().forEach(window => {
-                window.webContents.send('model-changed', {
-                    currentModel: this.currentModel,
-                    visionModel: this.visionModel
-                });
+                window.webContents.send('model-changed', newConfig);
             });
         }
     }
 
     async getCurrentModel() {
-        // Always get the latest from config
-        const config = configManager.getConfig();
-        this.currentModel = config.currentModel;
+        // If we don't have a current model in memory, try to get it from config
+        if (!this.currentModel) {
+            const config = configManager.getConfig();
+            this.currentModel = config.currentModel;
+            console.log('Got current model from config:', this.currentModel);
+        }
         return this.currentModel;
-    }
-
-    async getStatus() {
-        const isConnected = await this.checkConnection();
-        return {
-            isConnected,
-            currentModel: this.currentModel,
-            visionModel: this.visionModel,
-            lastError: this.lastError
-        };
     }
 
     async ensureTextModelSelected() {
-        console.log('Current model from config:', this.currentModel);
-        
-        // Get available models
-        const models = await this.listModels();
-        console.log('Available models:', models);
-        
-        // Filter for installed text models only
-        const installedTextModels = models.filter(m => m.installed && m.type === 'Text');
-        console.log('Installed text models:', installedTextModels);
-        
-        // If current model is not a text model or not installed, select a new one
-        const currentModelInfo = models.find(m => m.name === this.currentModel);
-        if (!currentModelInfo || !currentModelInfo.installed || currentModelInfo.type !== 'Text') {
-            if (installedTextModels.length > 0) {
-                const selectedModel = installedTextModels[0].name;
-                console.log('Setting text model:', selectedModel);
-                await this.setModel(selectedModel);
-            } else {
-                throw new Error('No text models available. Please install a text model first.');
-            }
+        const model = await this.getCurrentModel();
+        if (!model) {
+            throw new Error('No text model selected. Please select a model in settings.');
         }
-        
-        return this.currentModel;
+        return model;
     }
 
     async generatePrompt(basePrompt, styleId, style) {
-        // Get the latest model
-        const currentModel = await this.getCurrentModel();
-        if (!currentModel) {
-            throw new Error('No text model selected. Please select a model in settings.');
-        }
-
-        // Verify the model is available
-        const isAvailable = await this.checkModelAvailability(currentModel);
-        if (!isAvailable) {
-            throw new Error(`Selected model ${currentModel} is not available. Please check your model settings.`);
-        }
-
         try {
-            console.log('Generating prompt with model:', currentModel);
+            const model = await this.ensureTextModelSelected();
+            console.log('Generating prompt with model:', model);
+
+            // Style-specific prefixes to set the tone immediately
+            const stylePrefixes = {
+                realistic: [
+                    "Photorealistic capture of",
+                    "Ultra-detailed photograph showing",
+                    "Professional 8K photograph of",
+                    "Hyperrealistic image depicting",
+                    "Documentary-style photograph of"
+                ],
+                cinematic: [
+                    "Epic movie scene featuring",
+                    "Cinematic frame capturing",
+                    "Hollywood blockbuster shot of",
+                    "Award-winning film still showing",
+                    "Dramatic movie sequence of"
+                ],
+                vintage: [
+                    "Weathered 1950s photograph of",
+                    "Nostalgic Polaroid capturing",
+                    "Aged sepia print showing",
+                    "Classic film photograph of",
+                    "Retro snapshot depicting"
+                ],
+                artistic: [
+                    "Masterful digital painting of",
+                    "Contemporary artwork featuring",
+                    "Expressive artistic rendition of",
+                    "Bold artistic interpretation of",
+                    "Creative mixed-media piece showing"
+                ],
+                abstract: [
+                    "Abstract interpretation dissolving",
+                    "Non-representational composition of",
+                    "Geometric abstraction based on",
+                    "Modernist deconstruction of",
+                    "Conceptual abstraction featuring"
+                ],
+                poetic: [
+                    "Dreamy ethereal vision of",
+                    "Soft, romantic portrayal of",
+                    "Delicate atmospheric scene of",
+                    "Whimsical ethereal capture of",
+                    "Poetic interpretation of"
+                ],
+                anime: [
+                    "Studio Ghibli inspired scene of",
+                    "Vibrant anime portrayal of",
+                    "Dynamic manga-style scene of",
+                    "Japanese animation featuring",
+                    "Dramatic anime interpretation of"
+                ],
+                cartoon: [
+                    "Playful animated scene of",
+                    "Disney-style rendering of",
+                    "Whimsical cartoon showing",
+                    "Pixar-inspired portrayal of",
+                    "Animated character study of"
+                ],
+                cute: [
+                    "Adorable kawaii version of",
+                    "Sweet chibi interpretation of",
+                    "Charming pastel scene of",
+                    "Cute Japanese-style",
+                    "Heartwarming kawaii scene with"
+                ],
+                scifi: [
+                    "Futuristic cyberpunk vision of",
+                    "High-tech sci-fi interpretation of",
+                    "Neon-lit cyberpunk scene featuring",
+                    "Advanced technological rendering of",
+                    "Holographic sci-fi display of"
+                ]
+            };
+
+            // Get style-specific instructions
+            const styleInstructions = {
+                realistic: `Create a hyper-detailed, photorealistic prompt that captures every nuance:
+- Ultra-high resolution details (skin texture, surface materials, fabric weave)
+- Professional photography techniques (rule of thirds, leading lines, depth of field)
+- Natural lighting conditions (golden hour, rim lighting, ambient occlusion)
+- Environmental context (atmospheric perspective, environmental reflections)
+- Surface properties (subsurface scattering, micro-details, weathering)
+- Camera specifications (85mm lens, f/2.8 aperture, bokeh effect)
+
+Start your prompt with one of these:
+${stylePrefixes.realistic.join('\n')}
+
+Must end with: ultra detailed, 8k uhd, high resolution, raw photo, photorealistic, masterpiece, perfect composition, award winning photography, professional color grading, dramatic lighting, octane render`,
+
+                cinematic: `Create an epic, movie-quality scene that could be a film still:
+- Specific film techniques (anamorphic lens, letterbox format, motion blur)
+- Hollywood-style lighting (volumetric lighting, rim lights, dramatic shadows)
+- Dramatic composition (extreme angles, foreground framing, rule of thirds)
+- Atmospheric elements (smoke, haze, particles in light beams)
+- Color grading (complementary colors, rich contrast, cinematic LUTs)
+- Production value (set design, practical effects, depth staging)
+
+Start your prompt with one of these:
+${stylePrefixes.cinematic.join('\n')}
+
+Must end with: cinematic 4k, anamorphic lens, movie still, professional cinematography, epic composition, golden ratio, dramatic atmosphere, volumetric lighting, film grain, Arri Alexa`,
+
+                vintage: `Create a historically authentic, aged photograph with period-specific details:
+- Era-specific photography techniques (daguerreotype, tintype, polaroid)
+- Time-appropriate color palette (sepia, faded colors, color bleeding)
+- Period-accurate details (clothing, architecture, technology)
+- Authentic aging effects (film grain, light leaks, dust scratches)
+- Classic composition (centered subjects, formal poses, wide margins)
+- Historical context (cultural elements, time-specific artifacts)
+
+Start your prompt with one of these:
+${stylePrefixes.vintage.join('\n')}
+
+Must end with: vintage photograph, old film grain, color fading, light leaks, chromatic aberration, polaroid, kodachrome, retro, nostalgic, period accurate, analog imperfections`,
+
+                artistic: `Create a bold, expressive artistic interpretation:
+- Specific art movement influence (impressionism, surrealism, art nouveau)
+- Artistic techniques (impasto, glazing, mixed media)
+- Color theory application (complementary colors, color harmony)
+- Texture and brushwork (visible strokes, textural elements)
+- Compositional dynamics (golden ratio, dynamic symmetry)
+- Emotional expression (mood, atmosphere, symbolic elements)
+
+Start your prompt with one of these:
+${stylePrefixes.artistic.join('\n')}
+
+Must end with: digital painting, artistic masterpiece, trending on artstation, award winning illustration, professional art, dynamic composition, expressive brushwork, mixed media, contemporary art`,
+
+                abstract: `Create a non-representational, conceptual piece:
+- Abstract elements (geometric shapes, organic forms, color fields)
+- Visual rhythm (repetition, pattern, movement)
+- Compositional balance (asymmetry, tension, harmony)
+- Color relationships (color theory, optical mixing)
+- Textural complexity (layering, transparency, opacity)
+- Conceptual depth (symbolism, metaphor, meaning)
+
+Start your prompt with one of these:
+${stylePrefixes.abstract.join('\n')}
+
+Must end with: abstract art, contemporary composition, modern art, minimalist, conceptual design, geometric abstraction, color field, non-representational, gallery quality`,
+
+                poetic: `Create a dreamy, ethereal scene with emotional resonance:
+- Atmospheric effects (mist, soft light, bokeh)
+- Delicate details (floating particles, gentle movement)
+- Color harmony (soft pastels, subtle gradients)
+- Romantic elements (flowing fabrics, organic shapes)
+- Emotional qualities (serenity, melancholy, wonder)
+- Dreamy techniques (double exposure, light leaks, blur)
+
+Start your prompt with one of these:
+${stylePrefixes.poetic.join('\n')}
+
+Must end with: ethereal atmosphere, dreamy, soft focus, romantic lighting, emotional, delicate details, painterly, poetic mood, fine art photography`,
+
+                anime: `Create a distinctive Japanese animation style scene:
+- Anime-specific elements (cel shading, speed lines, dramatic angles)
+- Character design features (large eyes, expressive faces, dynamic poses)
+- Distinctive lighting (rim lighting, dramatic shadows, light beams)
+- Background style (detailed environments, perspective lines)
+- Action dynamics (motion blur, impact frames, energy effects)
+- Color palette (vibrant colors, high contrast, bold outlines)
+
+Start your prompt with one of these:
+${stylePrefixes.anime.join('\n')}
+
+Must end with: anime style, cel shaded, japanese animation, manga art, studio ghibli, key animation, anime aesthetic, jrpg style, vibrant colors, sharp lines`,
+
+                cartoon: `Create a playful, animated cartoon scene:
+- Animation style (bold outlines, exaggerated features)
+- Character elements (squash and stretch, expressive faces)
+- Color design (flat colors, vibrant palette)
+- Visual effects (action lines, impact stars, emotion symbols)
+- Playful physics (exaggerated perspective, impossible poses)
+- Background style (simplified details, pattern fills)
+
+Start your prompt with one of these:
+${stylePrefixes.cartoon.join('\n')}
+
+Must end with: cartoon style, animation key frame, character design, bold colors, vector art, clean lines, disney style, pixar render, toon shading, illustration`,
+
+                cute: `Create an adorable kawaii-style scene:
+- Kawaii elements (chibi proportions, rounded shapes)
+- Color palette (pastel colors, soft gradients)
+- Cute details (sparkles, hearts, stars)
+- Character features (simple faces, blush marks, tiny details)
+- Sweet atmosphere (fluffy textures, bubble effects)
+- Decorative elements (flowers, ribbons, polka dots)
+
+Start your prompt with one of these:
+${stylePrefixes.cute.join('\n')}
+
+Must end with: kawaii style, cute, pastel colors, chibi, adorable, japanese cute, soft shading, moe aesthetic, sweet atmosphere`,
+
+                scifi: `Create a futuristic science fiction scene:
+- Advanced technology (holographic displays, energy fields)
+- Futuristic materials (chrome, neon, plasma effects)
+- Lighting effects (bioluminescence, laser beams, LED arrays)
+- Architectural elements (sleek surfaces, impossible structures)
+- Atmospheric details (particle effects, energy distortions)
+- Tech aesthetics (user interfaces, data visualization)
+
+Start your prompt with one of these:
+${stylePrefixes.scifi.join('\n')}
+
+Must end with: science fiction, cyberpunk, futuristic, high tech, concept art, neon lighting, holographic, advanced technology, digital effects, hyperrealistic render`
+            };
+
+            const selectedStyle = styleInstructions[styleId] || styleInstructions.realistic;
+            const stylePrefix = stylePrefixes[styleId] || stylePrefixes.realistic;
+            const randomPrefix = stylePrefix[Math.floor(Math.random() * stylePrefix.length)];
+
+            const systemInstruction = `You are a specialized AI trained to generate highly detailed, style-specific prompts for Stable Diffusion image generation.
+Your task is to create natural, flowing descriptions that perfectly capture the essence of each style.
+
+${selectedStyle}
+
+Rules for prompt generation:
+1. ONLY output a natural, flowing description - no technical terms or tags
+2. Start with one of the style-specific prefixes
+3. Create a rich, detailed scene description that naturally incorporates style elements
+4. Focus on visual elements, atmosphere, and mood
+5. Use natural language throughout - avoid technical terms or comma-separated tags
+6. DO NOT add any style tags, quality terms, or technical specifications at the end
+7. DO NOT use phrases like "in the style of" or mention the style name
+8. Keep everything as one flowing paragraph
+9. Write as if describing a scene to an artist, not a computer
+
+Example format (just the structure, do not copy these words):
+[style prefix] A rich description of the scene incorporating all style elements naturally within the narrative, focusing on visual details, atmosphere, and mood. The description should flow like natural language without any technical terms or tags.`;
+
+            const requestBody = {
+                model: model,
+                prompt: systemInstruction + "\n\nCreate a natural, flowing description for: " + basePrompt,
+                stream: false,
+                options: {
+                    temperature: style?.modelParameters?.temperature || 0.85,
+                    top_p: style?.modelParameters?.top_p || 0.95,
+                    top_k: style?.modelParameters?.top_k || 60,
+                    repeat_penalty: style?.modelParameters?.repeat_penalty || 1.3
+                }
+            };
+
+            console.log('Making generate request with body:', requestBody);
             
-            const response = await this.makeRequest(`${this.getBaseUrl()}/api/generate`, {
+            const response = await fetch(`${this.getBaseUrl()}/api/generate`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({
-                    model: currentModel,
-                    prompt: basePrompt,
-                    stream: false,
-                    options: {
-                        temperature: style?.modelParameters?.temperature || 0.7,
-                        top_p: style?.modelParameters?.top_p || 0.9,
-                        top_k: style?.modelParameters?.top_k || 40,
-                        repeat_penalty: style?.modelParameters?.repeat_penalty || 1.1
-                    }
-                })
+                body: JSON.stringify(requestBody)
             });
 
             if (!response.ok) {
@@ -391,8 +640,8 @@ class OllamaManager {
 
             const data = await response.json();
             return {
-                prompt: data.response,
-                parameters: style?.modelParameters || {}
+                prompt: data.response.trim(),
+                parameters: requestBody.options
             };
         } catch (error) {
             console.error('Error in generatePrompt:', error);
@@ -1085,6 +1334,54 @@ except Exception as e:
             return true;
         } catch (error) {
             console.error('Error pulling model:', error);
+            throw error;
+        }
+    }
+
+    async generateTags(text, batchSize = 6, totalBatches = 5) {
+        try {
+            const model = await this.ensureTextModelSelected();
+            console.log('Generating tags with model:', model);
+
+            const prompt = `Generate ${batchSize * totalBatches} unique, relevant tags for the following text. Each tag should be a single word or short phrase. Separate tags with commas: ${text}`;
+
+            const response = await fetch(`${this.getBaseUrl()}/api/generate`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    model: model,
+                    prompt: prompt,
+                    stream: false,
+                    options: {
+                        temperature: 0.7,
+                        top_p: 0.9,
+                        top_k: 50
+                    }
+                })
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Failed to generate tags: ${errorText}`);
+            }
+
+            const data = await response.json();
+            const tags = data.response
+                .split(',')
+                .map(tag => tag.trim())
+                .filter(tag => tag.length > 0);
+
+            // Group tags into batches
+            const batches = [];
+            for (let i = 0; i < tags.length; i += batchSize) {
+                batches.push(tags.slice(i, i + batchSize));
+            }
+
+            return batches.slice(0, totalBatches);
+        } catch (error) {
+            console.error('Error in generateTags:', error);
             throw error;
         }
     }
