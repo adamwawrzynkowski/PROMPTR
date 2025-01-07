@@ -447,13 +447,28 @@ async function createWindow() {
         titleBarStyle: 'hidden',
         trafficLightPosition: { x: -100, y: -100 }, // Hide traffic lights
         titleBarOverlay: false,
+        backgroundColor: '#1e1b2e',
         webPreferences: {
             nodeIntegration: true,
-            contextIsolation: false
+            contextIsolation: false,
+            enableRemoteModule: true,
+            spellcheck: false,
+            backgroundThrottling: false
         }
     });
 
+    // Enable hardware acceleration
+    app.commandLine.appendSwitch('enable-accelerated-compositing');
+    app.commandLine.appendSwitch('enable-gpu-rasterization');
+    app.commandLine.appendSwitch('enable-zero-copy');
+    app.commandLine.appendSwitch('ignore-gpu-blacklist');
+
     await mainWindow.loadFile('index.html');
+
+    // Optimize rendering
+    mainWindow.webContents.setZoomFactor(1.0);
+    mainWindow.webContents.setVisualZoomLevelLimits(1, 1);
+    mainWindow.webContents.setBackgroundThrottling(false);
 
     // Save window size when it's resized
     mainWindow.on('resize', () => {
@@ -621,6 +636,34 @@ app.whenReady().then(async () => {
         });
     });
 
+    // Add handler for tag generation
+    ipcMain.handle('generate-tags', async (event, { text, systemPrompt }) => {
+        try {
+            const config = configManager.getConfig();
+            const currentModel = config.currentModel || 'llama2';
+            
+            const response = await fetch('http://127.0.0.1:11434/api/generate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    model: currentModel,
+                    prompt: systemPrompt + '\n\nInput text: "' + text + '"',
+                    stream: false
+                })
+            });
+
+            if (!response.ok) {
+                throw new Error('Failed to generate tags');
+            }
+
+            const data = await response.json();
+            return data.response;
+        } catch (error) {
+            console.error('Error generating tags:', error);
+            throw error;
+        }
+    });
+
     // Prevent duplicate window creation
     app.on('activate', async () => {
         if (BrowserWindow.getAllWindows().length === 0) {
@@ -664,18 +707,6 @@ app.whenReady().then(async () => {
             return await ollamaManager.detectAndTranslateText(text);
         } catch (error) {
             console.error('Error in detect-and-translate:', error);
-            throw error;
-        }
-    });
-
-    ipcMain.handle('generate-tags', async (event, text) => {
-        try {
-            console.log('Generating tags for:', text);
-            const tags = await ollamaManager.generateTags(text);
-            console.log('Generated tags:', tags);
-            return tags;
-        } catch (error) {
-            console.error('Error generating tags:', error);
             throw error;
         }
     });

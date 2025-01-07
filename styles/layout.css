@@ -45,21 +45,18 @@
 .styles-container {
     flex: 1;
     min-height: 0;
-    overflow-y: overlay;
+    overflow-y: auto;
     overflow-x: hidden;
     width: 100%;
     padding: 0 20px 20px 20px;
     box-sizing: border-box;
-    will-change: transform;
     -webkit-overflow-scrolling: touch;
-    overscroll-behavior: contain;
-    scrollbar-gutter: stable;
-    contain: content;
+    position: relative;
+    z-index: 1;
 }
 
 .styles-container::-webkit-scrollbar {
     width: 8px;
-    height: 8px;
 }
 
 .styles-container::-webkit-scrollbar-track {
@@ -69,7 +66,6 @@
 .styles-container::-webkit-scrollbar-thumb {
     background: rgba(255, 255, 255, 0.1);
     border-radius: 4px;
-    transition: background 0.2s ease;
 }
 
 .styles-container::-webkit-scrollbar-thumb:hover {
@@ -82,12 +78,12 @@
     gap: 20px;
     width: 100%;
     padding-bottom: 20px;
-    contain: layout style paint;
-    transform: translateZ(0);
-    backface-visibility: hidden;
+    position: relative;
+    z-index: 1;
 }
 
 .style-card {
+    position: relative;
     width: 100%;
     min-height: 200px;
     display: flex;
@@ -97,28 +93,12 @@
     border-radius: 12px;
     padding: 20px;
     gap: 15px;
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     cursor: pointer;
+    transition: border-color 0.2s ease;
 }
 
 .style-card:hover {
-    border: 1px solid var(--theme-color);
-}
-
-.style-card.moving-to-active {
-    animation: moveToActive 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.style-card.moving-to-inactive {
-    animation: moveToInactive 0.5s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.style-card[style*="display: none"] {
-    display: none !important;
-}
-
-.style-card:not([style*="display: none"]) {
-    display: flex !important;
+    border-color: var(--theme-color);
 }
 
 .style-card-header {
@@ -563,6 +543,45 @@
 
 .switch-btn:hover:not(.active) {
     background: rgba(255, 255, 255, 0.1);
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes fadeOut {
+    from {
+        opacity: 1;
+        transform: translateY(0);
+    }
+    to {
+        opacity: 0;
+        transform: translateY(10px);
+    }
+}
+
+.style-card[style*="display: none"] {
+    display: none !important;
+}
+
+.style-card:not([style*="display: none"]) {
+    display: flex !important;
+    animation: fadeIn 0.2s ease forwards;
+}
+
+.style-card.moving-to-active {
+    animation: fadeIn 0.2s ease forwards;
+}
+
+.style-card.moving-to-inactive {
+    animation: fadeOut 0.2s ease forwards;
 }
 
 /* Animacja generowania */

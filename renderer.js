@@ -1,4 +1,5 @@
 const { ipcRenderer } = require('electron');
+const tagGenerator = require('./tag-generator');
 
 // Dodaj na początku pliku
 const HISTORY_LIMIT = 10;
@@ -479,67 +480,59 @@ function toggleStyle(styleId, active) {
 
 // Funkcja do przełączania widoku aktywnych/nieaktywnych stylów
 function toggleStylesView(view) {
-    const cards = document.querySelectorAll('.style-card');
-    const currentView = view === true ? 'active' : view; // Handle legacy true value
+    const styleCards = document.querySelectorAll('.style-card');
+    const activeBtn = document.querySelector('.switch-btn[data-view="active"]');
+    const inactiveBtn = document.querySelector('.switch-btn[data-view="inactive"]');
+    
+    // Aktualizuj klasy przycisków
+    if (view === 'active') {
+        activeBtn.classList.add('active');
+        inactiveBtn.classList.remove('active');
+    } else {
+        activeBtn.classList.remove('active');
+        inactiveBtn.classList.add('active');
+    }
 
-    cards.forEach(card => {
+    // Aktualizuj widoczność kart
+    styleCards.forEach(card => {
         const isActive = localStorage.getItem(`style_${card.dataset.styleId}_active`) === 'true';
-        const isFavorite = card.dataset.favorite === 'true';
-        
-        if (currentView === 'active') {
-            card.style.display = isActive ? 'flex' : 'none';
-        } else if (currentView === 'inactive') {
-            card.style.display = !isActive ? 'flex' : 'none';
-        } else if (currentView === 'favorites') {
-            card.style.display = isFavorite ? 'flex' : 'none';
-        }
-
-        // Reset transform and opacity for visible cards
-        if (card.style.display === 'flex') {
-            card.style.opacity = '1';
-            card.style.transform = 'scale(1)';
-        }
+        card.style.display = (view === 'active' && isActive) || (view === 'inactive' && !isActive) ? 'block' : 'none';
     });
 
-    // Update the Generate Prompts button text
+    // Aktualizuj liczniki i przycisk generowania
+    updateStyleCounts();
     updateGeneratePromptsButton();
 }
 
 // Initialize switch functionality
-document.addEventListener('DOMContentLoaded', () => {
-    const switchBtns = document.querySelectorAll('.switch-btn');
+document.addEventListener('DOMContentLoaded', async () => {
+    console.log('DOM Content Loaded - Initializing application...');
 
-    // Load styles first
-    loadStyles();
-
-    // Handle button clicks for view switching
-    switchBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
-            // Remove active class from all buttons
-            switchBtns.forEach(b => b.classList.remove('active'));
-            // Add active class to clicked button
-            btn.classList.add('active');
-            // Toggle view based on data-view attribute
-            toggleStylesView(btn.dataset.view);
+    try {
+        await loadStyles();
+        initializeWindowControls();
+        initializeButtons();
+        initializePromptInput(); // Dodaj inicjalizację pola promptu
+        initializeTheme();
+        
+        // Initialize switch functionality
+        const switchBtns = document.querySelectorAll('.switch-btn');
+        switchBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const view = btn.dataset.view;
+                toggleStylesView(view);
+            });
         });
-    });
 
-    // Handle style toggle switches
-    document.addEventListener('change', (e) => {
-        if (e.target.matches('.style-toggle input[type="checkbox"]')) {
-            const card = e.target.closest('.style-card');
-            if (card) {
-                const styleId = card.dataset.styleId;
-                toggleStyle(styleId, e.target.checked);
-            }
-        }
-    });
-
-    // Initial state - show active styles
-    toggleStylesView('active');
-    
-    // Update Generate Prompts button after initialization
-    updateGeneratePromptsButton();
+        // Initialize with active view
+        toggleStylesView('active');
+        updateStyleCounts();
+        updateGeneratePromptsButton();
+        
+    } catch (error) {
+        console.error('Error during initialization:', error);
+        showToast('Error initializing application');
+    }
 });
 
 // Funkcja do ładowania stylów
@@ -688,28 +681,13 @@ function initializePromptInput() {
     const promptInput = document.getElementById('promptInput');
     if (!promptInput) return;
 
-    // Pokaż domyślne tagi na starcie
-    displayTags([]);
+    // Generate initial template tags
+    generateTagsInBatches('');
 
-    promptInput.addEventListener('input', debounce(async (e) => {
-        const text = e.target.value.trim();
-        if (text) {
-            try {
-                displayTags('generating');
-                const translatedText = await handleTranslation(text);
-                if (translatedText) {
-                    // Użyj nowej funkcji generowania tagów w pakietach
-                    await generateTagsInBatches(translatedText);
-                }
-            } catch (error) {
-                console.error('Error:', error);
-                displayTags([]);
-                showToast('Error: ' + error.message);
-            }
-        } else {
-            // Pokaż domyślne tagi gdy pole jest puste
-            displayTags([]);
-        }
+    // Add input listener with debounce
+    promptInput.addEventListener('input', debounce(async (event) => {
+        const text = event.target.value.trim();
+        await generateTagsInBatches(text);
     }, 500));
 }
 
@@ -865,30 +843,15 @@ function displayTags(tags) {
         return;
     }
     
-    // Jeśli nie ma tagów lub pusty prompt, pokaż domyślne
-    if (!Array.isArray(tags) || tags.length === 0) {
-        tagsContainer.innerHTML = DEFAULT_TAGS
-            .map((tag, index) => `
-                <div class="generating-tag" style="animation-delay: ${index * 0.1}s">
-                    <i class="fas fa-tag"></i>${tag}
-                </div>`)
-            .join('');
-    } else {
-        // Sortuj tagi po długości (krótsze pierwsze) i alfabetycznie
-        const sortedTags = [...tags].sort((a, b) => {
-            if (a.length !== b.length) return a.length - b.length;
-            return a.localeCompare(b);
-        });
-        
-        tagsContainer.innerHTML = sortedTags
-            .map((tag, index) => `
-                <div class="generating-tag" style="animation-delay: ${index * 0.1}s">
-                    <i class="fas fa-tag"></i>${tag}
-                </div>`)
-            .join('');
-    }
+    // Display tags with animation
+    tagsContainer.innerHTML = tags
+        .map((tag, index) => `
+            <div class="generating-tag" style="animation-delay: ${index * 0.1}s">
+                <i class="fas fa-tag"></i>${tag}
+            </div>`)
+        .join('');
 
-    // Dodaj event listenery do tagów
+    // Add event listeners to tags
     document.querySelectorAll('.generating-tag').forEach(tagElement => {
         tagElement.addEventListener('click', () => {
             const tag = tagElement.textContent.trim();
@@ -900,62 +863,16 @@ function displayTags(tags) {
     });
 }
 
-// Funkcja do czyszczenia i filtrowania tagów
-function cleanTag(tag) {
-    if (!tag) return '';
-    
-    // Usuń tagi kontrolne
-    const controlTokens = ['<|', '|>', '_start', '_end', 'system', 'assistant', 'user', 'jim'];
-    let cleanedTag = tag.trim();
-    
-    // Usuń tagi kontrolne
-    controlTokens.forEach(token => {
-        cleanedTag = cleanedTag.replace(new RegExp(`<\\|?${token}\\|?>`, 'gi'), '');
-        cleanedTag = cleanedTag.replace(new RegExp(`${token}`, 'gi'), '');
-    });
-    
-    // Usuń znaki specjalne i nadmiarowe spacje
-    cleanedTag = cleanedTag
-        .replace(/[<>|]/g, '')
-        .replace(/\s+/g, ' ')
-        .trim();
-    
-    // Sprawdź czy tag nie jest pusty i ma sensowną długość
-    return cleanedTag.length > 1 && cleanedTag.length < 30 ? cleanedTag : '';
-}
-
 // Zmodyfikuj funkcję generateTagsInBatches
-async function generateTagsInBatches(text, batchSize = 6, totalBatches = 5) {
-    if (!text || !text.trim()) {
-        displayTags([]);
-        return;
-    }
-
+async function generateTagsInBatches(text) {
+    displayTags('generating');
+    
     try {
-        displayTags('generating');
-        const response = await ipcRenderer.invoke('generate-tags', { text: text.trim() });
-        
-        if (response && Array.isArray(response)) {
-            // Filtruj i czyść tagi
-            const validTags = response
-                .map(tag => cleanTag(tag))
-                .filter(tag => tag) // usuń puste tagi
-                .filter((tag, index, self) => self.indexOf(tag) === index) // usuń duplikaty
-                .slice(0, 15); // Limit do 15 tagów
-            
-            if (validTags.length > 0) {
-                displayTags(validTags);
-            } else {
-                console.warn('No valid tags received');
-                displayTags([]);
-            }
-        } else {
-            console.warn('Invalid response format:', response);
-            displayTags([]);
-        }
+        const tags = await tagGenerator.generateTags(text);
+        displayTags(tags);
     } catch (error) {
         console.error('Error generating tags:', error);
-        displayTags([]);
+        displayTags(tagGenerator.TEMPLATE_TAGS.slice(0, 10));
     }
 }
 
@@ -1177,40 +1094,11 @@ ipcRenderer.on('model-parameters-updated', (event, data) => {
     // Update style card if needed
     const styleCard = document.querySelector(`[data-style-id="${data.styleId}"]`);
     if (styleCard) {
-        // Get the title element that contains the custom indicator
         const titleEl = styleCard.querySelector('.style-card-title');
-        if (titleEl) {
-            // Remove existing custom indicator if any
-            const existingIndicator = titleEl.querySelector('.fa-sliders-h');
-            if (existingIndicator) {
-                existingIndicator.remove();
-            }
-            
-            // Add custom indicator if needed
-            const style = {
-                id: data.styleId,
-                modelParameters: data.parameters
-            };
-            
-            if (hasCustomParameters(style)) {
-                const customIcon = document.createElement('i');
-                customIcon.className = 'fas fa-sliders-h';
-                customIcon.style.fontSize = '12px';
-                customIcon.style.marginLeft = '8px';
-                customIcon.style.color = 'var(--accent)';
-                customIcon.title = 'Custom model parameters';
-                titleEl.appendChild(customIcon);
-            }
-        }
+        const descriptionEl = styleCard.querySelector('.style-card-description');
         
-        // Update the style card's data attributes
-        styleCard.setAttribute('data-temperature', data.parameters.temperature);
-        styleCard.setAttribute('data-top-p', data.parameters.top_p);
-        styleCard.setAttribute('data-top-k', data.parameters.top_k);
-        styleCard.setAttribute('data-repeat-penalty', data.parameters.repeat_penalty);
-        styleCard.setAttribute('data-max-tokens', data.parameters.max_tokens);
-        
-        console.log(`Model parameters updated for style ${data.styleId}:`, data.parameters);
+        titleEl.innerHTML = `<i class="fas fa-${data.styleIcon}"></i> ${data.styleName}`;
+        descriptionEl.textContent = data.styleDescription || 'No description available';
     }
 });
 
