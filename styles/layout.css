@@ -266,28 +266,59 @@
     border: 1px solid transparent;
 }
 
-.send-to-draw-btn {
+/* Magic Refiner button */
+.magic-refiner-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
     margin-left: auto;
     padding: 0 12px;
     height: 36px;
+    width: 140px;
     border-radius: 8px;
     border: 1px solid var(--theme-color-back);
     background: var(--card-background);
-    color: var(--text);
-    display: flex;
-    align-items: center;
-    gap: 6px;
+    color: var(--theme-color-text);
+    font-size: 14px;
     cursor: pointer;
     transition: all 0.2s ease;
     flex-direction: row-reverse;
 }
 
-.send-to-draw-btn:hover {
-    background: var(--card-background-darker);
-    border: 1px solid var(--theme-color);
-    border-radius: 6px;
-    color: var(--text);
+.magic-refiner-btn:hover {
+    background: var(--theme-color-back);
+    color: var(--theme-color-text);
+}
+
+.magic-refiner-btn.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Send to Draw Things button */
+.draw-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    margin-left: auto;
+    padding: 0 12px;
+    height: 36px;
+    width: 160px;
+    border-radius: 8px;
+    border: 1px solid var(--theme-color-back);
+    background: var(--card-background);
+    color: var(--theme-color-text);
+    font-size: 14px;
+    cursor: pointer;
     transition: all 0.2s ease;
+    flex-direction: row-reverse;
+}
+
+.draw-btn:hover {
+    background: var(--theme-color-back);
+    color: var(--theme-color-text);
 }
 
 .content-container {
@@ -450,34 +481,6 @@
     margin-top: 1px;
 }
 
-.style-card-button {
-    height: 36px;
-    padding: 0 16px;
-    border-radius: 8px;
-    background: var(--card-background);
-    color: var(--text);
-    border: 1px solid var(--theme-color-back);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    font-size: 14px;
-    font-weight: 500;
-    transition: all 0.2s ease;
-    white-space: nowrap;
-}
-
-.style-card-button:hover {
-    background: rgba(255, 255, 255, 0.1);
-    transform: translateY(-1px);
-}
-
-.style-card-button i {
-    font-size: 16px;
-    color: var(--text);
-}
-
 /* Specjalne style dla przycisków nawigacyjnych */
 .styles-nav-right .style-card-button i {
     order: 1;
@@ -560,6 +563,64 @@
 
 .switch-btn:hover:not(.active) {
     background: rgba(255, 255, 255, 0.1);
+}
+
+/* Animacja generowania */
+.generating-text {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 14px;
+    color: var(--text);
+    padding: 15px;
+}
+
+.generating-text span {
+    display: inline-block;
+    animation: fadeInOut 2s infinite;
+    opacity: 0;
+}
+
+.generating-text span:nth-child(2n) {
+    animation-delay: 0.1s;
+}
+
+.generating-text span:nth-child(3n) {
+    animation-delay: 0.2s;
+}
+
+.generating-text span:nth-child(4n) {
+    animation-delay: 0.3s;
+}
+
+.generating-text span:nth-child(5n) {
+    animation-delay: 0.4s;
+}
+
+.generating-icon {
+    animation: spin 2s linear infinite;
+    margin-right: 8px;
+    color: var(--theme-color);
+}
+
+@keyframes fadeInOut {
+    0%, 100% { opacity: 0.2; }
+    50% { opacity: 1; }
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.generating-container {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    min-height: 100px;
+    background: var(--background);
+    border-radius: 8px;
+    margin-top: 5px;
 }
 
 @keyframes pulse {

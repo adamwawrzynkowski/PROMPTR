@@ -7,8 +7,8 @@
 .generating-tag {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
-    padding: 4px 10px;
+    gap: 4px;
+    padding: 3px 10px;
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 4px;
@@ -42,13 +42,13 @@
 .tags-group {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
+    gap: 1px;
     align-items: center;
-    padding: 8px;
+    padding: 4px;
 }
 
 .tags-container {
-    min-height: 40px;
+    min-height: 32px;
 }
 
 /* Remove button */
@@ -164,5 +164,46 @@
     }
     50% {
         opacity: 1;
+    }
+}
+
+/* Generating prompt animation */
+.generating-prompt {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.1em;
+    color: var(--text-color);
+    opacity: 0.8;
+    padding: 20px;
+    text-align: center;
+    animation: fadeIn 0.3s ease-in-out;
+}
+
+.generating-prompt span {
+    display: inline-block;
+    animation: wave 1s ease-in-out infinite;
+}
+
+.generating-prompt i {
+    margin-right: 10px;
+    animation: spin 2s linear infinite;
+}
+
+@keyframes wave {
+    0%, 100% {
+        transform: translateY(0);
+    }
+    50% {
+        transform: translateY(-3px);
+    }
+}
+
+@keyframes spin {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
     }
 }

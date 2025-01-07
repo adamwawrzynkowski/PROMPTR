@@ -45,6 +45,19 @@ const store = new Store({
                 firstLaunch: {
                     type: 'boolean',
                     default: true
+                },
+                windowSize: {
+                    type: 'object',
+                    properties: {
+                        width: {
+                            type: 'number',
+                            default: 1200
+                        },
+                        height: {
+                            type: 'number',
+                            default: 800
+                        }
+                    }
                 }
             }
         }
@@ -132,8 +145,9 @@ class AppStartupManager {
 
             this.updateStartupProgress('Creating main window...', 90);
             try {
-                this.mainWindow = await this.createMainWindow();
-
+                // Create main window but don't show it yet
+                this.mainWindow = await createWindow();
+                
                 // Signal initialization complete
                 if (this.startup) {
                     this.startup.webContents.send('initialization-complete');
@@ -143,10 +157,14 @@ class AppStartupManager {
                 this.isStartupComplete = true;
                 this.updateStartupProgress('Startup complete', 100);
 
-                // Close startup window after a short delay
+                // Close startup window and show main window after a short delay
                 setTimeout(() => {
                     if (this.startup && !this.startup.isDestroyed()) {
                         this.startup.close();
+                    }
+                    if (this.mainWindow && !this.mainWindow.isDestroyed()) {
+                        this.mainWindow.show();
+                        this.mainWindow.focus();
                     }
                 }, 500);
                 
@@ -294,52 +312,8 @@ class AppStartupManager {
 
     async createMainWindow() {
         if (!this.mainWindow) {
-            console.log('Creating main window...');
-            this.mainWindow = new BrowserWindow({
-                width: 1200,
-                height: 800,
-                minWidth: 900,
-                minHeight: 700,
-                show: false,
-                frame: false,
-                titleBarStyle: 'hidden',
-                trafficLightPosition: { x: -100, y: -100 },
-                titleBarOverlay: false,
-                backgroundColor: '#1E1B2E',
-                webPreferences: {
-                    nodeIntegration: true,
-                    contextIsolation: false,
-                    devTools: true
-                }
-            });
-
-            try {
-                console.log('Loading index.html...');
-                await this.mainWindow.loadFile('index.html');
-                console.log('Main window loaded successfully');
-
-                return new Promise((resolve) => {
-                    this.mainWindow.once('ready-to-show', () => {
-                        console.log('Main window ready to show');
-                        this.mainWindow.show();
-                        this.mainWindow.focus();
-                        resolve(this.mainWindow);
-                    });
-
-                    // Add timeout in case ready-to-show never fires
-                    setTimeout(() => {
-                        if (this.mainWindow && !this.mainWindow.isDestroyed() && !this.mainWindow.isVisible()) {
-                            console.log('Forcing window show after timeout');
-                            this.mainWindow.show();
-                            this.mainWindow.focus();
-                            resolve(this.mainWindow);
-                        }
-                    }, 3000);
-                });
-            } catch (error) {
-                console.error('Error loading main window:', error);
-                throw error;
-            }
+            console.log('Creating main window through AppStartupManager...');
+            this.mainWindow = await createWindow();
         }
         return this.mainWindow;
     }
@@ -459,9 +433,13 @@ async function setupDefaultModels() {
 
 // Create main application window
 async function createWindow() {
+    // Get saved window size
+    const windowSize = store.get('settings.windowSize', { width: 1200, height: 800 });
+    console.log('Loading saved window size:', windowSize);
+
     mainWindow = new BrowserWindow({
-        width: 1200,
-        height: 800,
+        width: windowSize.width,
+        height: windowSize.height,
         minWidth: 800,
         minHeight: 600,
         show: false,
@@ -476,10 +454,19 @@ async function createWindow() {
     });
 
     await mainWindow.loadFile('index.html');
-    
-    mainWindow.once('ready-to-show', () => {
-        mainWindow.show();
-        mainWindow.focus();
+
+    // Save window size when it's resized
+    mainWindow.on('resize', () => {
+        const [width, height] = mainWindow.getSize();
+        console.log('Saving new window size:', { width, height });
+        store.set('settings.windowSize', { width, height });
+    });
+
+    // Save window size when it's closed
+    mainWindow.on('close', () => {
+        const [width, height] = mainWindow.getSize();
+        console.log('Saving window size before close:', { width, height });
+        store.set('settings.windowSize', { width, height });
     });
 
     return mainWindow;
@@ -634,6 +621,21 @@ app.whenReady().then(async () => {
         });
     });
 
+    // Prevent duplicate window creation
+    app.on('activate', async () => {
+        if (BrowserWindow.getAllWindows().length === 0) {
+            await createWindow();
+        }
+    });
+
+    // Handle window-all-closed event
+    app.on('window-all-closed', () => {
+        if (process.platform !== 'darwin') {
+            app.quit();
+        }
+    });
+
+    // Set up IPC handlers
     ipcMain.on('retry-startup', () => {
         appStartupManager.retry();
     });
@@ -737,6 +739,15 @@ app.whenReady().then(async () => {
             return status;
         } catch (error) {
             console.error('Error selecting model:', error);
+            throw error;
+        }
+    });
+
+    ipcMain.handle('refine-prompt', async (event, { prompt, style }) => {
+        try {
+            return await ollamaManager.refinePrompt(prompt, style);
+        } catch (error) {
+            console.error('Error refining prompt:', error);
             throw error;
         }
     });
@@ -952,7 +963,12 @@ app.whenReady().then(async () => {
     });
 
     ipcMain.handle('get-style', async (event, styleId) => {
-        return await stylesManager.getStyle(styleId);
+        try {
+            return await stylesManager.getStyle(styleId);
+        } catch (error) {
+            console.error('Error getting style:', error);
+            throw error;
+        }
     });
 
     ipcMain.handle('save-style', async (event, style) => {

@@ -1385,6 +1385,64 @@ except Exception as e:
             throw error;
         }
     }
+
+    async refinePrompt(prompt, style) {
+        try {
+            const model = await this.ensureTextModelSelected();
+            console.log('Refining prompt with model:', model);
+
+            const systemInstruction = `You are a specialized AI trained to enhance and refine prompts for image generation. Your task is to take an existing prompt and make it more detailed and specific, while maintaining its original intent and style.
+
+Follow these guidelines:
+1. Analyze the original prompt carefully
+2. Add more specific visual details and descriptive elements
+3. Enhance atmosphere and mood descriptions
+4. Include additional relevant artistic elements
+5. Maintain the original style and theme
+6. Keep the language natural and flowing
+7. DO NOT add technical terms or tags
+8. DO NOT drastically change the original concept
+9. ONLY return the enhanced prompt text, nothing else
+10. DO NOT include any explanations or comments about the changes made
+11. DO NOT include phrases like "Original prompt:" or "Enhanced prompt:"
+
+Example input: "A castle in the mountains"
+Example output: "A majestic medieval castle perched atop craggy mountain peaks, its ancient stone towers reaching into misty clouds, while snow-capped peaks stretch endlessly into the distance, the fortress walls weathered by centuries of alpine winds"`;
+
+            const requestBody = {
+                model: model,
+                prompt: systemInstruction + "\n\nEnhance this prompt: " + prompt,
+                stream: false,
+                options: {
+                    temperature: style?.modelParameters?.temperature || 0.75,
+                    top_p: style?.modelParameters?.top_p || 0.9,
+                    top_k: style?.modelParameters?.top_k || 50,
+                    repeat_penalty: style?.modelParameters?.repeat_penalty || 1.2
+                }
+            };
+
+            console.log('Making refine request with body:', requestBody);
+            
+            const response = await fetch(`${this.getBaseUrl()}/api/generate`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(requestBody)
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Failed to refine prompt: ${errorText}`);
+            }
+
+            const data = await response.json();
+            return data.response.trim();
+        } catch (error) {
+            console.error('Error in refinePrompt:', error);
+            throw error;
+        }
+    }
 }
 
 module.exports = new OllamaManager(); 

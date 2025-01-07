@@ -139,6 +139,7 @@ function createStyleCard(style) {
             // Show loading animation
             promptDisplay.style.display = 'none';
             loadingContainer.style.display = 'flex';
+            showLoadingAnimation(loadingContainer, 'Generating prompt...');
             generateBtn.classList.add('disabled', 'loading');
             generateBtn.disabled = true;
 
@@ -207,22 +208,18 @@ function createStyleCard(style) {
     const loadingContainer = document.createElement('div');
     loadingContainer.className = 'generating-container';
     loadingContainer.style.display = 'none';
-    loadingContainer.innerHTML = `
-        <div class="generating-animation">
-            <div class="dot"></div>
-            <div class="dot"></div>
-            <div class="dot"></div>
-        </div>
-        <span>Generating...</span>
-    `;
     
     // Create prompt text container
     const promptText = document.createElement('div');
     promptText.className = 'prompt-text';
     promptText.textContent = 'Click Generate to create a prompt...';
     
-    promptContainer.appendChild(loadingContainer);
     promptContainer.appendChild(promptText);
+    promptContainer.appendChild(loadingContainer);
+    
+    card.appendChild(header);
+    card.appendChild(controls);
+    card.appendChild(promptContainer);
     
     const actions = document.createElement('div');
     actions.className = 'prompt-actions';
@@ -268,17 +265,41 @@ function createStyleCard(style) {
     leftActions.appendChild(copyBtn);
     leftActions.appendChild(settingsBtn);
     
+    const magicRefinerBtn = document.createElement('button');
+    magicRefinerBtn.className = 'prompt-action-btn magic-refiner-btn disabled';
+    magicRefinerBtn.innerHTML = '<i class="fas fa-magic"></i> Magic Refiner';
+    magicRefinerBtn.title = 'Magic Refiner';
+    magicRefinerBtn.disabled = true;
+    magicRefinerBtn.onclick = () => refinePrompt(style.id);
+
     const drawBtn = document.createElement('button');
-    drawBtn.className = 'send-to-draw-btn';
+    drawBtn.className = 'prompt-action-btn draw-btn';
     drawBtn.innerHTML = '<i class="fas fa-arrow-right"></i> Send to Draw Things';
+    drawBtn.title = 'Send to Draw Things';
     drawBtn.onclick = () => sendToDrawThings(style.id);
+
+    // Obserwuj zmiany w tekście promptu
+    const observer = new MutationObserver((mutations) => {
+        for (const mutation of mutations) {
+            if (mutation.type === 'characterData' || mutation.type === 'childList') {
+                const hasPrompt = promptText.textContent.trim() !== 'Click Generate to create a prompt...';
+                magicRefinerBtn.disabled = !hasPrompt;
+                magicRefinerBtn.classList.toggle('disabled', !hasPrompt);
+            }
+        }
+    });
+
+    // Rozpocznij obserwowanie zmian w tekście promptu
+    observer.observe(promptText, { 
+        characterData: true, 
+        childList: true, 
+        subtree: true 
+    });
     
     actions.appendChild(leftActions);
+    actions.appendChild(magicRefinerBtn);
     actions.appendChild(drawBtn);
     
-    card.appendChild(header);
-    card.appendChild(controls);
-    card.appendChild(promptContainer);
     card.appendChild(actions);
     
     return card;
@@ -539,6 +560,12 @@ async function loadStyles() {
             const card = createStyleCard(style);
             stylesList.appendChild(card);
         });
+        
+        // Get current view
+        const currentView = document.querySelector('.switch-btn.active')?.dataset?.view || 'active';
+        
+        // Apply initial filtering
+        toggleStylesView(currentView);
         
         updateStyleCounts();
         updateGeneratePromptsButton();
@@ -968,9 +995,11 @@ async function generatePromptsSequentially(basePrompt, view = 'active') {
             }
 
             try {
-                // Show loading state
-                promptContainer.style.display = 'none';
+                // Show loading animation
+                promptDisplay.style.display = 'none';
                 loadingContainer.style.display = 'flex';
+                showLoadingAnimation(loadingContainer, 'Generating prompt...');
+                
                 if (generateBtn) {
                     generateBtn.classList.add('disabled');
                 }
@@ -991,39 +1020,36 @@ async function generatePromptsSequentially(basePrompt, view = 'active') {
                 
                 // Update UI with result
                 if (result && result.prompt) {
-                    promptDisplay.textContent = result.prompt;
+                    // Hide loading animation
+                    loadingContainer.style.display = 'none';
+                    promptContainer.style.display = 'block';
+                    
                     await revealPrompt(result.prompt, promptDisplay);
-                    successCount++;
-
-                    // Add to history
                     addToStyleHistory(styleId, result.prompt);
                     updateHistoryButtons(styleId);
-                } else {
-                    console.error('Invalid response format:', result);
-                    promptDisplay.textContent = 'Error: Invalid response format';
-                    promptDisplay.classList.add('error');
+                    successCount++;
                 }
-
             } catch (error) {
                 console.error(`Error generating prompt for style ${styleId}:`, error);
-                promptDisplay.textContent = `Error: ${error.message || 'Failed to generate prompt'}`;
-                promptDisplay.classList.add('error');
+                promptDisplay.textContent = 'Error generating prompt';
             } finally {
-                // Reset UI state
-                promptDisplay.style.display = 'block';
+                // Restore UI state
                 loadingContainer.style.display = 'none';
+                promptContainer.style.display = 'block';
                 if (generateBtn) {
                     generateBtn.classList.remove('disabled');
                 }
             }
         }
 
-        showToast(`Generated ${successCount} prompt${successCount !== 1 ? 's' : ''}`);
-        return successCount;
+        if (successCount > 0) {
+            showToast(`Successfully generated ${successCount} prompts`);
+        } else {
+            showToast('Failed to generate any prompts');
+        }
     } catch (error) {
         console.error('Error in generatePromptsSequentially:', error);
         showToast('Error generating prompts');
-        throw error;
     }
 }
 
@@ -1086,9 +1112,18 @@ function updateGeneratePromptsButton() {
             generatePromptsBtn.title = currentView === 'favorites' ? 'Generate prompts for favorite styles' : 'Generate prompts for active styles';
         }
 
-        // Update button text
-        const cardsCount = document.querySelectorAll(`.style-card${currentView === 'favorites' ? '[data-favorite="true"]' : ''}`).length;
-        generatePromptsBtn.innerHTML = `<i class="fas fa-wand-magic-sparkles"></i><span>Generate Prompts (${cardsCount})</span>`;
+        // Count only visible cards based on current view
+        const visibleCards = Array.from(document.querySelectorAll('.style-card')).filter(card => {
+            const isActive = localStorage.getItem(`style_${card.dataset.styleId}_active`) === 'true';
+            const isFavorite = card.dataset.favorite === 'true' || localStorage.getItem(`style_${card.dataset.styleId}_favorite`) === 'true';
+            
+            if (currentView === 'active') return isActive;
+            if (currentView === 'inactive') return !isActive;
+            if (currentView === 'favorites') return isFavorite;
+            return false;
+        }).length;
+
+        generatePromptsBtn.innerHTML = `<i class="fas fa-wand-magic-sparkles"></i><span>Generate Prompts (${visibleCards})</span>`;
     } catch (err) {
         console.warn('Could not update generate button:', err);
     }
@@ -1179,168 +1214,24 @@ ipcRenderer.on('model-parameters-updated', (event, data) => {
     }
 });
 
-// Model selector functionality
-let installedModels = [];
-
-const isVisionModel = (model) => {
-    const name = (model.name || '').toLowerCase();
-    const isVision = name.includes('llava') || 
-                    name.includes('vision') || 
-                    name.includes('bakllava');
-    console.log('Checking if vision model:', model.name, isVision);
-    return isVision;
-};
-
-async function initializeModelSelectors() {
-    console.log('Initializing model selectors');
-    const textModelTag = document.querySelector('.text-model');
-    const visionModelTag = document.querySelector('.vision-model');
-    
-    if (!textModelTag || !visionModelTag) {
-        console.error('Could not find model tags:', { textModelTag, visionModelTag });
-        return;
-    }
-    
-    // Get installed models
-    try {
-        console.log('Fetching installed models...');
-        const response = await ipcRenderer.invoke('list-models');
-        console.log('Got models response:', response);
-        installedModels = response.models || [];
-        
-        // Get current config
-        const config = await ipcRenderer.invoke('get-config');
-        console.log('Got config:', config);
-        
-        // Update dropdowns
-        updateModelDropdowns(config);
-        
-        // Add click listeners
-        textModelTag.addEventListener('click', (e) => {
-            console.log('Text model tag clicked');
-            toggleDropdown(e, 'text');
-        });
-        visionModelTag.addEventListener('click', (e) => {
-            console.log('Vision model tag clicked');
-            toggleDropdown(e, 'vision');
-        });
-        
-        // Close dropdowns when clicking outside
-        document.addEventListener('click', (e) => {
-            if (!e.target.closest('.model-tag')) {
-                console.log('Clicking outside, closing dropdowns');
-                textModelTag.classList.remove('active');
-                visionModelTag.classList.remove('active');
-            }
-        });
-    } catch (error) {
-        console.error('Error initializing model selectors:', error);
-    }
-}
-
-function updateModelDropdowns(config) {
-    console.log('Updating model dropdowns with config:', config);
-    
-    const textDropdown = document.getElementById('text-model-dropdown');
-    const visionDropdown = document.getElementById('vision-model-dropdown');
-    const textModelName = document.getElementById('text-model-name');
-    const visionModelName = document.getElementById('vision-model-name');
-    
-    if (!textDropdown || !visionDropdown || !textModelName || !visionModelName) {
-        console.error('Could not find dropdown elements:', { textDropdown, visionDropdown, textModelName, visionModelName });
-        return;
-    }
-    
-    // Update model names
-    textModelName.textContent = config?.currentModel || 'Not selected';
-    visionModelName.textContent = config?.visionModel || 'Not selected';
-    
-    // Clear existing items
-    textDropdown.innerHTML = '';
-    visionDropdown.innerHTML = '';
-    
-    console.log('Available models:', installedModels);
-    
-    // Filter models by type
-    const textModels = installedModels.filter(model => !isVisionModel(model));
-    const visionModels = installedModels.filter(model => isVisionModel(model));
-    
-    console.log('Filtered models:', { textModels, visionModels });
-    
-    // Populate text models dropdown
-    textModels.forEach(model => {
-        const item = createDropdownItem(model.name, config?.currentModel === model.name);
-        item.addEventListener('click', (e) => {
-            console.log('Selected text model:', model.name);
-            e.stopPropagation();
-            selectModel('text', model.name);
-        });
-        textDropdown.appendChild(item);
-    });
-    
-    // Populate vision models dropdown
-    visionModels.forEach(model => {
-        const item = createDropdownItem(model.name, config?.visionModel === model.name);
-        item.addEventListener('click', (e) => {
-            console.log('Selected vision model:', model.name);
-            e.stopPropagation();
-            selectModel('vision', model.name);
-        });
-        visionDropdown.appendChild(item);
-    });
-}
-
-function createDropdownItem(modelName, isSelected) {
-    const item = document.createElement('div');
-    item.className = `model-dropdown-item${isSelected ? ' selected' : ''}`;
-    item.textContent = modelName;
-    return item;
-}
-
-function toggleDropdown(event, type) {
-    event.stopPropagation();
-    const currentTag = event.currentTarget;
-    const otherTag = type === 'text' ? 
-        document.querySelector('.vision-model') : 
-        document.querySelector('.text-model');
-    
-    console.log('Toggling dropdown for', type, 'model');
-    otherTag.classList.remove('active');
-    currentTag.classList.toggle('active');
-}
-
-async function selectModel(type, modelName) {
-    try {
-        console.log(`Selecting ${type} model:`, modelName);
-        await ipcRenderer.invoke('select-model', { type, modelName });
-        
-        // Update UI immediately
-        const dropdown = document.querySelector(`#${type.toLowerCase()}-model-dropdown`);
-        if (dropdown) {
-            const button = dropdown.querySelector('.dropdown-button');
-            if (button) {
-                button.textContent = modelName || 'Select Model';
-            }
-        }
-        
-        // Update connection status to reflect the new model
-        const status = await ipcRenderer.invoke('get-ollama-status');
-        updateConnectionStatus(status);
-        
-        // Show confirmation
-        showToast(`${type} model set to: ${modelName}`);
-    } catch (error) {
-        console.error('Error selecting model:', error);
-        showToast(`Error selecting model: ${error.message}`);
-    }
-}
-
-// Initialize model selectors when the window loads
-window.addEventListener('DOMContentLoaded', initializeModelSelectors);
-
-// Update dropdowns when models change
+// Listen for model changes
 ipcRenderer.on('model-changed', (event, config) => {
-    updateModelDropdowns(config);
+    updateModelTags();
+});
+
+// Connection status handling
+const connectionStatus = document.querySelector('.connection-status');
+if (connectionStatus) {
+    connectionStatus.addEventListener('click', () => {
+        ipcRenderer.send('show-ollama-config');
+    });
+}
+
+ipcRenderer.on('ollama-status', (event, isConnected) => {
+    if (connectionStatus) {
+        connectionStatus.classList.toggle('connected', isConnected);
+        connectionStatus.classList.toggle('disconnected', !isConnected);
+    }
 });
 
 // Funkcja do aktualizacji statusu połączenia
@@ -1431,25 +1322,79 @@ function updateModelTags(status) {
     });
 }
 
-// Listen for model changes
-ipcRenderer.on('model-changed', (event, config) => {
-    updateModelTags();
-});
+// Funkcja do ulepszania promptu
+async function refinePrompt(styleId) {
+    try {
+        const card = document.querySelector(`[data-style-id="${styleId}"]`);
+        if (!card) {
+            console.error('Card not found for style:', styleId);
+            return;
+        }
 
-// Connection status handling
-const connectionStatus = document.querySelector('.connection-status');
-if (connectionStatus) {
-    connectionStatus.addEventListener('click', () => {
-        ipcRenderer.send('show-ollama-config');
-    });
-}
+        const promptContainer = card.querySelector('.prompt-container');
+        const loadingContainer = card.querySelector('.generating-container');
+        const promptDisplay = card.querySelector('.prompt-text');
+        
+        if (!promptContainer || !loadingContainer || !promptDisplay) {
+            console.error('Missing required elements for card:', styleId);
+            return;
+        }
 
-ipcRenderer.on('ollama-status', (event, isConnected) => {
-    if (connectionStatus) {
-        connectionStatus.classList.toggle('connected', isConnected);
-        connectionStatus.classList.toggle('disconnected', !isConnected);
+        const currentPrompt = promptDisplay.textContent.trim();
+        if (!currentPrompt) {
+            showToast('No prompt to refine');
+            return;
+        }
+
+        // Get style data from main process
+        const style = await ipcRenderer.invoke('get-style', styleId);
+        if (!style) {
+            console.error('Style not found');
+            showToast('Style not found');
+            return;
+        }
+
+        // Show loading animation
+        promptDisplay.style.display = 'none';
+        loadingContainer.style.display = 'flex';
+        showLoadingAnimation(loadingContainer, 'Refining prompt...');
+
+        const refinedPrompt = await ipcRenderer.invoke('refine-prompt', {
+            prompt: currentPrompt,
+            style: style
+        });
+
+        if (refinedPrompt) {
+            // Hide loading animation
+            loadingContainer.style.display = 'none';
+            promptDisplay.style.display = 'block';
+            
+            // Dodaj ulepszony prompt do historii
+            addToStyleHistory(styleId, refinedPrompt);
+            // Zaktualizuj wyświetlany prompt
+            await revealPrompt(refinedPrompt, promptDisplay);
+            // Zaktualizuj przyciski historii
+            updateHistoryButtons(styleId);
+        } else {
+            throw new Error('Failed to refine prompt');
+        }
+    } catch (error) {
+        console.error('Error refining prompt:', error);
+        showToast('Failed to refine prompt: ' + error.message);
+        
+        // Restore original state in case of error
+        const card = document.querySelector(`[data-style-id="${styleId}"]`);
+        if (card) {
+            const promptContainer = card.querySelector('.prompt-container');
+            const loadingContainer = card.querySelector('.generating-container');
+            const promptDisplay = card.querySelector('.prompt-text');
+            if (promptContainer && loadingContainer && promptDisplay) {
+                loadingContainer.style.display = 'none';
+                promptDisplay.style.display = 'block';
+            }
+        }
     }
-});
+}
 
 // Funkcja do obsługi tłumaczenia
 async function handleTranslation(text) {
@@ -1601,3 +1546,14 @@ const initializeTheme = async () => {
 document.addEventListener('DOMContentLoaded', () => {
     initializeTheme();
 });
+
+// Funkcja pomocnicza do wyświetlania animacji ładowania
+function showLoadingAnimation(container, text) {
+    container.innerHTML = `
+        <div class="generating-text">
+            <i class="fas fa-sparkles generating-icon"></i>
+            ${Array.from(text).map(char => 
+                char === ' ' ? '<span>&nbsp;</span>' : `<span>${char}</span>`
+            ).join('')}
+        </div>`;
+}
