@@ -1171,92 +1171,261 @@ ipcRenderer.on('ollama-status', (event, isConnected) => {
     }
 });
 
-// Funkcja do aktualizacji statusu połączenia
-function updateConnectionStatus(status) {
-    console.log('Updating connection status:', status);
-    const connectionBtn = document.getElementById('connection-btn');
-    const generatePromptsBtn = document.getElementById('generate-prompts-btn');
-
-    if (!connectionBtn) {
-        console.warn('Connection button not found');
-        return;
+// Performance monitoring
+function initializePerformanceMonitoring() {
+    const cpuElement = document.getElementById('cpu-usage');
+    const ramElement = document.getElementById('ram-usage');
+    const gpuElement = document.getElementById('gpu-usage');
+    
+    function formatMemory(bytes) {
+        if (bytes < 1024 * 1024) {
+            return `${(bytes / 1024).toFixed(1)}KB`;
+        } else if (bytes < 1024 * 1024 * 1024) {
+            return `${(bytes / 1024 / 1024).toFixed(1)}MB`;
+        } else {
+            return `${(bytes / 1024 / 1024 / 1024).toFixed(2)}GB`;
+        }
     }
+    
+    function createTooltipContent(type, systemValue, ollamaValue) {
+        const tooltip = document.createElement('div');
+        tooltip.className = 'performance-tooltip';
+        
+        const table = document.createElement('table');
+        let html = '';
+        
+        if (type === 'ram') {
+            html = `
+                <tr>
+                    <td>System:</td>
+                    <td>${formatMemory(systemValue)}</td>
+                </tr>
+                <tr>
+                    <td>Ollama:</td>
+                    <td>${ollamaValue ? formatMemory(ollamaValue) : 'inactive'}</td>
+                </tr>
+                ${ollamaValue ? `
+                <tr class="total-row">
+                    <td>Total:</td>
+                    <td>${formatMemory(systemValue + ollamaValue)}</td>
+                </tr>
+                ` : ''}
+            `;
+        } else if (type === 'cpu') {
+            html = `
+                <tr>
+                    <td>System:</td>
+                    <td>${systemValue.toFixed(1)}%</td>
+                </tr>
+                <tr>
+                    <td>Ollama:</td>
+                    <td>${ollamaValue ? ollamaValue.toFixed(1) + '%' : 'inactive'}</td>
+                </tr>
+                ${ollamaValue ? `
+                <tr class="total-row">
+                    <td>Peak:</td>
+                    <td>${Math.max(systemValue, ollamaValue).toFixed(1)}%</td>
+                </tr>
+                ` : ''}
+            `;
+        } else {
+            html = `
+                <tr>
+                    <td>GPU:</td>
+                    <td>${systemValue.toFixed(1)}%</td>
+                </tr>
+            `;
+        }
+        
+        table.innerHTML = html;
+        tooltip.appendChild(table);
+        return tooltip;
+    }
+    
+    function updatePerformanceIndicator(element, systemValue, ollamaValue, type) {
+        if (!element) return;
+        
+        const container = element.parentElement;
+        
+        // Remove existing tooltip
+        const existingTooltip = container.querySelector('.performance-tooltip');
+        if (existingTooltip) {
+            existingTooltip.remove();
+        }
+        
+        // Remove existing classes
+        container.classList.remove('high-usage', 'medium-usage', 'ollama-active');
+        
+        // Calculate combined value
+        let totalValue = systemValue;
+        if (type === 'cpu') {
+            totalValue = Math.max(systemValue, ollamaValue);
+        } else if (type === 'ram') {
+            totalValue = systemValue + ollamaValue;
+        }
+        
+        // Add appropriate class based on usage
+        if (totalValue > 80) {
+            container.classList.add('high-usage');
+        } else if (totalValue > 60) {
+            container.classList.add('medium-usage');
+        }
+        
+        // Add Ollama indicator if active
+        if (ollamaValue > 0) {
+            container.classList.add('ollama-active');
+        }
+        
+        // Update text
+        if (type === 'ram') {
+            const totalText = formatMemory(totalValue);
+            element.textContent = ollamaValue ? `${totalText} (combined)` : totalText;
+        } else {
+            element.textContent = `${Math.round(totalValue)}%`;
+        }
+        
+        // Add tooltip
+        container.appendChild(createTooltipContent(type, systemValue, ollamaValue));
+    }
+    
+    // Request performance updates from main process
+    function requestPerformanceUpdate() {
+        ipcRenderer.invoke('get-performance-stats').then(stats => {
+            updatePerformanceIndicator(cpuElement, stats.system.cpu, stats.ollama.cpu, 'cpu');
+            updatePerformanceIndicator(ramElement, stats.system.ram, stats.ollama.ram, 'ram');
+            updatePerformanceIndicator(gpuElement, stats.system.gpu, 0, 'gpu');
+        }).catch(console.error);
+    }
+    
+    // Update every second
+    setInterval(requestPerformanceUpdate, 1000);
+}
 
-    if (status && status.isConnected) {
-        connectionBtn.classList.remove('disconnected');
-        connectionBtn.classList.add('connected');
-        connectionBtn.title = 'Ollama Connected';
+// Initialize performance monitoring when DOM is loaded
+document.addEventListener('DOMContentLoaded', () => {
+    initializePerformanceMonitoring();
+});
+
+// Virtual scrolling implementation
+class VirtualScroller {
+    constructor(container, items, renderCallback) {
+        this.container = container;
+        this.items = items;
+        this.renderCallback = renderCallback;
+        this.visibleItems = new Map();
+        this.lastScrollPosition = 0;
         
-        if (generatePromptsBtn) {
-            generatePromptsBtn.classList.remove('disabled');
-        }
+        // Create height placeholder
+        this.heightPlaceholder = document.createElement('div');
+        this.container.appendChild(this.heightPlaceholder);
         
-        // Update model names when connection is established
-        if (status.currentModel) {
-            const textModelName = document.getElementById('text-model-name');
-            if (textModelName) {
-                textModelName.textContent = status.currentModel;
+        // Bind scroll handler with RAF for performance
+        this.scrollHandler = this.onScroll.bind(this);
+        this.container.addEventListener('scroll', () => {
+            if (!this.ticking) {
+                requestAnimationFrame(() => {
+                    this.scrollHandler();
+                    this.ticking = false;
+                });
+                this.ticking = true;
+            }
+        });
+        
+        // Initial render
+        this.updateVisibleItems();
+    }
+    
+    updateVisibleItems() {
+        const scrollTop = this.container.scrollTop;
+        const viewportHeight = this.container.clientHeight;
+        
+        // Calculate visible range with buffer
+        const startIndex = Math.max(0, Math.floor(scrollTop / CARD_HEIGHT) - BUFFER_SIZE);
+        const endIndex = Math.min(
+            this.items.length,
+            Math.ceil((scrollTop + viewportHeight) / CARD_HEIGHT) + BUFFER_SIZE
+        );
+        
+        // Update height placeholder
+        this.heightPlaceholder.style.height = `${this.items.length * CARD_HEIGHT}px`;
+        
+        // Remove items that are no longer visible
+        for (const [index, element] of this.visibleItems.entries()) {
+            if (index < startIndex || index >= endIndex) {
+                element.remove();
+                this.visibleItems.delete(index);
             }
         }
-        if (status.visionModel) {
-            const visionModelName = document.getElementById('vision-model-name');
-            if (visionModelName) {
-                visionModelName.textContent = status.visionModel;
+        
+        // Add new visible items
+        for (let i = startIndex; i < endIndex; i++) {
+            if (!this.visibleItems.has(i) && i < this.items.length) {
+                const item = this.items[i];
+                const element = this.renderCallback(item);
+                element.style.position = 'absolute';
+                element.style.top = `${i * CARD_HEIGHT}px`;
+                element.style.width = '100%';
+                this.container.appendChild(element);
+                this.visibleItems.set(i, element);
             }
         }
-    } else {
-        connectionBtn.classList.remove('connected');
-        connectionBtn.classList.add('disconnected');
-        connectionBtn.title = status?.lastError || 'Ollama Disconnected';
-        
-        if (generatePromptsBtn) {
-            generatePromptsBtn.classList.add('disabled');
-        }
-        
-        // Reset model names when disconnected
-        const textModelName = document.getElementById('text-model-name');
-        const visionModelName = document.getElementById('vision-model-name');
-        if (textModelName) textModelName.textContent = 'Not selected';
-        if (visionModelName) visionModelName.textContent = 'Not selected';
+    }
+    
+    onScroll() {
+        this.updateVisibleItems();
+        this.lastScrollPosition = this.container.scrollTop;
+    }
+    
+    refresh(newItems) {
+        this.items = newItems;
+        this.visibleItems.clear();
+        this.container.innerHTML = '';
+        this.container.appendChild(this.heightPlaceholder);
+        this.updateVisibleItems();
     }
 }
 
-// Funkcja do aktualizacji tagów modelu
-function updateModelTags(status) {
-    const textModelName = document.getElementById('text-model-name');
-    const visionModelName = document.getElementById('vision-model-name');
+// Initialize virtual scrolling
+function initializeVirtualScrolling() {
+    const container = document.querySelector('.styles-container');
+    if (!container) return;
     
-    if (!textModelName || !visionModelName) {
-        console.warn('Model tag elements not found');
-        return;
-    }
+    // Get all styles
+    const styles = Array.from(container.querySelectorAll('.style-card'));
     
-    // Get current models from config
-    ipcRenderer.invoke('get-config').then(config => {
-        if (config) {
-            // Update text model
-            if (config.currentModel) {
-                textModelName.textContent = config.currentModel;
-                textModelName.title = `Current Text Model: ${config.currentModel}`;
-            } else {
-                textModelName.textContent = 'Not selected';
-                textModelName.title = 'No text model selected';
-            }
-            
-            // Update vision model
-            if (config.visionModel) {
-                visionModelName.textContent = config.visionModel;
-                visionModelName.title = `Current Vision Model: ${config.visionModel}`;
-            } else {
-                visionModelName.textContent = 'Not selected';
-                visionModelName.title = 'No vision model selected';
-            }
+    // Remove existing cards
+    container.innerHTML = '';
+    
+    // Create virtual scroller
+    const virtualScroller = new VirtualScroller(
+        container,
+        styles,
+        (style) => {
+            const clone = style.cloneNode(true);
+            setupStyleCardEventListeners(clone, {
+                id: clone.dataset.styleId,
+                // Add other necessary style properties
+            });
+            return clone;
         }
-    }).catch(error => {
-        console.error('Error getting config:', error);
-        textModelName.textContent = 'Error';
-        visionModelName.textContent = 'Error';
+    );
+    
+    // Store reference for later use
+    window.virtualScroller = virtualScroller;
+}
+
+// Optimize style card creation with DocumentFragment
+function createStyleCards(styles) {
+    const fragment = document.createDocumentFragment();
+    const container = document.querySelector('.styles-container');
+    
+    styles.forEach(style => {
+        const card = createStyleCard(style);
+        fragment.appendChild(card);
     });
+    
+    container.appendChild(fragment);
+    initializeVirtualScrolling();
 }
 
 // Funkcja do ulepszania promptu

@@ -31,6 +31,8 @@ const https = require('https');
 const dependenciesWindow = require('./dependencies-window');
 const creditsWindow = require('./credits-window');
 const fetch = require('node-fetch');
+const pidusage = require('pidusage');
+const os = require('os');
 
 // Initialize electron store with schema
 const store = new Store({
@@ -67,6 +69,7 @@ const store = new Store({
 // Global variables
 let mainWindow = null;
 let ollamaConfigWindow = null;
+let onboardingWindow = null;
 
 // Constants
 const APP_VERSION = 'v1.0';
@@ -229,7 +232,6 @@ class AppStartupManager {
         const minMemoryMB = 512;
         
         // Get system memory info using OS module
-        const os = require('os');
         const totalMemoryMB = Math.floor(os.totalmem() / (1024 * 1024));
         
         // On macOS, we'll consider both free memory and cached memory as available
@@ -445,7 +447,7 @@ async function createWindow() {
         show: false,
         frame: false,
         titleBarStyle: 'hidden',
-        trafficLightPosition: { x: -100, y: -100 }, // Hide traffic lights
+        trafficLightPosition: { x: -100, y: -100 },
         titleBarOverlay: false,
         backgroundColor: '#1e1b2e',
         webPreferences: {
@@ -453,15 +455,25 @@ async function createWindow() {
             contextIsolation: false,
             enableRemoteModule: true,
             spellcheck: false,
-            backgroundThrottling: false
+            backgroundThrottling: false,
+            enablePreferredSizeMode: true,
+            enableWebSQL: false,
+            v8CacheOptions: 'code',
         }
     });
+
+    // Performance optimizations
+    app.commandLine.appendSwitch('disable-renderer-backgrounding');
+    app.commandLine.appendSwitch('disable-background-timer-throttling');
+    app.commandLine.appendSwitch('disable-background-networking');
+    app.commandLine.appendSwitch('enable-features', 'VaapiVideoDecoder');
 
     // Enable hardware acceleration
     app.commandLine.appendSwitch('enable-accelerated-compositing');
     app.commandLine.appendSwitch('enable-gpu-rasterization');
     app.commandLine.appendSwitch('enable-zero-copy');
     app.commandLine.appendSwitch('ignore-gpu-blacklist');
+    app.commandLine.appendSwitch('enable-native-gpu-memory-buffers');
 
     await mainWindow.loadFile('index.html');
 
@@ -469,6 +481,12 @@ async function createWindow() {
     mainWindow.webContents.setZoomFactor(1.0);
     mainWindow.webContents.setVisualZoomLevelLimits(1, 1);
     mainWindow.webContents.setBackgroundThrottling(false);
+
+    // Optimize window performance
+    mainWindow.webContents.on('did-finish-load', () => {
+        mainWindow.webContents.setZoomFactor(1.0);
+        mainWindow.webContents.setVisualZoomLevelLimits(1, 1);
+    });
 
     // Save window size when it's resized
     mainWindow.on('resize', () => {
@@ -573,6 +591,56 @@ function formatModelName(name) {
     return `${ollamaName}:latest`;
 }
 
+// Model-related IPC handlers
+function setupModelHandlers() {
+    // Remove any existing handlers to prevent duplicates
+    ipcMain.removeHandler('install-model');
+    ipcMain.removeHandler('select-model');
+    ipcMain.removeHandler('list-models');
+    
+    // Model installation and configuration
+    ipcMain.handle('install-model', async (event, modelName) => {
+        try {
+            await ollamaManager.pullModel(modelName, (progress) => {
+                // Send progress updates to the renderer
+                event.sender.send('model-install-progress', {
+                    progress: progress,
+                    status: `Installing ${modelName}... ${Math.round(progress)}%`
+                });
+            });
+            await ollamaManager.setModel(modelName);
+            return { success: true };
+        } catch (error) {
+            console.error('Error installing model:', error);
+            throw error;
+        }
+    });
+
+    ipcMain.handle('select-model', async (event, { type, modelName }) => {
+        try {
+            if (type.toLowerCase() === 'text') {
+                await ollamaManager.setModel(modelName);
+            } else if (type.toLowerCase() === 'vision') {
+                await ollamaManager.setVisionModel(modelName);
+            }
+            
+            // Get updated status
+            const status = await ollamaManager.getStatus();
+            if (mainWindow) {
+                mainWindow.webContents.send('ollama-status', status);
+            }
+            return status;
+        } catch (error) {
+            console.error('Error selecting model:', error);
+            throw error;
+        }
+    });
+
+    ipcMain.handle('list-models', async () => {
+        return await ollamaManager.listModels();
+    });
+}
+
 // Ollama IPC handlers
 ipcMain.handle('check-ollama-connection', async () => {
     try {
@@ -613,588 +681,90 @@ ipcMain.on('close-config', () => {
     }
 });
 
-// Handle app ready
-app.whenReady().then(async () => {
-    initializePaths();
-    await initializeStyles();
-    
-    // Check if this is the first launch
-    const isFirstLaunch = store.get('settings.firstLaunch', true);
-    
-    if (isFirstLaunch) {
-        // Create and show style selection window
-        styleSelectionWindow.createStyleSelectionWindow();
-    } else {
-        // Create and set startup window as normal
-        appStartupManager.startup = createStartupWindow();
+// Handle model installation from onboarding
+ipcMain.handle('install-model', async (event, modelName) => {
+    try {
+        await ollamaManager.pullModel(modelName);
+        return { success: true };
+    } catch (error) {
+        console.error('Error installing model:', error);
+        return { success: false, error: error.message };
     }
+});
 
-    // Set up IPC handlers
-    ipcMain.on('startup-window-ready', () => {
-        appStartupManager.initializeApp().catch(error => {
-            console.error('Failed to initialize app:', error);
-        });
-    });
-
-    // Add handler for tag generation
-    ipcMain.handle('generate-tags', async (event, { text, systemPrompt }) => {
-        try {
-            const config = configManager.getConfig();
-            const currentModel = config.currentModel || 'llama2';
-            
-            const response = await fetch('http://127.0.0.1:11434/api/generate', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    model: currentModel,
-                    prompt: systemPrompt + '\n\nInput text: "' + text + '"',
-                    stream: false
-                })
-            });
-
-            if (!response.ok) {
-                throw new Error('Failed to generate tags');
-            }
-
-            const data = await response.json();
-            return data.response;
-        } catch (error) {
-            console.error('Error generating tags:', error);
-            throw error;
+// Handle onboarding completion
+ipcMain.handle('complete-onboarding', async () => {
+    try {
+        // Close onboarding window if it exists
+        if (onboardingWindow) {
+            onboardingWindow.close();
+            onboardingWindow = null;
         }
-    });
-
-    // Prevent duplicate window creation
-    app.on('activate', async () => {
-        if (BrowserWindow.getAllWindows().length === 0) {
-            await createWindow();
-        }
-    });
-
-    // Handle window-all-closed event
-    app.on('window-all-closed', () => {
-        if (process.platform !== 'darwin') {
-            app.quit();
-        }
-    });
-
-    // Set up IPC handlers
-    ipcMain.on('retry-startup', () => {
-        appStartupManager.retry();
-    });
-
-    // Add list-models and get-config handlers
-    ipcMain.handle('list-models', async () => {
-        return await ollamaManager.listModels();
-    });
-
-    ipcMain.handle('get-config', async () => {
-        try {
-            const configPath = path.join(app.getPath('userData'), 'config.json');
-            const configData = await fs.readFile(configPath, 'utf8');
-            return JSON.parse(configData);
-        } catch (error) {
-            console.error('Error reading config:', error);
-            return {
-                currentModel: null,
-                visionModel: null
-            };
-        }
-    });
-
-    ipcMain.handle('detect-and-translate', async (event, text) => {
-        try {
-            return await ollamaManager.detectAndTranslateText(text);
-        } catch (error) {
-            console.error('Error in detect-and-translate:', error);
-            throw error;
-        }
-    });
-
-    ipcMain.handle('generate-prompt', async (event, data) => {
-        try {
-            console.log('Received generate-prompt request:', data);
-            
-            if (!data || !data.basePrompt) {
-                throw new Error('No base prompt provided');
-            }
-            
-            const { basePrompt, styleId } = data;
-            
-            // Ensure we have the current model from Ollama manager
-            if (!ollamaManager.currentModel) {
-                throw new Error('No text model selected. Please select a model in settings.');
-            }
-            
-            // Always get the latest style data from the styles manager
-            if (!styleId) {
-                throw new Error('No style ID provided');
-            }
-            
-            const style = await stylesManager.getStyle(styleId);
-            if (!style) {
-                throw new Error(`Style ${styleId} not found`);
-            }
-            
-            console.log('Using style from styles manager:', style);
-            
-            // Generate the prompt
-            const result = await ollamaManager.generatePrompt(
-                basePrompt,
-                styleId,
-                style
-            );
-            
-            return {
-                prompt: result.prompt,
-                parameters: result.parameters
-            };
-        } catch (error) {
-            console.error('Error in generate-prompt:', error);
-            throw error;
-        }
-    });
-
-    ipcMain.handle('select-model', async (event, { type, modelName }) => {
-        try {
-            if (type.toLowerCase() === 'text') {
-                await ollamaManager.setModel(modelName);
-            } else if (type.toLowerCase() === 'vision') {
-                await ollamaManager.setVisionModel(modelName);
-            }
-            
-            // Get updated status
-            const status = await ollamaManager.getStatus();
-            mainWindow.webContents.send('ollama-status', status);
-            
-            return status;
-        } catch (error) {
-            console.error('Error selecting model:', error);
-            throw error;
-        }
-    });
-
-    ipcMain.handle('refine-prompt', async (event, { prompt, style }) => {
-        try {
-            return await ollamaManager.refinePrompt(prompt, style);
-        } catch (error) {
-            console.error('Error refining prompt:', error);
-            throw error;
-        }
-    });
-
-    // Add save-config handler
-    ipcMain.handle('save-config', async (event, config) => {
-        try {
-            const configPath = path.join(app.getPath('userData'), 'config.json');
-            await fs.writeFile(configPath, JSON.stringify(config, null, 2));
-            return true;
-        } catch (error) {
-            console.error('Error saving config:', error);
-            throw error;
-        }
-    });
-
-    // Event handlers for style settings
-    ipcMain.on('open-style-settings', async (event, styleId) => {
-        const window = styleSettingsWindow.createStyleSettingsWindow(mainWindow);
         
-        // Get style data from storage and send it to the settings window
-        const style = await stylesManager.getStyle(styleId);
-        if (style) {
-            window.webContents.on('did-finish-load', () => {
-                // Ensure modelParameters has default values
-                const modelParams = {
-                    temperature: 0.7,
-                    top_p: 0.9,
-                    top_k: 40,
-                    repeat_penalty: 1.1,
-                    ...(style.modelParameters || {})
-                };
-                
-                window.webContents.send('style-data', {
-                    ...style,
-                    modelParameters: modelParams
-                });
-            });
-        }
-    });
+        // Mark onboarding as completed
+        const config = store.get('config', {});
+        config.onboardingCompleted = true;
+        store.set('config', config);
+        
+        // Initialize app through startup manager
+        await appStartupManager.initializeApp();
+        
+        return true;
+    } catch (error) {
+        console.error('Error completing onboarding:', error);
+        throw error;
+    }
+});
 
-    ipcMain.on('close-style-settings', () => {
-        styleSettingsWindow.closeStyleSettingsWindow();
-    });
-
-    ipcMain.on('save-style-settings', async (event, updatedStyle) => {
-        try {
-            console.log('Saving style settings:', updatedStyle);
-            await stylesManager.updateStyle(updatedStyle);
-            mainWindow.webContents.send('style-updated', updatedStyle);
-            styleSettingsWindow.closeStyleSettingsWindow();
-        } catch (error) {
-            console.error('Error saving style settings:', error);
-            event.reply('style-settings-save-error', error.message);
-        }
-    });
-
-    ipcMain.on('update-style-parameters', async (event, data) => {
-        try {
-            await stylesManager.updateStyleParameters(data.styleId, data.parameters);
-            event.reply('style-parameters-updated');
-        } catch (error) {
-            console.error('Error updating style parameters:', error);
-            event.reply('style-parameters-update-error', error.message);
-        }
-    });
-
-    // Theme settings handlers
-    ipcMain.handle('get-setting', async (event, key) => {
-        try {
-            const settings = store.get('settings') || {};
-            return settings[key];
-        } catch (error) {
-            console.error('Error getting setting:', error);
-            return null;
-        }
-    });
-
-    ipcMain.handle('set-setting', async (event, key, value) => {
-        try {
-            const settings = store.get('settings') || {};
-            settings[key] = value;
-            store.set('settings', settings);
-            return true;
-        } catch (error) {
-            console.error('Error setting setting:', error);
+// Check if onboarding is needed
+async function needsOnboarding() {
+    try {
+        const config = store.get('config', {});
+        
+        // If user has completed onboarding before, skip it
+        if (config.onboardingCompleted) {
             return false;
         }
-    });
 
-    // Window control handlers
-    ipcMain.on('minimize-window', () => {
-        const win = BrowserWindow.getFocusedWindow();
-        if (win) win.minimize();
-    });
-
-    ipcMain.on('maximize-window', () => {
-        const win = BrowserWindow.getFocusedWindow();
-        if (win) {
-            if (win.isMaximized()) {
-                win.unmaximize();
-            } else {
-                win.maximize();
-            }
-        }
-    });
-
-    ipcMain.on('close-window', () => {
-        const win = BrowserWindow.getFocusedWindow();
-        if (win) win.close();
-    });
-
-    // Window opening handlers
-    ipcMain.on('open-config', () => {
-        configWindow.create();
-    });
-
-    ipcMain.on('open-settings', () => {
-        settingsWindow.create();
-    });
-
-    ipcMain.on('open-styles', () => {
-        stylesWindow.create();
-    });
-
-    ipcMain.on('open-vision', () => {
-        visionWindow.create();
-    });
-
-    ipcMain.on('open-credits', () => {
-        creditsWindow.create();
-    });
-
-    ipcMain.on('open-ollama-config', () => {
-        createOllamaConfigWindow();
-    });
-
-    // Ollama status handlers
-    ipcMain.handle('check-ollama-status', async () => {
-        return await ollamaManager.getStatus();
-    });
-
-    ipcMain.handle('refresh-ollama-status', async () => {
-        return await ollamaManager.getStatus();
-    });
-
-    // Model handlers
-    ipcMain.handle('get-available-models', async () => {
-        return await ollamaManager.listModels();
-    });
-
-    ipcMain.handle('get-custom-models', async () => {
-        return await ollamaManager.getCustomModels();
-    });
-
-    ipcMain.handle('install-model', async (event, modelName) => {
-        try {
-            const formattedName = formatModelName(modelName);
-            console.log('Installing model:', formattedName);
-            
-            const response = await fetch('http://localhost:11434/api/pull', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ name: formattedName })
-            });
-            
-            if (!response.ok) {
-                const text = await response.text();
-                console.error('Install response:', response.status, text);
-                throw new Error(`Failed to install model: ${response.status} ${response.statusText} ${text ? `- ${text}` : ''}`);
-            }
-            
-            const text = await response.text();
-            const lines = text.split('\n').filter(line => line.trim());
-            
-            for (let i = 0; i < lines.length; i++) {
-                try {
-                    const data = JSON.parse(lines[i]);
-                    if (data.status === 'downloading' && data.total && data.completed) {
-                        event.sender.send('model-install-progress', { 
-                            modelName, 
-                            progress: Math.min(99, (data.completed / data.total) * 100),
-                            downloadSize: data.completed,
-                            totalSize: data.total
-                        });
-                    }
-                } catch (e) {
-                    // Ignore parse errors for non-JSON lines
-                }
-            }
-            
-            // Send final progress update
-            event.sender.send('model-install-progress', { 
-                modelName, 
-                progress: 100
-            });
-            
-            return true;
-        } catch (error) {
-            console.error('Failed to install model:', error);
-            throw error;
-        }
-    });
-
-    ipcMain.handle('delete-model', async (event, modelName) => {
-        return await ollamaManager.deleteModel(modelName);
-    });
-
-    // Style management handlers
-    ipcMain.handle('get-styles', async () => {
-        console.log('Handling get-styles request');
-        return await stylesManager.getAllStyles();
-    });
-
-    ipcMain.handle('get-style', async (event, styleId) => {
-        try {
-            return await stylesManager.getStyle(styleId);
-        } catch (error) {
-            console.error('Error getting style:', error);
-            throw error;
-        }
-    });
-
-    ipcMain.handle('save-style', async (event, style) => {
-        return await stylesManager.saveStyle(style);
-    });
-
-    ipcMain.handle('delete-style', async (event, styleId) => {
-        return await stylesManager.deleteStyle(styleId);
-    });
-
-    ipcMain.handle('update-style', async (event, style) => {
-        return await stylesManager.updateStyle(style);
-    });
-
-    // Settings handlers
-    ipcMain.handle('get-settings', async () => {
-        return settingsManager.getSettings();
-    });
-
-    ipcMain.handle('save-settings', async (event, settings) => {
-        return settingsManager.saveSettings(settings);
-    });
-
-    // Draw Things connection handler
-    ipcMain.handle('check-draw-things', async () => {
-        return new Promise((resolve) => {
-            const client = new net.Socket();
-            
-            client.on('error', () => {
-                resolve(false);
-            });
-
-            client.connect(DRAW_THINGS_PORT, '127.0.0.1', () => {
-                client.end();
-                resolve(true);
-            });
-        });
-    });
-
-    // Handle model tuning window
-    let modelTuningWindows = new Map();
-
-    ipcMain.on('open-model-tuning', (event, styleData) => {
-        // Check if window already exists for this style
-        if (modelTuningWindows.has(styleData.styleId)) {
-            const existingWindow = modelTuningWindows.get(styleData.styleId);
-            if (!existingWindow.isDestroyed()) {
-                existingWindow.focus();
-                return;
-            }
-        }
-
-        // Create new window
-        const modelTuningWindow = new BrowserWindow({
-            width: 500,
-            height: 600,
-            minWidth: 400,
-            minHeight: 500,
-            show: false,
-            frame: false,
-            titleBarStyle: 'hidden',
-            trafficLightPosition: { x: -100, y: -100 },
-            parent: BrowserWindow.getFocusedWindow(),
-            modal: true,
-            title: `${styleData.styleName} - Model Fine-tuning`,
-            webPreferences: {
-                nodeIntegration: true,
-                contextIsolation: false
-            }
-        });
-
-        modelTuningWindow.loadFile('model-tuning.html');
+        const response = await fetch('http://127.0.0.1:11434/api/tags');
+        const data = await response.json();
         
-        modelTuningWindow.once('ready-to-show', () => {
-            modelTuningWindow.show();
-            modelTuningWindow.webContents.send('init-model-tuning', styleData);
-        });
-
-        modelTuningWindow.on('closed', () => {
-            modelTuningWindows.delete(styleData.styleId);
-        });
-
-        modelTuningWindows.set(styleData.styleId, modelTuningWindow);
-    });
-
-    ipcMain.on('save-model-parameters', async (event, data) => {
-        try {
-            console.log('Received save-model-parameters with data:', data);
-            
-            if (!data || !data.styleId) {
-                console.error('Invalid data received:', data);
-                return;
-            }
-            
-            // Update parameters directly
-            const result = await stylesManager.updateStyleParameters(data.styleId, data.parameters);
-            console.log('Update result:', result);
-            
-            if (result) {
-                // Notify main window about the update
-                BrowserWindow.getAllWindows().forEach(window => {
-                    window.webContents.send('model-parameters-updated', {
-                        styleId: data.styleId,
-                        parameters: data.parameters
-                    });
-                });
-            } else {
-                console.error('Failed to update style parameters');
-            }
-        } catch (error) {
-            console.error('Error saving model parameters:', error);
-        }
-    });
-
-    // Handle model-changed event
-    ipcMain.on('model-changed', (event, config) => {
-        try {
-            console.log('Model changed event received:', config);
-            
-            // Update both Ollama managers
-            const ollamaManagerModule = require('./ollama-manager');
-            ollamaManagerModule.ollamaManager.setDefaultModel(config.currentModel);
-            ollamaManager.setDefaultModel(config.currentModel);
-            
-            console.log('Updated model in both managers:', config.currentModel);
-            
-            // Notify all windows about the change
-            BrowserWindow.getAllWindows().forEach(window => {
-                window.webContents.send('model-changed', config);
-            });
-        } catch (error) {
-            console.error('Error updating model:', error);
-        }
-    });
-
-    ipcMain.on('show-ollama-config', () => {
-        configWindow.create();
-    });
-
-    // Update Ollama connection status
-    function updateOllamaStatus(isConnected) {
-        if (mainWindow) {
-            mainWindow.webContents.send('ollama-status', isConnected);
-        }
+        // Check if models array exists and has any installed model
+        const installedModels = data.models || [];
+        const hasAnyModel = installedModels.some(model => 
+            ['llama3.2', 'qwen2.5:0.5b', 'mistral', 'gemma', 'dolphin-llama3'].includes(model.name)
+        );
+        
+        // Need onboarding if no model is installed or no model is selected
+        return !hasAnyModel || !config.currentModel;
+    } catch (error) {
+        console.error('Error checking onboarding status:', error);
+        // If we can't check, assume we need onboarding
+        return true;
     }
+}
 
-    // Handle style selection completion
-    ipcMain.on('style-selection-complete', async (event, selectedStyleIds) => {
-        try {
-            console.log('Style selection complete with styles:', selectedStyleIds);
-            
-            // Get all styles
-            const allStyles = await stylesManager.getAllStyles();
-            
-            // Update each style's active state based on selection
-            for (const style of allStyles) {
-                const isSelected = selectedStyleIds.includes(style.id);
-                style.active = isSelected;
-                await stylesManager.updateStyle(style);
-                console.log(`Style ${style.id} active state updated to:`, style.active);
-            }
-            
-            // Find and close the style selection window
-            const styleWindow = BrowserWindow.getAllWindows().find(win => {
-                try {
-                    return win.webContents === event.sender;
-                } catch (e) {
-                    return false;
-                }
-            });
-            
-            if (styleWindow && !styleWindow.isDestroyed()) {
-                styleWindow.close();
-            }
-            
-            // Mark first launch as complete
-            store.set('settings.firstLaunch', false);
-            
-            // Create startup window and initialize app
-            appStartupManager.startup = createStartupWindow();
-            appStartupManager.initializeApp().catch(error => {
-                console.error('Failed to initialize app:', error);
-            });
-            
-        } catch (error) {
-            console.error('Error handling style selection:', error);
+// App startup
+app.whenReady().then(async () => {
+    try {
+        initializePaths();
+        await initializeStyles();
+        
+        // Set up all IPC handlers
+        setupModelHandlers();
+        
+        // Check if onboarding is needed
+        const needsOnboardingResult = await needsOnboarding();
+        if (needsOnboardingResult) {
+            createOnboardingWindow();
+        } else {
+            // Skip onboarding and initialize app
+            await appStartupManager.initializeApp();
         }
-    });
-
-    // Create and set startup window
-    app.on('activate', () => {
-        if (BrowserWindow.getAllWindows().length === 0) {
-            appStartupManager.startup = createStartupWindow();
-        }
-    });
+    } catch (error) {
+        console.error('Error during app startup:', error);
+        dialog.showErrorBox('Startup Error', 'Failed to start the application. Please try again.');
+    }
 });
 
 app.on('window-all-closed', () => {
@@ -1203,7 +773,571 @@ app.on('window-all-closed', () => {
     }
 });
 
-// Export the AppStartupManager instance
-module.exports = {
-    appStartupManager
-};
+// Prevent duplicate window creation
+app.on('activate', async () => {
+    if (BrowserWindow.getAllWindows().length === 0) {
+        await createWindow();
+    }
+});
+
+// Handle window-all-closed event
+app.on('window-all-closed', () => {
+    if (process.platform !== 'darwin') {
+        app.quit();
+    }
+});
+
+// Set up IPC handlers
+ipcMain.on('retry-startup', () => {
+    appStartupManager.retry();
+});
+
+// Add list-models and get-config handlers
+ipcMain.handle('get-config', async () => {
+    try {
+        const configPath = path.join(app.getPath('userData'), 'config.json');
+        const configData = await fs.readFile(configPath, 'utf8');
+        return JSON.parse(configData);
+    } catch (error) {
+        console.error('Error reading config:', error);
+        return {
+            currentModel: null,
+            visionModel: null
+        };
+    }
+});
+
+ipcMain.handle('detect-and-translate', async (event, text) => {
+    try {
+        return await ollamaManager.detectAndTranslateText(text);
+    } catch (error) {
+        console.error('Error in detect-and-translate:', error);
+        throw error;
+    }
+});
+
+ipcMain.handle('generate-prompt', async (event, data) => {
+    try {
+        console.log('Received generate-prompt request:', data);
+        
+        if (!data || !data.basePrompt) {
+            throw new Error('No base prompt provided');
+        }
+        
+        const { basePrompt, styleId } = data;
+        
+        // Ensure we have the current model from Ollama manager
+        if (!ollamaManager.currentModel) {
+            throw new Error('No text model selected. Please select a model in settings.');
+        }
+        
+        // Always get the latest style data from the styles manager
+        if (!styleId) {
+            throw new Error('No style ID provided');
+        }
+        
+        const style = await stylesManager.getStyle(styleId);
+        if (!style) {
+            throw new Error(`Style ${styleId} not found`);
+        }
+        
+        console.log('Using style from styles manager:', style);
+        
+        // Generate the prompt
+        const result = await ollamaManager.generatePrompt(
+            basePrompt,
+            styleId,
+            style
+        );
+        
+        return {
+            prompt: result.prompt,
+            parameters: result.parameters
+        };
+    } catch (error) {
+        console.error('Error in generate-prompt:', error);
+        throw error;
+    }
+});
+
+ipcMain.handle('refine-prompt', async (event, { prompt, style }) => {
+    try {
+        return await ollamaManager.refinePrompt(prompt, style);
+    } catch (error) {
+        console.error('Error refining prompt:', error);
+        throw error;
+    }
+});
+
+// Add save-config handler
+ipcMain.handle('save-config', async (event, config) => {
+    try {
+        const configPath = path.join(app.getPath('userData'), 'config.json');
+        await fs.writeFile(configPath, JSON.stringify(config, null, 2));
+        return true;
+    } catch (error) {
+        console.error('Error saving config:', error);
+        throw error;
+    }
+});
+
+// Event handlers for style settings
+ipcMain.on('open-style-settings', async (event, styleId) => {
+    const window = styleSettingsWindow.createStyleSettingsWindow(mainWindow);
+    
+    // Get style data from storage and send it to the settings window
+    const style = await stylesManager.getStyle(styleId);
+    if (style) {
+        window.webContents.on('did-finish-load', () => {
+            // Ensure modelParameters has default values
+            const modelParams = {
+                temperature: 0.7,
+                top_p: 0.9,
+                top_k: 40,
+                repeat_penalty: 1.1,
+                ...(style.modelParameters || {})
+            };
+            
+            window.webContents.send('style-data', {
+                ...style,
+                modelParameters: modelParams
+            });
+        });
+    }
+});
+
+ipcMain.on('close-style-settings', () => {
+    styleSettingsWindow.closeStyleSettingsWindow();
+});
+
+ipcMain.on('save-style-settings', async (event, updatedStyle) => {
+    try {
+        console.log('Saving style settings:', updatedStyle);
+        await stylesManager.updateStyle(updatedStyle);
+        mainWindow.webContents.send('style-updated', updatedStyle);
+        styleSettingsWindow.closeStyleSettingsWindow();
+    } catch (error) {
+        console.error('Error saving style settings:', error);
+        event.reply('style-settings-save-error', error.message);
+    }
+});
+
+ipcMain.on('update-style-parameters', async (event, data) => {
+    try {
+        await stylesManager.updateStyleParameters(data.styleId, data.parameters);
+        event.reply('style-parameters-updated');
+    } catch (error) {
+        console.error('Error updating style parameters:', error);
+        event.reply('style-parameters-update-error', error.message);
+    }
+});
+
+// Theme settings handlers
+ipcMain.handle('get-setting', async (event, key) => {
+    try {
+        const settings = store.get('settings') || {};
+        return settings[key];
+    } catch (error) {
+        console.error('Error getting setting:', error);
+        return null;
+    }
+});
+
+ipcMain.handle('set-setting', async (event, key, value) => {
+    try {
+        const settings = store.get('settings') || {};
+        settings[key] = value;
+        store.set('settings', settings);
+        return true;
+    } catch (error) {
+        console.error('Error setting setting:', error);
+        return false;
+    }
+});
+
+// Window control handlers
+ipcMain.on('minimize-window', () => {
+    const win = BrowserWindow.getFocusedWindow();
+    if (win) win.minimize();
+});
+
+ipcMain.on('maximize-window', () => {
+    const win = BrowserWindow.getFocusedWindow();
+    if (win) {
+        if (win.isMaximized()) {
+            win.unmaximize();
+        } else {
+            win.maximize();
+        }
+    }
+});
+
+ipcMain.on('close-window', () => {
+    const win = BrowserWindow.getFocusedWindow();
+    if (win) win.close();
+});
+
+// Window opening handlers
+ipcMain.on('open-config', () => {
+    configWindow.create();
+});
+
+ipcMain.on('open-settings', () => {
+    settingsWindow.create();
+});
+
+ipcMain.on('open-styles', () => {
+    stylesWindow.create();
+});
+
+ipcMain.on('open-vision', () => {
+    visionWindow.create();
+});
+
+ipcMain.on('open-credits', () => {
+    creditsWindow.create();
+});
+
+ipcMain.on('open-ollama-config', () => {
+    createOllamaConfigWindow();
+});
+
+// Ollama status handlers
+ipcMain.handle('check-ollama-status', async () => {
+    return await ollamaManager.getStatus();
+});
+
+ipcMain.handle('refresh-ollama-status', async () => {
+    return await ollamaManager.getStatus();
+});
+
+// Model handlers
+ipcMain.handle('get-available-models', async () => {
+    return await ollamaManager.listModels();
+});
+
+ipcMain.handle('get-custom-models', async () => {
+    return await ollamaManager.getCustomModels();
+});
+
+ipcMain.handle('delete-model', async (event, modelName) => {
+    return await ollamaManager.deleteModel(modelName);
+});
+
+// Style management handlers
+ipcMain.handle('get-styles', async () => {
+    console.log('Handling get-styles request');
+    return await stylesManager.getAllStyles();
+});
+
+ipcMain.handle('get-style', async (event, styleId) => {
+    try {
+        return await stylesManager.getStyle(styleId);
+    } catch (error) {
+        console.error('Error getting style:', error);
+        throw error;
+    }
+});
+
+ipcMain.handle('save-style', async (event, style) => {
+    return await stylesManager.saveStyle(style);
+});
+
+ipcMain.handle('delete-style', async (event, styleId) => {
+    return await stylesManager.deleteStyle(styleId);
+});
+
+ipcMain.handle('update-style', async (event, style) => {
+    return await stylesManager.updateStyle(style);
+});
+
+// Settings handlers
+ipcMain.handle('get-settings', async () => {
+    return settingsManager.getSettings();
+});
+
+ipcMain.handle('save-settings', async (event, settings) => {
+    return settingsManager.saveSettings(settings);
+});
+
+// Draw Things connection handler
+ipcMain.handle('check-draw-things', async () => {
+    return new Promise((resolve) => {
+        const client = new net.Socket();
+        
+        client.on('error', () => {
+            resolve(false);
+        });
+
+        client.connect(DRAW_THINGS_PORT, '127.0.0.1', () => {
+            client.end();
+            resolve(true);
+        });
+    });
+});
+
+// Handle model tuning window
+let modelTuningWindows = new Map();
+
+ipcMain.on('open-model-tuning', (event, styleData) => {
+    // Check if window already exists for this style
+    if (modelTuningWindows.has(styleData.styleId)) {
+        const existingWindow = modelTuningWindows.get(styleData.styleId);
+        if (!existingWindow.isDestroyed()) {
+            existingWindow.focus();
+            return;
+        }
+    }
+
+    // Create new window
+    const modelTuningWindow = new BrowserWindow({
+        width: 500,
+        height: 600,
+        minWidth: 400,
+        minHeight: 500,
+        show: false,
+        frame: false,
+        titleBarStyle: 'hidden',
+        trafficLightPosition: { x: -100, y: -100 },
+        parent: BrowserWindow.getFocusedWindow(),
+        modal: true,
+        title: `${styleData.styleName} - Model Fine-tuning`,
+        webPreferences: {
+            nodeIntegration: true,
+            contextIsolation: false
+        }
+    });
+
+    modelTuningWindow.loadFile('model-tuning.html');
+    
+    modelTuningWindow.once('ready-to-show', () => {
+        modelTuningWindow.show();
+        modelTuningWindow.webContents.send('init-model-tuning', styleData);
+    });
+
+    modelTuningWindow.on('closed', () => {
+        modelTuningWindows.delete(styleData.styleId);
+    });
+
+    modelTuningWindows.set(styleData.styleId, modelTuningWindow);
+});
+
+ipcMain.on('save-model-parameters', async (event, data) => {
+    try {
+        console.log('Received save-model-parameters with data:', data);
+        
+        if (!data || !data.styleId) {
+            console.error('Invalid data received:', data);
+            return;
+        }
+        
+        // Update parameters directly
+        const result = await stylesManager.updateStyleParameters(data.styleId, data.parameters);
+        console.log('Update result:', result);
+        
+        if (result) {
+            // Notify main window about the update
+            BrowserWindow.getAllWindows().forEach(window => {
+                window.webContents.send('model-parameters-updated', {
+                    styleId: data.styleId,
+                    parameters: data.parameters
+                });
+            });
+        } else {
+            console.error('Failed to update style parameters');
+        }
+    } catch (error) {
+        console.error('Error saving model parameters:', error);
+    }
+});
+
+// Handle model-changed event
+ipcMain.on('model-changed', (event, config) => {
+    try {
+        console.log('Model changed event received:', config);
+        
+        // Update both Ollama managers
+        const ollamaManagerModule = require('./ollama-manager');
+        ollamaManagerModule.ollamaManager.setDefaultModel(config.currentModel);
+        ollamaManager.setDefaultModel(config.currentModel);
+        
+        console.log('Updated model in both managers:', config.currentModel);
+        
+        // Notify all windows about the change
+        BrowserWindow.getAllWindows().forEach(window => {
+            window.webContents.send('model-changed', config);
+        });
+    } catch (error) {
+        console.error('Error updating model:', error);
+    }
+});
+
+ipcMain.on('show-ollama-config', () => {
+    configWindow.create();
+});
+
+// Update Ollama connection status
+function updateOllamaStatus(isConnected) {
+    if (mainWindow) {
+        mainWindow.webContents.send('ollama-status', isConnected);
+    }
+}
+
+// Handle style selection completion
+ipcMain.on('style-selection-complete', async (event, selectedStyleIds) => {
+    try {
+        console.log('Style selection complete with styles:', selectedStyleIds);
+        
+        // Get all styles
+        const allStyles = await stylesManager.getAllStyles();
+        
+        // Update each style's active state based on selection
+        for (const style of allStyles) {
+            const isSelected = selectedStyleIds.includes(style.id);
+            style.active = isSelected;
+            await stylesManager.updateStyle(style);
+            console.log(`Style ${style.id} active state updated to:`, style.active);
+        }
+        
+        // Find and close the style selection window
+        const styleWindow = BrowserWindow.getAllWindows().find(win => {
+            try {
+                return win.webContents === event.sender;
+            } catch (e) {
+                return false;
+            }
+        });
+        
+        if (styleWindow && !styleWindow.isDestroyed()) {
+            styleWindow.close();
+        }
+        
+        // Mark first launch as complete
+        store.set('settings.firstLaunch', false);
+        
+        // Create startup window and initialize app
+        appStartupManager.startup = createStartupWindow();
+        appStartupManager.initializeApp().catch(error => {
+            console.error('Failed to initialize app:', error);
+        });
+        
+    } catch (error) {
+        console.error('Error handling style selection:', error);
+    }
+});
+
+// Create and set startup window
+app.on('activate', () => {
+    if (BrowserWindow.getAllWindows().length === 0) {
+        appStartupManager.startup = createStartupWindow();
+    }
+});
+
+// Performance monitoring
+async function getPerformanceStats() {
+    // CPU Usage
+    const cpus = os.cpus();
+    const cpuCount = cpus.length;
+    let totalCPUUsage = 0;
+    
+    cpus.forEach(cpu => {
+        const total = Object.values(cpu.times).reduce((acc, tv) => acc + tv, 0);
+        const idle = cpu.times.idle;
+        totalCPUUsage += ((total - idle) / total) * 100;
+    });
+    
+    // RAM Usage
+    const totalMem = os.totalmem();
+    const freeMem = os.freemem();
+    const systemMemUsed = totalMem - freeMem;
+    
+    // GPU Usage (estimated from process)
+    const processInfo = process.getProcessMemoryInfo ? 
+        await process.getProcessMemoryInfo() : 
+        { gpuMemory: 0 };
+    const gpuUsage = processInfo.gpuMemory || 0;
+    
+    // Ollama process monitoring
+    const ollamaPid = await findOllamaProcess();
+    let ollamaStats = {
+        cpu: 0,
+        memory: 0
+    };
+    
+    if (ollamaPid) {
+        try {
+            ollamaStats = await pidusage(ollamaPid);
+        } catch (error) {
+            console.log('Error getting Ollama stats:', error);
+        }
+    }
+    
+    return {
+        system: {
+            cpu: totalCPUUsage / cpuCount,
+            ram: systemMemUsed,
+            gpu: (gpuUsage / totalMem) * 100
+        },
+        ollama: {
+            cpu: ollamaStats.cpu || 0,
+            ram: ollamaStats.memory || 0,
+            active: !!ollamaPid
+        }
+    };
+}
+
+// Function to find Ollama process ID
+async function findOllamaProcess() {
+    return new Promise((resolve, reject) => {
+        const cmd = process.platform === 'darwin' ? 
+            "pgrep -x ollama" : 
+            "tasklist /FI \"IMAGENAME eq ollama.exe\" /NH";
+                
+        exec(cmd, (error, stdout, stderr) => {
+            if (error) {
+                console.log('Error finding Ollama process:', error);
+                resolve(null);
+                return;
+            }
+            
+            const pid = parseInt(stdout);
+            if (isNaN(pid)) {
+                console.log('Ollama process not found');
+                resolve(null);
+                return;
+            }
+            
+            resolve(pid);
+        });
+    });
+}
+
+// Register performance monitoring handler
+ipcMain.handle('get-performance-stats', async () => {
+    return await getPerformanceStats();
+});
+
+// Create onboarding window
+function createOnboardingWindow() {
+    onboardingWindow = new BrowserWindow({
+        width: 1000,
+        height: 800,
+        minWidth: 800,
+        minHeight: 600,
+        show: false,
+        frame: false,
+        resizable: true,
+        webPreferences: {
+            nodeIntegration: true,
+            contextIsolation: false
+        }
+    });
+    
+    onboardingWindow.loadFile('onboarding.html');
+    
+    onboardingWindow.once('ready-to-show', () => {
+        onboardingWindow.show();
+    });
+    
+    return onboardingWindow;
+}

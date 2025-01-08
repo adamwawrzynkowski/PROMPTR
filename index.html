@@ -106,23 +106,37 @@
                 <button class="title-bar-button" id="open-settings-button">
                     <i class="fas fa-info-circle"></i>
                 </button>
-            </div>
-            <div class="theme-selector">
-                <select id="themeSelect">
-                    <option value="purple">Purple</option>
-                    <option value="red">Red</option>
-                    <option value="blue">Blue</option>
-                    <option value="green">Green</option>
-                    <option value="yellow">Yellow</option>
-                    <option value="orange">Orange</option>
-                    <option value="pink">Pink</option>
-                    <option value="gray">Gray</option>
-                    <option value="rainbow">Rainbow</option>
-                </select>
+                <div class="theme-selector">
+                    <select id="themeSelect">
+                        <option value="purple">Purple</option>
+                        <option value="red">Red</option>
+                        <option value="blue">Blue</option>
+                        <option value="green">Green</option>
+                        <option value="yellow">Yellow</option>
+                        <option value="orange">Orange</option>
+                        <option value="pink">Pink</option>
+                        <option value="gray">Gray</option>
+                        <option value="rainbow">Rainbow</option>
+                    </select>
+                </div>
             </div>
         </div>
         <div class="title-bar-right">
             <div class="title-bar-items">
+                <div class="performance-indicators">
+                    <div class="performance-indicator">
+                        <i class="fas fa-microchip"></i>
+                        <span id="cpu-usage">0%</span>
+                    </div>
+                    <div class="performance-indicator">
+                        <i class="fas fa-desktop"></i>
+                        <span id="gpu-usage">0%</span>
+                    </div>
+                    <div class="performance-indicator">
+                        <i class="fas fa-memory"></i>
+                        <span id="ram-usage">0MB</span>
+                    </div>
+                </div>
                 <button class="title-bar-button model-config-button" id="open-ollama-button">
                     <i class="fas fa-microchip"></i>
                     <span>Model Configuration</span>

@@ -1004,118 +1004,184 @@ Keep it brief and concise. Do not describe the content or subjects in the image.
         }
     }
 
-    async installCustomModel(inputUrl, progressCallback) {
-        try {
-            // Sprawdź czy URL jest poprawny
-            if (!inputUrl.includes('huggingface.co')) {
-                throw new Error('Invalid model URL. Must be a Hugging Face model URL.');
-            }
+    async pullModel(modelName, progressCallback) {
+        return new Promise((resolve, reject) => {
+            const postData = JSON.stringify({
+                name: modelName,
+                stream: true
+            });
 
-            // Ekstrakcja nazwy modelu i autora z URL
-            const urlParts = inputUrl.split('/');
-            const modelName = urlParts.pop();
-            const author = urlParts.pop();
-            
-            // Utworzenie pełnej nazwy modelu
-            const fullModelName = `${author}/${modelName}`;
-            
-            // Utwórz ścieżkę do katalogu modelu
-            const customModelsDir = path.join(app.getPath('userData'), APP_NAME, 'custom-models', modelName);
-            await fsPromises.mkdir(customModelsDir, { recursive: true });
+            const options = {
+                hostname: this.endpoint.host,
+                port: this.endpoint.port,
+                path: '/api/pull',
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Content-Length': Buffer.byteLength(postData)
+                }
+            };
 
-            // Pobierz konfigurację modelu z Hugging Face
-            const configUrl = `https://huggingface.co/${author}/${modelName}/raw/main/config.json`;
-            const modelFileUrl = `https://huggingface.co/${author}/${modelName}/resolve/main/model.safetensors`;
-            
-            // Ścieżki lokalne
-            const configPath = path.join(customModelsDir, 'config.json');
-            const modelPath = path.join(customModelsDir, 'model.safetensors');
-            const promprConfigPath = path.join(customModelsDir, 'promptr_config.json');
+            const req = http.request(options, (res) => {
+                if (res.statusCode !== 200) {
+                    reject(new Error(`Failed to pull model: ${res.statusCode}`));
+                    return;
+                }
 
-            // Pobierz config.json
-            await downloadFile(configUrl, configPath);
+                let buffer = '';
 
-            // Pobierz model.safetensors z monitorowaniem postępu
-            await new Promise((resolve, reject) => {
-                const modelFile = fs.createWriteStream(modelPath);
-                https.get(modelFileUrl, {
-                    headers: {
-                        'User-Agent': 'Mozilla/5.0 (compatible; PROMPTR/1.0)'
-                    }
-                }, response => {
-                    if (response.statusCode === 302 || response.statusCode === 301) {
-                        // Obsługa przekierowania
-                        https.get(response.headers.location, response => {
-                            const totalSize = parseInt(response.headers['content-length'], 10);
-                            let downloadedSize = 0;
+                res.on('data', (chunk) => {
+                    buffer += chunk.toString();
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop(); // Keep the last incomplete line
 
-                            response.on('data', (chunk) => {
-                                downloadedSize += chunk.length;
-                                const progress = (downloadedSize / totalSize) * 100;
-                                if (progressCallback) {
-                                    progressCallback(Math.round(progress), downloadedSize, totalSize);
+                    lines.forEach(line => {
+                        if (line.trim()) {
+                            try {
+                                const data = JSON.parse(line);
+                                if (data.total && data.completed) {
+                                    const progress = (data.completed / data.total) * 100;
+                                    if (progressCallback) {
+                                        progressCallback(progress);
+                                    }
                                 }
-                            });
-
-                            response.pipe(modelFile);
-                            modelFile.on('finish', () => {
-                                modelFile.close();
-                                resolve();
-                            });
-                        }).on('error', err => {
-                            fs.unlink(modelPath, () => reject(err));
-                        });
-                    } else if (response.statusCode !== 200) {
-                        reject(new Error(`Failed to download: ${response.statusCode}`));
-                    } else {
-                        const totalSize = parseInt(response.headers['content-length'], 10);
-                        let downloadedSize = 0;
-
-                        response.on('data', (chunk) => {
-                            downloadedSize += chunk.length;
-                            const progress = (downloadedSize / totalSize) * 100;
-                            if (progressCallback) {
-                                progressCallback(Math.round(progress), downloadedSize, totalSize);
+                            } catch (e) {
+                                console.warn('Error parsing JSON:', e);
                             }
-                        });
+                        }
+                    });
+                });
 
-                        response.pipe(modelFile);
-                        modelFile.on('finish', () => {
-                            modelFile.close();
-                            resolve();
-                        });
+                res.on('end', () => {
+                    // Process any remaining data in buffer
+                    if (buffer.trim()) {
+                        try {
+                            const data = JSON.parse(buffer);
+                            if (data.total && data.completed && progressCallback) {
+                                const progress = (data.completed / data.total) * 100;
+                                progressCallback(progress);
+                            }
+                        } catch (e) {
+                            console.warn('Error parsing JSON:', e);
+                        }
                     }
-                }).on('error', err => {
-                    fs.unlink(modelPath, () => reject(err));
+                    resolve(true);
                 });
             });
 
-            // Utwórz plik konfiguracyjny PROMPTR
-            const promprConfig = {
-                name: modelName,
-                author: author,
-                displayName: `${author}/${modelName}`,
-                type: 'Custom',
-                importDate: new Date().toISOString()
-            };
+            req.on('error', (error) => {
+                console.error('Error pulling model:', error);
+                reject(error);
+            });
 
-            await fsPromises.writeFile(
-                promprConfigPath,
-                JSON.stringify(promprConfig, null, 2)
-            );
+            req.write(postData);
+            req.end();
+        });
+    }
 
-            return {
-                success: true,
-                modelName: fullModelName,
-                path: customModelsDir
-            };
+    async generateTags(text, batchSize = 6, totalBatches = 5) {
+        try {
+            const model = await this.ensureTextModelSelected();
+            console.log('Generating tags with model:', model);
 
+            const prompt = `Generate ${batchSize * totalBatches} unique, relevant tags for the following text. Each tag should be a single word or short phrase. Separate tags with commas: ${text}`;
+
+            const response = await fetch(`${this.getBaseUrl()}/api/generate`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    model: model,
+                    prompt: prompt,
+                    stream: false,
+                    options: {
+                        temperature: 0.7,
+                        top_p: 0.9,
+                        top_k: 50
+                    }
+                })
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Failed to generate tags: ${errorText}`);
+            }
+
+            const data = await response.json();
+            const tags = data.response
+                .split(',')
+                .map(tag => tag.trim())
+                .filter(tag => tag.length > 0);
+
+            // Group tags into batches
+            const batches = [];
+            for (let i = 0; i < tags.length; i += batchSize) {
+                batches.push(tags.slice(i, i + batchSize));
+            }
+
+            return batches.slice(0, totalBatches);
         } catch (error) {
-            console.error('Error installing custom model:', error);
-            return {
-                success: false,
-                error: error.message
+            console.error('Error in generateTags:', error);
+            throw error;
+        }
+    }
+
+    async refinePrompt(prompt, style) {
+        try {
+            const model = await this.ensureTextModelSelected();
+            console.log('Refining prompt with model:', model);
+
+            const systemInstruction = `You are a specialized AI trained to enhance and refine prompts for image generation. Your task is to take an existing prompt and make it more detailed and specific, while maintaining its original intent and style.
+
+Follow these guidelines:
+1. Analyze the original prompt carefully
+2. Add more specific visual details and descriptive elements
+3. Enhance atmosphere and mood descriptions
+4. Include additional relevant artistic elements
+5. Maintain the original style and theme
+6. Keep the language natural and flowing
+7. DO NOT add any style tags, quality terms, or technical specifications at the end
+8. DO NOT drastically change the original concept
+9. ONLY return the enhanced prompt text, nothing else
+10. DO NOT include any explanations or comments about the changes made
+11. DO NOT include phrases like "Original prompt:" or "Enhanced prompt:"
+
+Example input: "A castle in the mountains"
+Example output: "A majestic medieval castle perched atop craggy mountain peaks, its ancient stone towers reaching into misty clouds, while snow-capped peaks stretch endlessly into the distance, the fortress walls weathered by centuries of alpine winds"`;
+
+            const requestBody = {
+                model: model,
+                prompt: systemInstruction + "\n\nEnhance this prompt: " + prompt,
+                stream: false,
+                options: {
+                    temperature: style?.modelParameters?.temperature || 0.75,
+                    top_p: style?.modelParameters?.top_p || 0.9,
+                    top_k: style?.modelParameters?.top_k || 50,
+                    repeat_penalty: style?.modelParameters?.repeat_penalty || 1.2
+                }
             };
+
+            console.log('Making refine request with body:', requestBody);
+            
+            const response = await fetch(`${this.getBaseUrl()}/api/generate`, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(requestBody)
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Failed to refine prompt: ${errorText}`);
+            }
+
+            const data = await response.json();
+            return data.response.trim();
+        } catch (error) {
+            console.error('Error in refinePrompt:', error);
+            throw error;
         }
     }
 
@@ -1303,39 +1369,337 @@ except Exception as e:
         }
     }
 
-    // Zaktualizuj metodę pullModel
-    async pullModel(modelName, progressCallback) {
+    async installCustomModel(inputUrl, progressCallback) {
         try {
-            const response = await this.makeRequest(`${this.getBaseUrl()}/api/pull`, {
+            // Sprawdź czy URL jest poprawny
+            if (!inputUrl.includes('huggingface.co')) {
+                throw new Error('Invalid model URL. Must be a Hugging Face model URL.');
+            }
+
+            // Ekstrakcja nazwy modelu i autora z URL
+            const urlParts = inputUrl.split('/');
+            const modelName = urlParts.pop();
+            const author = urlParts.pop();
+            
+            // Utworzenie pełnej nazwy modelu
+            const fullModelName = `${author}/${modelName}`;
+            
+            // Utwórz ścieżkę do katalogu modelu
+            const customModelsDir = path.join(app.getPath('userData'), APP_NAME, 'custom-models', modelName);
+            await fsPromises.mkdir(customModelsDir, { recursive: true });
+
+            // Pobierz konfigurację modelu z Hugging Face
+            const configUrl = `https://huggingface.co/${author}/${modelName}/raw/main/config.json`;
+            const modelFileUrl = `https://huggingface.co/${author}/${modelName}/resolve/main/model.safetensors`;
+            
+            // Ścieżki lokalne
+            const configPath = path.join(customModelsDir, 'config.json');
+            const modelPath = path.join(customModelsDir, 'model.safetensors');
+            const promprConfigPath = path.join(customModelsDir, 'promptr_config.json');
+
+            // Pobierz config.json
+            await downloadFile(configUrl, configPath);
+
+            // Pobierz model.safetensors z monitorowaniem postępu
+            await new Promise((resolve, reject) => {
+                const modelFile = fs.createWriteStream(modelPath);
+                https.get(modelFileUrl, {
+                    headers: {
+                        'User-Agent': 'Mozilla/5.0 (compatible; PROMPTR/1.0)'
+                    }
+                }, response => {
+                    if (response.statusCode === 302 || response.statusCode === 301) {
+                        // Obsługa przekierowania
+                        https.get(response.headers.location, response => {
+                            const totalSize = parseInt(response.headers['content-length'], 10);
+                            let downloadedSize = 0;
+
+                            response.on('data', (chunk) => {
+                                downloadedSize += chunk.length;
+                                const progress = (downloadedSize / totalSize) * 100;
+                                if (progressCallback) {
+                                    progressCallback(Math.round(progress), downloadedSize, totalSize);
+                                }
+                            });
+
+                            response.pipe(modelFile);
+                            modelFile.on('finish', () => {
+                                modelFile.close();
+                                resolve();
+                            });
+                        }).on('error', err => {
+                            fs.unlink(modelPath, () => reject(err));
+                        });
+                    } else if (response.statusCode !== 200) {
+                        fs.unlink(modelPath, () => {
+                            reject(new Error(`Failed to download: ${response.statusCode}`));
+                        });
+                    } else {
+                        const totalSize = parseInt(response.headers['content-length'], 10);
+                        let downloadedSize = 0;
+
+                        response.on('data', (chunk) => {
+                            downloadedSize += chunk.length;
+                            const progress = (downloadedSize / totalSize) * 100;
+                            if (progressCallback) {
+                                progressCallback(Math.round(progress), downloadedSize, totalSize);
+                            }
+                        });
+
+                        response.pipe(modelFile);
+                        modelFile.on('finish', () => {
+                            modelFile.close();
+                            resolve();
+                        });
+                    }
+                }).on('error', err => {
+                    fs.unlink(modelPath, () => reject(err));
+                });
+            });
+
+            // Utwórz plik konfiguracyjny PROMPTR
+            const promprConfig = {
+                name: modelName,
+                author: author,
+                displayName: `${author}/${modelName}`,
+                type: 'Custom',
+                importDate: new Date().toISOString()
+            };
+
+            await fsPromises.writeFile(
+                promprConfigPath,
+                JSON.stringify(promprConfig, null, 2)
+            );
+
+            return {
+                success: true,
+                modelName: fullModelName,
+                path: customModelsDir
+            };
+
+        } catch (error) {
+            console.error('Error installing custom model:', error);
+            return {
+                success: false,
+                error: error.message
+            };
+        }
+    }
+
+    async deleteCustomModel(modelName) {
+        try {
+            // Usuń pliki modelu
+            const customModelsDir = path.join(app.getPath('userData'), APP_NAME, 'custom-models');
+            const modelDir = path.join(customModelsDir, modelName);
+            await fsPromises.rm(modelDir, { recursive: true, force: true });
+            
+            return true;
+        } catch (error) {
+            console.error('Error deleting custom model:', error);
+            throw error;
+        }
+    }
+
+    async convertModelToONNX(modelPath) {
+        try {
+            // Ścieżki plików
+            const safetensorsPath = path.join(modelPath, 'model.safetensors');
+            const onnxPath = path.join(modelPath, 'model.onnx');
+            
+            // Zaktualizowany skrypt Python
+            const pythonScript = `
+import torch
+from safetensors import safe_open
+import os
+
+def convert_safetensors_to_onnx(safetensors_path, onnx_path):
+    try:
+        # Wczytaj model z safetensors
+        with safe_open(safetensors_path, framework="pt", device="cpu") as f:
+            tensors = {k: f.get_tensor(k) for k in f.keys()}
+        
+        # Utwórz model PyTorch
+        class SimpleModel(torch.nn.Module):
+            def __init__(self, tensors):
+                super().__init__()
+                # Zamień kropki na podkreślenia w nazwach parametrów
+                self.tensors = torch.nn.ParameterDict({
+                    k.replace('.', '_'): torch.nn.Parameter(v) 
+                    for k, v in tensors.items()
+                })
+            
+            def forward(self, x):
+                # Przykładowa implementacja forward pass
+                # Dostosuj to do rzeczywistej architektury modelu
+                for tensor in self.tensors.values():
+                    if tensor.shape[-2:] == x.shape[-2:]:
+                        return tensor * x
+                return x
+
+        model = SimpleModel(tensors)
+        model.eval()
+
+        # Przykładowe dane wejściowe
+        dummy_input = torch.randn(1, 3, 224, 224)
+
+        # Eksportuj do ONNX
+        torch.onnx.export(
+            model,
+            dummy_input,
+            onnx_path,
+            export_params=True,
+            opset_version=11,
+            do_constant_folding=True,
+            input_names=['input'],
+            output_names=['output'],
+            dynamic_axes={'input': {0: 'batch_size'},
+                         'output': {0: 'batch_size'}}
+        )
+
+        # Usuń plik safetensors po udanej konwersji
+        if os.path.exists(onnx_path):
+            os.remove(safetensorsPath)
+            return True
+        return False
+    except Exception as e:
+        print(f"Error during conversion: {str(e)}")
+        return False
+
+try:
+    success = convert_safetensors_to_onnx("${safetensorsPath}", "${onnxPath}")
+    print("SUCCESS" if success else "FAILED")
+except Exception as e:
+    print(f"Error: {str(e)}")
+    print("FAILED")
+`;
+
+            // Zapisz skrypt tymczasowo
+            const scriptPath = path.join(modelPath, 'convert.py');
+            await fsPromises.writeFile(scriptPath, pythonScript);
+
+            // Uruchom konwersję
+            return new Promise((resolve, reject) => {
+                const pythonProcess = spawn('python3', [scriptPath]);
+                
+                let output = '';
+                let errorOutput = '';
+
+                pythonProcess.stdout.on('data', (data) => {
+                    output += data.toString();
+                    console.log('Python output:', data.toString());
+                });
+
+                pythonProcess.stderr.on('data', (data) => {
+                    errorOutput += data.toString();
+                    console.error('Python error:', data.toString());
+                });
+
+                pythonProcess.on('close', async (code) => {
+                    // Usuń tymczasowy skrypt
+                    await fsPromises.unlink(scriptPath).catch(console.error);
+                    
+                    if (code !== 0 || !output.includes('SUCCESS')) {
+                        reject(new Error(errorOutput || 'Conversion failed'));
+                    } else {
+                        resolve(true);
+                    }
+                });
+            });
+        } catch (error) {
+            console.error('Error converting model:', error);
+            throw error;
+        }
+    }
+
+    async cancelCurrentGeneration() {
+        console.log('Cancelling current generation');
+        if (this.currentGeneration) {
+            try {
+                // Anuluj bieżące żądanie
+                await this.makeRequest(`${this.getBaseUrl()}/api/generate`, {
+                    method: 'DELETE'
+                });
+                this.currentGeneration = null;
+                console.log('Generation cancelled successfully');
+            } catch (error) {
+                console.error('Error cancelling generation:', error);
+            }
+        }
+    }
+
+    async pullModel(modelName, progressCallback) {
+        return new Promise((resolve, reject) => {
+            const postData = JSON.stringify({
+                name: modelName,
+                stream: true
+            });
+
+            const options = {
+                hostname: this.endpoint.host,
+                port: this.endpoint.port,
+                path: '/api/pull',
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    name: modelName,
-                    stream: true
-                })
+                    'Content-Length': Buffer.byteLength(postData)
+                }
+            };
+
+            const req = http.request(options, (res) => {
+                if (res.statusCode !== 200) {
+                    reject(new Error(`Failed to pull model: ${res.statusCode}`));
+                    return;
+                }
+
+                let buffer = '';
+
+                res.on('data', (chunk) => {
+                    buffer += chunk.toString();
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop(); // Keep the last incomplete line
+
+                    lines.forEach(line => {
+                        if (line.trim()) {
+                            try {
+                                const data = JSON.parse(line);
+                                if (data.total && data.completed) {
+                                    const progress = (data.completed / data.total) * 100;
+                                    if (progressCallback) {
+                                        progressCallback(progress);
+                                    }
+                                }
+                            } catch (e) {
+                                console.warn('Error parsing JSON:', e);
+                            }
+                        }
+                    });
+                });
+
+                res.on('end', () => {
+                    // Process any remaining data in buffer
+                    if (buffer.trim()) {
+                        try {
+                            const data = JSON.parse(buffer);
+                            if (data.total && data.completed && progressCallback) {
+                                const progress = (data.completed / data.total) * 100;
+                                progressCallback(progress);
+                            }
+                        } catch (e) {
+                            console.warn('Error parsing JSON:', e);
+                        }
+                    }
+                    resolve(true);
+                });
             });
 
-            if (!response.ok) {
-                throw new Error(`Failed to pull model: ${response.status}`);
-            }
+            req.on('error', (error) => {
+                console.error('Error pulling model:', error);
+                reject(error);
+            });
 
-            // Przetwarzaj odpowiedzi strumieniowe
-            for (const data of response.responses) {
-                if (data.total && data.completed) {
-                    const progress = (data.completed / data.total) * 100;
-                    if (progressCallback) {
-                        progressCallback(progress);
-                    }
-                }
-            }
-
-            return true;
-        } catch (error) {
-            console.error('Error pulling model:', error);
-            throw error;
-        }
+            req.write(postData);
+            req.end();
+        });
     }
 
     async generateTags(text, batchSize = 6, totalBatches = 5) {
@@ -1400,7 +1764,7 @@ Follow these guidelines:
 4. Include additional relevant artistic elements
 5. Maintain the original style and theme
 6. Keep the language natural and flowing
-7. DO NOT add technical terms or tags
+7. DO NOT add any style tags, quality terms, or technical specifications at the end
 8. DO NOT drastically change the original concept
 9. ONLY return the enhanced prompt text, nothing else
 10. DO NOT include any explanations or comments about the changes made

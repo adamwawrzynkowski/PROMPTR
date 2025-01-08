@@ -12,7 +12,7 @@ const DEFAULT_STYLES = [
         suffix: '. Include: ultra detailed, 8k uhd, high resolution, photorealistic, masterpiece, highly detailed skin texture, detailed eyes, detailed facial features, detailed clothing fabric, cinematic lighting, depth of field, sharp focus.',
         fixedTags: ['realistic', 'natural', 'detailed', 'photorealistic'],
         custom: false,
-        active: false,
+        active: true,
         modelParameters: {
             temperature: 0.7,
             top_k: 50,
@@ -29,7 +29,7 @@ const DEFAULT_STYLES = [
         suffix: '. Include: cinematic lighting, dramatic atmosphere, movie quality, depth of field, bokeh, anamorphic, professional photography, epic composition, golden hour, volumetric lighting.',
         fixedTags: ['cinematic', 'dramatic', 'movie'],
         custom: false,
-        active: false,
+        active: true,
         modelParameters: {
             temperature: 0.8,
             top_k: 60,
@@ -46,7 +46,7 @@ const DEFAULT_STYLES = [
         suffix: '. Include: vintage photography, old film, grainy texture, sepia tones, faded colors, retro aesthetic, analog film, 35mm film, nostalgic atmosphere, period-accurate details.',
         fixedTags: ['vintage', 'retro', 'classic'],
         custom: false,
-        active: false,
+        active: true,
         modelParameters: {
             temperature: 0.7,
             top_k: 50,
@@ -63,7 +63,7 @@ const DEFAULT_STYLES = [
         suffix: '. Include: expressive brushstrokes, vibrant colors, abstract shapes, emotive atmosphere, creative composition, artistic freedom, bold textures, intricate details.',
         fixedTags: ['artistic', 'expressive', 'creative'],
         custom: false,
-        active: false,
+        active: true,
         modelParameters: {
             temperature: 0.9,
             top_k: 70,
@@ -131,7 +131,7 @@ const DEFAULT_STYLES = [
         suffix: '. Include: cartoon aesthetic, bold lines, vibrant colors, exaggerated features, comedic expressions, playful textures, whimsical details.',
         fixedTags: ['cartoon', 'playful', 'fun'],
         custom: false,
-        active: false,
+        active: true,
         modelParameters: {
             temperature: 0.8,
             top_k: 55,
@@ -165,7 +165,7 @@ const DEFAULT_STYLES = [
         suffix: '. Include: futuristic aesthetic, advanced technology, space-inspired details, neon lights, metallic textures, high-tech atmosphere, otherworldly composition.',
         fixedTags: ['sci-fi', 'futuristic', 'tech'],
         custom: false,
-        active: false,
+        active: true,
         modelParameters: {
             temperature: 0.8,
             top_k: 60,

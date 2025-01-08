@@ -53,6 +53,8 @@
     -webkit-overflow-scrolling: touch;
     position: relative;
     z-index: 1;
+    will-change: transform;
+    transform: translateZ(0);
 }
 
 .styles-container::-webkit-scrollbar {
@@ -95,6 +97,10 @@
     gap: 15px;
     cursor: pointer;
     transition: border-color 0.2s ease;
+    will-change: transform;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+    transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .style-card:hover {
@@ -692,10 +698,10 @@
 
 @keyframes shimmer {
     0% {
-        background-position: -200% 0;
+        background-position: -1000px 0;
     }
     100% {
-        background-position: 200% 0;
+        background-position: 1000px 0;
     }
 }
 
@@ -705,6 +711,9 @@
     animation: shimmer 6s infinite linear;
     position: relative;
     overflow: hidden;
+    border: 1px solid var(--theme-color);
+    will-change: transform;
+    transform: translateZ(0);
 }
 
 .styles-nav-right .style-card-button:first-child::after {
@@ -721,4 +730,17 @@
     background-size: 200% 100%;
     animation: shimmer 3s infinite linear;
     transition: all 0.2s ease;
+}
+
+.style-card-button {
+    will-change: transform;
+    transform: translateZ(0);
+}
+
+.scroll-container {
+    position: relative;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
 }
