@@ -46,13 +46,27 @@ function addToStyleHistory(styleId, prompt) {
 
 // Funkcja do nawigacji w historii
 function navigateHistory(styleId, direction) {
-    const history = styleHistories.get(styleId);
-    if (!history) return null;
+    const card = document.querySelector(`[data-style-id="${styleId}"]`);
+    if (!card) return;
 
-    const newIndex = history.currentIndex + direction;
+    const history = styleHistories.get(styleId);
+    if (!history) return;
+
+    const newIndex = direction === 'prev' ? history.currentIndex - 1 : history.currentIndex + 1;
+    
     if (newIndex >= 0 && newIndex < history.prompts.length) {
         history.currentIndex = newIndex;
-        return history.prompts[newIndex];
+        const prompt = history.prompts[newIndex];
+        
+        // Update the prompt display
+        const promptText = card.querySelector('.prompt-text');
+        if (promptText) {
+            promptText.textContent = prompt;
+        }
+        
+        // Update button states
+        updateHistoryButtons(styleId);
+        return prompt;
     }
     return null;
 }
@@ -213,6 +227,7 @@ function createStyleCard(style) {
     // Create prompt text container
     const promptText = document.createElement('div');
     promptText.className = 'prompt-text';
+    promptText.id = `prompt-${style.id}`;  // Add ID for easier reference
     promptText.textContent = 'Click Generate to create a prompt...';
     
     promptContainer.appendChild(promptText);
@@ -233,16 +248,24 @@ function createStyleCard(style) {
     historyButtons.className = 'history-buttons';
     
     const undoBtn = document.createElement('button');
-    undoBtn.className = 'prompt-action-btn';
+    undoBtn.className = 'prompt-action-btn prev-btn';
     undoBtn.innerHTML = '<i class="fas fa-undo"></i>';
     undoBtn.title = 'Previous prompt';
-    undoBtn.onclick = () => navigateHistory(style.id, 'prev');
+    undoBtn.onclick = (e) => {
+        e.stopPropagation();
+        navigateHistory(style.id, 'prev');
+    };
+    undoBtn.classList.add('disabled');
     
     const redoBtn = document.createElement('button');
-    redoBtn.className = 'prompt-action-btn';
+    redoBtn.className = 'prompt-action-btn next-btn';
     redoBtn.innerHTML = '<i class="fas fa-redo"></i>';
     redoBtn.title = 'Next prompt';
-    redoBtn.onclick = () => navigateHistory(style.id, 'next');
+    redoBtn.onclick = (e) => {
+        e.stopPropagation();
+        navigateHistory(style.id, 'next');
+    };
+    redoBtn.classList.add('disabled');
     
     historyButtons.appendChild(undoBtn);
     historyButtons.appendChild(redoBtn);
@@ -395,22 +418,28 @@ function revealPrompt(promptText, container) {
 
 // Funkcja do aktualizacji przycisków historii
 function updateHistoryButtons(styleId) {
-    const card = document.querySelector(`[data-style-id="${styleId}"]`);
+    const card = document.querySelector(`.style-card[data-style-id="${styleId}"]`);
     if (!card) return;
 
     const prevButton = card.querySelector('.prev-btn');
     const nextButton = card.querySelector('.next-btn');
     if (!prevButton || !nextButton) return;
 
-    const history = styleHistories.get(styleId) || { prompts: [], currentIndex: -1 };
+    const history = styleHistories.get(styleId);
+    if (!history || history.prompts.length === 0) {
+        prevButton.classList.add('disabled');
+        nextButton.classList.add('disabled');
+        return;
+    }
 
-    // Update button states using CSS classes
+    // Update previous button state
     if (history.currentIndex <= 0) {
         prevButton.classList.add('disabled');
     } else {
         prevButton.classList.remove('disabled');
     }
 
+    // Update next button state
     if (history.currentIndex >= history.prompts.length - 1) {
         nextButton.classList.add('disabled');
     } else {
@@ -483,20 +512,27 @@ function toggleStylesView(view) {
     const styleCards = document.querySelectorAll('.style-card');
     const activeBtn = document.querySelector('.switch-btn[data-view="active"]');
     const inactiveBtn = document.querySelector('.switch-btn[data-view="inactive"]');
+    const favoritesBtn = document.querySelector('.switch-btn[data-view="favorites"]');
     
     // Aktualizuj klasy przycisków
-    if (view === 'active') {
-        activeBtn.classList.add('active');
-        inactiveBtn.classList.remove('active');
-    } else {
-        activeBtn.classList.remove('active');
-        inactiveBtn.classList.add('active');
-    }
+    [activeBtn, inactiveBtn, favoritesBtn].forEach(btn => btn.classList.remove('active'));
+    document.querySelector(`.switch-btn[data-view="${view}"]`).classList.add('active');
 
     // Aktualizuj widoczność kart
     styleCards.forEach(card => {
         const isActive = localStorage.getItem(`style_${card.dataset.styleId}_active`) === 'true';
-        card.style.display = (view === 'active' && isActive) || (view === 'inactive' && !isActive) ? 'block' : 'none';
+        const isFavorite = localStorage.getItem(`style_${card.dataset.styleId}_favorite`) === 'true';
+        
+        let shouldDisplay = false;
+        if (view === 'active') {
+            shouldDisplay = isActive;
+        } else if (view === 'inactive') {
+            shouldDisplay = !isActive;
+        } else if (view === 'favorites') {
+            shouldDisplay = isFavorite;
+        }
+        
+        card.style.display = shouldDisplay ? 'block' : 'none';
     });
 
     // Aktualizuj liczniki i przycisk generowania
@@ -578,10 +614,15 @@ function updateStylePrompt(styleId, prompt) {
 
 // Funkcja do kopiowania promptu
 function copyStylePrompt(styleId) {
-    const promptOutput = document.querySelector(`#prompt-${styleId}`);
-    if (promptOutput && promptOutput.textContent) {
-        navigator.clipboard.writeText(promptOutput.textContent);
+    const card = document.querySelector(`[data-style-id="${styleId}"]`);
+    if (!card) return;
+    
+    const promptText = card.querySelector('.prompt-text');
+    if (promptText && promptText.textContent && promptText.textContent !== 'Click Generate to create a prompt...') {
+        navigator.clipboard.writeText(promptText.textContent);
         showToast('Prompt copied to clipboard');
+    } else {
+        showToast('No prompt to copy');
     }
 }
 
@@ -803,6 +844,14 @@ function initializeButtons() {
         
         btn.addEventListener('click', () => openStyleSettings(styleId));
     });
+
+    // Add Ollama Configuration button handler
+    const ollamaConfigButton = document.getElementById('open-ollama-button');
+    if (ollamaConfigButton) {
+        ollamaConfigButton.addEventListener('click', () => {
+            ipcRenderer.send('open-ollama-config');
+        });
+    }
 }
 
 // Funkcja debounce (jeśli jeszcze nie jest zdefiniowana)
@@ -998,17 +1047,17 @@ function updateStyleCounts() {
 
     cards.forEach(card => {
         const isActive = localStorage.getItem(`style_${card.dataset.styleId}_active`) === 'true';
-        const isFavorite = card.dataset.favorite === 'true' || localStorage.getItem(`style_${card.dataset.styleId}_favorite`) === 'true';
+        const isFavorite = localStorage.getItem(`style_${card.dataset.styleId}_favorite`) === 'true';
         
         if (isActive) activeCount++;
         else inactiveCount++;
         if (isFavorite) favoritesCount++;
     });
 
-    // Update counts in buttons
+    // Aktualizuj tekst przycisków
     document.querySelector('.switch-btn[data-view="active"]').textContent = `Active Styles (${activeCount})`;
     document.querySelector('.switch-btn[data-view="inactive"]').textContent = `Inactive Styles (${inactiveCount})`;
-    document.querySelector('.switch-btn[data-view="favorites"]').innerHTML = `<i class="fas fa-star"></i> Favorites (${favoritesCount})`;
+    document.querySelector('.switch-btn[data-view="favorites"]').textContent = `Favorites (${favoritesCount})`;
 }
 
 // Funkcja do aktualizacji tekstu przycisku Generate Prompts
@@ -1092,7 +1141,7 @@ function openStyleSettings(styleId) {
 // Listen for model parameter updates
 ipcRenderer.on('model-parameters-updated', (event, data) => {
     // Update style card if needed
-    const styleCard = document.querySelector(`[data-style-id="${data.styleId}"]`);
+    const styleCard = document.querySelector(`.style-card[data-style-id="${data.styleId}"]`);
     if (styleCard) {
         const titleEl = styleCard.querySelector('.style-card-title');
         const descriptionEl = styleCard.querySelector('.style-card-description');
