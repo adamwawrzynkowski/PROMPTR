@@ -1,3 +1,4 @@
+@import 'themes.css';
 @import 'variables.css';
 @import 'base.css';
 @import 'layout.css';
@@ -12,7 +13,7 @@
 @import 'windows.css';
 @import 'tooltips.css';
 @import 'tags.css';
-@import 'themes.css';
+@import 'vision.css';
 
 /* Button states */
 .disabled {

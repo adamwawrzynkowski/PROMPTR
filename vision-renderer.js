@@ -1,31 +1,66 @@
 const { ipcRenderer } = require('electron');
 
-let selectedImage = null;
-let analysisSource = 'prompt';
-let lastAnalysisResult = null;
-
-// Nasłuchuj na ustawienie źródła
-ipcRenderer.on('set-source', (event, source) => {
-    console.log('Setting analysis source:', source);
-    analysisSource = source;
+// Theme synchronization
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('DOM Content Loaded');
+    
+    // Request current theme on load
+    console.log('Requesting current theme...');
+    ipcRenderer.send('get-current-theme');
+    
+    // Listen for theme changes
+    ipcRenderer.on('theme-changed', (_, theme) => {
+        console.log('Theme changed event received:', theme);
+        
+        // Remove any existing theme classes from both html and body
+        const themeClasses = Array.from(document.body.classList)
+            .filter(className => className.startsWith('theme-'));
+        themeClasses.forEach(className => {
+            document.documentElement.classList.remove(className);
+            document.body.classList.remove(className);
+        });
+        
+        // Make sure theme has the correct prefix
+        const themeClass = theme.startsWith('theme-') ? theme : `theme-${theme}`;
+        console.log('Applying theme class:', themeClass);
+        
+        // Add new theme class to both html and body
+        document.documentElement.classList.add(themeClass);
+        document.body.classList.add(themeClass);
+        
+        // Log final state
+        console.log('Final HTML class:', document.documentElement.className);
+        console.log('Final body class:', document.body.className);
+        console.log('Computed styles:', {
+            themeColor: getComputedStyle(document.documentElement).getPropertyValue('--theme-color'),
+            themeColorBack: getComputedStyle(document.documentElement).getPropertyValue('--theme-color-back'),
+            accentPrimary: getComputedStyle(document.documentElement).getPropertyValue('--accent-primary')
+        });
+    });
 });
 
-document.querySelector('.close-button').addEventListener('click', () => {
-    window.close();
+// Window controls
+document.getElementById('minimize-button').addEventListener('click', () => {
+    ipcRenderer.send('minimize-vision');
 });
 
-const dropZone = document.getElementById('drop-zone');
-const previewImg = document.getElementById('preview');
-const analyzeButton = document.getElementById('analyze');
-const selectButton = document.getElementById('select-image');
-const analysisSection = document.querySelector('.analysis-section');
-const analysisResult = document.querySelector('.analysis-result');
-const regenerateButton = document.getElementById('regenerate');
-const regenerateDetailedButton = document.getElementById('regenerate-detailed');
-const useButton = document.getElementById('use');
-const modelSelect = document.getElementById('model-select');
+document.getElementById('maximize-button').addEventListener('click', () => {
+    ipcRenderer.send('maximize-vision');
+});
 
-// Obsługa przeciągania
+document.getElementById('close-button').addEventListener('click', () => {
+    ipcRenderer.send('close-vision');
+});
+
+// File handling
+const dropZone = document.getElementById('vision-drop-zone');
+const fileInput = document.getElementById('file-input');
+const previewImage = document.getElementById('preview-image');
+const selectBtn = document.getElementById('select-btn');
+const visionBtn = document.getElementById('vision-btn');
+let currentFile = null;
+
+// Handle drag & drop
 dropZone.addEventListener('dragover', (e) => {
     e.preventDefault();
     dropZone.classList.add('drag-over');
@@ -41,153 +76,68 @@ dropZone.addEventListener('drop', (e) => {
     
     const file = e.dataTransfer.files[0];
     if (file && file.type.startsWith('image/')) {
-        handleImageSelection(file);
+        handleFile(file);
     }
 });
 
-// Obsługa przycisku wyboru
-selectButton.addEventListener('click', () => {
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.onchange = (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            handleImageSelection(file);
-        }
-    };
-    input.click();
+// Handle file selection via button
+selectBtn.addEventListener('click', () => {
+    fileInput.click();
 });
 
-// Funkcja ładowania dostępnych modeli
-async function loadAvailableModels() {
-    try {
-        const ollamaModels = await ipcRenderer.invoke('get-available-models');
-        const visionModels = ollamaModels.filter(model => model.type === 'Vision' && model.installed);
-        
-        const customModels = await ipcRenderer.invoke('get-custom-models');
-        const customVisionModels = customModels.filter(model => model.type === 'Vision');
-        
-        const allModels = [
-            ...visionModels.map(model => ({
-                ...model,
-                isCustom: false,
-                displayName: model.name,
-                status: 'Installed' // Ustawienie statusu na 'Installed'
-            })),
-            ...customVisionModels.map(model => ({
-                id: model.name,
-                name: model.displayName,
-                type: 'Vision',
-                isCustom: true,
-                displayName: `${model.displayName} (Custom)`,
-                status: 'Available' // Ustawienie statusu na 'Available'
-            }))
-        ];
-        
-        modelSelect.innerHTML = '<option value="">Select analysis model</option>';
-        allModels.forEach(model => {
-            const option = document.createElement('option');
-            option.value = model.id;
-            option.dataset.isCustom = model.isCustom;
-            option.textContent = model.displayName;
-            modelSelect.appendChild(option);
-        });
-        renderModelTiles(allModels); // Renderowanie kafelków modeli od razu
-    } catch (error) {
-        console.error('Error loading models:', error);
-    }
-}
-
-// Zaktualizuj funkcję analizy obrazu
-async function analyzeImage(imageData, type) {
-    try {
-        const selectedOption = modelSelect.selectedOptions[0];
-        if (!selectedOption) {
-            throw new Error('Please select a model first');
-        }
-
-        const modelId = selectedOption.value;
-        const isCustomModel = selectedOption.dataset.isCustom === 'true';
-        
-        console.log('Analyzing with model:', {
-            modelId,
-            isCustomModel,
-            type
-        });
-        
-        const result = await ipcRenderer.invoke(
-            'analyze-image',
-            imageData,
-            type,
-            isCustomModel,
-            modelId
-        );
-        
-        return result;
-    } catch (error) {
-        console.error('Error analyzing image:', error);
-        throw error;
-    }
-}
-
-// Obsługa przycisku analizy
-analyzeButton.addEventListener('click', () => analyzeImage(selectedImage, analysisSource));
-
-// Obsługa przycisku Regenerate Detailed
-regenerateDetailedButton.addEventListener('click', () => {
-    analysisResult.innerHTML = `
-        <div class="analyzing">
-            <div class="analyzing-spinner"></div>
-            <span>Analyzing...</span>
-        </div>
-    `;
-    analyzeImage(selectedImage, analysisSource, true);
-});
-
-// Zaktualizuj obsługę zwykłego przycisku Regenerate
-regenerateButton.addEventListener('click', () => {
-    analysisResult.innerHTML = `
-        <div class="analyzing">
-            <div class="analyzing-spinner"></div>
-            <span>Analyzing...</span>
-        </div>
-    `;
-    analyzeImage(selectedImage, analysisSource, false);
-});
-
-// Obsługa przycisku użycia wyniku
-useButton.addEventListener('click', async () => {
-    if (lastAnalysisResult) {
-        if (analysisSource === 'style') {
-            // Wyślij wynik do okna edycji stylu
-            ipcRenderer.send('vision-analysis-complete', lastAnalysisResult, 'style');
-        } else {
-            // Wyślij wynik do głównego okna
-            await ipcRenderer.invoke('set-prompt', lastAnalysisResult);
-        }
-        window.close();
+fileInput.addEventListener('change', (e) => {
+    const file = e.target.files[0];
+    if (file) {
+        handleFile(file);
     }
 });
 
-function handleImageSelection(file) {
+function handleFile(file) {
+    currentFile = file;
+    
+    // Show preview
     const reader = new FileReader();
     reader.onload = (e) => {
-        selectedImage = e.target.result;
-        previewImg.src = selectedImage;
-        previewImg.style.display = 'block';
-        dropZone.style.display = 'none';
-        analyzeButton.disabled = false;
-        analysisSection.style.display = 'none';
-        analyzeButton.style.display = 'block';
+        previewImage.src = e.target.result;
+        previewImage.hidden = false;
+        document.querySelector('.drop-zone-content').style.display = 'none';
+        visionBtn.disabled = false;
     };
     reader.readAsDataURL(file);
 }
 
-// Dodaj wywołanie loadAvailableModels przy starcie
-document.addEventListener('DOMContentLoaded', loadAvailableModels);
+// Vision button
+visionBtn.addEventListener('click', async () => {
+    if (!currentFile) {
+        return;
+    }
 
-// Dodaj obsługę zmiany modelu
-modelSelect.addEventListener('change', () => {
-    analyzeButton.disabled = !selectedImage || !modelSelect.value;
-}); 
+    visionBtn.disabled = true;
+    visionBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+
+    try {
+        // Read file as base64
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            const base64Image = e.target.result.split(',')[1];
+            
+            // Send to main process
+            const result = await ipcRenderer.invoke('analyze-image', base64Image);
+            
+            // Handle result
+            if (result) {
+                // Send result back to main window
+                ipcRenderer.send('vision-result', result);
+                
+                // Close vision window
+                ipcRenderer.send('close-vision');
+            }
+        };
+        reader.readAsDataURL(currentFile);
+    } catch (error) {
+        console.error('Error processing image:', error);
+    } finally {
+        visionBtn.disabled = false;
+        visionBtn.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i> Analyze Image';
+    }
+});

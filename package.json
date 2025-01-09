@@ -1,7 +1,7 @@
 {
   "name": "promptr",
-  "version": "0.9.0",
-  "description": "AI-powered prompt editor for Stable Diffusion",
+  "version": "-stable-release",
+  "description": "AI-Powered Prompt Engineering Assistant",
   "author": {
     "name": "Adam Wawrzynkowski"
   },

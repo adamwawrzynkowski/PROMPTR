@@ -1,238 +1,236 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Analyze Image</title>
+    <title>Vision</title>
     <link rel="stylesheet" href="styles/main.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-    <style>
-        /* Custom styles specific to vision.html */
-        .drop-zone {
-            border: 2px dashed var(--border);
-            border-radius: 8px;
-            padding: 40px;
-            text-align: center;
-            transition: all 0.3s ease;
-        }
-
-        .drop-zone.dragover {
-            border-color: var(--accent-color);
-            background: rgba(76, 175, 80, 0.1);
-        }
-
-        .image-preview {
-            max-width: 100%;
-            max-height: 400px;
-            margin: 20px 0;
-            border-radius: 8px;
-        }
-
-        .controls {
-            display: flex;
-            gap: 10px;
-            justify-content: flex-end;
-        }
-    </style>
+    <link rel="stylesheet" href="styles/vision.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
 </head>
-<body>
-    <div class="window">
-        <div class="header">
-            <h1>Analyze Image</h1>
-            <button class="close-button" style="-webkit-app-region: no-drag">×</button>
+<body class="theme-purple">
+    <div class="window vision-window">
+        <!-- Title bar -->
+        <div class="title-bar">
+            <div class="window-controls">
+                <button class="window-control close" id="close-button">
+                    <i class="fas fa-times"></i>
+                </button>
+                <button class="window-control minimize" id="minimize-button">
+                    <i class="fas fa-minus"></i>
+                </button>
+            </div>
+            <div class="title-bar-left">
+                <div class="title-bar-logo">Vision</div>
+            </div>
         </div>
-        
-        <div class="content">
-            <div class="drag-area" id="drag-area">
-                <div class="icon">📁</div>
-                <p>Drag & Drop image here or click to select</p>
-                <input type="file" id="file-input" accept="image/*" style="display: none">
-            </div>
 
-            <select class="model-selector" id="model-selector">
-                <!-- Options will be added dynamically -->
-            </select>
-
-            <button class="analyze-button" id="analyze-button">
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                    <path d="M21 21L15 15M17 10C17 13.866 13.866 17 10 17C6.13401 17 3 13.866 3 10C3 6.13401 6.13401 3 10 3C13.866 3 17 6.13401 17 10Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                </svg>
-                Analyze Image
-            </button>
-
-            <div class="progress-container" id="progress-container">
-                <div id="status">Preparing analysis...</div>
-                <div class="progress-bar">
-                    <div class="progress-fill" id="progress"></div>
+        <!-- Content -->
+        <div class="vision-content">
+            <div class="vision-container">
+                <!-- Left side - Drop zone -->
+                <div class="vision-left">
+                    <div class="drop-zone" id="vision-drop-zone">
+                        <div class="drop-zone-content">
+                            <div class="drop-zone-icon">
+                                <i class="fas fa-cloud-upload-alt"></i>
+                            </div>
+                            <div class="drop-zone-text">
+                                <p>Drop your image here</p>
+                                <span>or use the button below</span>
+                            </div>
+                            <button class="btn primary select-btn" id="select-button">
+                                <i class="fas fa-folder-open"></i>
+                                Choose File
+                            </button>
+                        </div>
+                        <input type="file" id="file-input" accept="image/*" hidden>
+                        <img id="preview-image" class="preview-image" hidden>
+                    </div>
                 </div>
-            </div>
 
-            <div class="result-container" id="result">
-                <h3>Analysis Results</h3>
-                <div id="result-content"></div>
-                <div class="button-group">
-                    <button class="secondary-button" id="copy-button">
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-                            <path d="M8 16H6C4.89543 16 4 15.1046 4 14V6C4 4.89543 4.89543 4 6 4H14C15.1046 4 16 4.89543 16 6V8M10 20H18C19.1046 20 20 19.1046 20 18V10C20 8.89543 19.1046 8 18 8H10C8.89543 8 8 8.89543 8 10V18C8 19.1046 8.89543 20 10 20Z" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-                        </svg>
-                        Copy to Prompt
-                    </button>
+                <!-- Right side - Info & Actions -->
+                <div class="vision-right">
+                    <div class="vision-info">
+                        <h2>Image Analysis</h2>
+                        <p>Upload an image for analysis. PROMPTR will generate a description and a prompt based on it, which you can use within the app.</p>
+                        
+                        <div class="vision-features">
+                            <div class="vision-feature">
+                                <i class="fas fa-eye"></i>
+                                <span>Detailed scene analysis</span>
+                            </div>
+                            <div class="vision-feature">
+                                <i class="fas fa-tags"></i>
+                                <span>Object detection</span>
+                            </div>
+                            <div class="vision-feature">
+                                <i class="fas fa-palette"></i>
+                                <span>Style recognition</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="vision-actions">
+                        <button id="vision-button" class="btn primary" disabled>
+                            <i class="fas fa-wand-magic-sparkles"></i>
+                            Analyze Image
+                        </button>
+                    </div>
                 </div>
-            </div>
-
-            <div class="error-container" id="error">
-                <h3>Error</h3>
-                <div id="error-content"></div>
             </div>
         </div>
     </div>
 
     <script>
-        const { ipcRenderer } = require('electron');
+        document.addEventListener('DOMContentLoaded', function() {
+            const { ipcRenderer } = require('electron');
 
-        // Obsługa drag & drop
-        const dragArea = document.getElementById('drag-area');
-        const fileInput = document.getElementById('file-input');
-        let selectedImage = null;
+            // Obsługa drag & drop
+            const dragArea = document.getElementById('vision-drop-zone');
+            const fileInput = document.getElementById('file-input');
+            let selectedImage = null;
 
-        dragArea.addEventListener('click', () => {
-            fileInput.click();
-        });
-
-        fileInput.addEventListener('change', function() {
-            const file = this.files[0];
-            handleFile(file);
-        });
-
-        dragArea.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            dragArea.classList.add('active');
-        });
-
-        dragArea.addEventListener('dragleave', () => {
-            dragArea.classList.remove('active');
-        });
-
-        dragArea.addEventListener('drop', (e) => {
-            e.preventDefault();
-            dragArea.classList.remove('active');
-            const file = e.dataTransfer.files[0];
-            handleFile(file);
-        });
-
-        function handleFile(file) {
-            if (file && file.type.startsWith('image/')) {
-                const reader = new FileReader();
-                reader.onload = (e) => {
-                    selectedImage = e.target.result;
-                    dragArea.innerHTML = `<img src="${selectedImage}" style="max-width: 100%; max-height: 100%; object-fit: contain;">`;
-                };
-                reader.readAsDataURL(file);
-            }
-        }
-
-        // Aktualizacja listy modeli
-        ipcRenderer.on('update-models', (event, models) => {
-            const selector = document.getElementById('model-selector');
-            selector.innerHTML = ''; // Wyczyść obecne opcje
-            
-            // Dodaj opcję Ollama jeśli jest dostępna
-            const ollamaModel = models.find(m => m.type === 'ollama');
-            if (ollamaModel) {
-                selector.add(new Option(ollamaModel.name, ollamaModel.id));
-                
-                // Dodaj separator jeśli są też modele custom
-                if (models.length > 1) {
-                    const separator = document.createElement('option');
-                    separator.disabled = true;
-                    separator.text = '──────────';
-                    selector.add(separator);
-                }
-            }
-            
-            // Dodaj modele custom
-            const customModels = models.filter(m => m.type === 'custom');
-            customModels.forEach(model => {
-                selector.add(new Option(model.name, model.id));
+            dragArea.addEventListener('click', () => {
+                fileInput.click();
             });
 
-            // Jeśli nie ma żadnych modeli
-            if (models.length === 0) {
-                const option = new Option('No models available', '');
-                option.disabled = true;
-                selector.add(option);
+            fileInput.addEventListener('change', function() {
+                const file = this.files[0];
+                handleFile(file);
+            });
+
+            dragArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dragArea.classList.add('dragover');
+            });
+
+            dragArea.addEventListener('dragleave', () => {
+                dragArea.classList.remove('dragover');
+            });
+
+            dragArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dragArea.classList.remove('dragover');
+                const file = e.dataTransfer.files[0];
+                handleFile(file);
+            });
+
+            function handleFile(file) {
+                if (file && file.type.startsWith('image/')) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        selectedImage = e.target.result;
+                        document.getElementById('preview-image').src = selectedImage;
+                        document.getElementById('preview-image').hidden = false;
+                    };
+                    reader.readAsDataURL(file);
+                }
             }
-        });
 
-        // Obsługa przycisku analizy
-        document.getElementById('analyze-button').addEventListener('click', async () => {
-            if (!selectedImage) {
-                alert('Please select an image first');
-                return;
-            }
+            // Aktualizacja listy modeli
+            ipcRenderer.on('update-models', (event, models) => {
+                const selector = document.getElementById('model-selector');
+                selector.innerHTML = ''; // Wyczyść obecne opcje
+                
+                // Dodaj opcję Ollama jeśli jest dostępna
+                const ollamaModel = models.find(m => m.type === 'ollama');
+                if (ollamaModel) {
+                    selector.add(new Option(ollamaModel.name, ollamaModel.id));
+                    
+                    // Dodaj separator jeśli są też modele custom
+                    if (models.length > 1) {
+                        const separator = document.createElement('option');
+                        separator.disabled = true;
+                        separator.text = '──────────';
+                        selector.add(separator);
+                    }
+                }
+                
+                // Dodaj modele custom
+                const customModels = models.filter(m => m.type === 'custom');
+                customModels.forEach(model => {
+                    selector.add(new Option(model.name, model.id));
+                });
 
-            const modelSelector = document.getElementById('model-selector');
-            const selectedModel = modelSelector.value;
-            const isCustomModel = selectedModel !== 'ollama';
+                // Jeśli nie ma żadnych modeli
+                if (models.length === 0) {
+                    const option = new Option('No models available', '');
+                    option.disabled = true;
+                    selector.add(option);
+                }
+            });
 
-            try {
-                document.getElementById('progress-container').style.display = 'block';
-                document.getElementById('result').style.display = 'none';
-                document.getElementById('error').style.display = 'none';
-                document.getElementById('progress').style.width = '0%';
-                document.getElementById('status').textContent = 'Starting analysis...';
+            // Obsługa przycisku analizy
+            document.getElementById('vision-button').addEventListener('click', async () => {
+                if (!selectedImage) {
+                    alert('Please select an image first');
+                    return;
+                }
 
-                const result = await ipcRenderer.invoke('analyze-image', 
-                    selectedImage,
-                    'content',
-                    isCustomModel,
-                    selectedModel
-                );
+                const modelSelector = document.getElementById('model-selector');
+                const selectedModel = modelSelector.value;
+                const isCustomModel = selectedModel !== 'ollama';
 
-                if (result) {
+                try {
+                    document.getElementById('progress-container').style.display = 'block';
+                    document.getElementById('result').style.display = 'none';
+                    document.getElementById('error').style.display = 'none';
+                    document.getElementById('progress').style.width = '0%';
+                    document.getElementById('status').textContent = 'Starting analysis...';
+
+                    const result = await ipcRenderer.invoke('analyze-image', 
+                        selectedImage,
+                        'content',
+                        isCustomModel,
+                        selectedModel
+                    );
+
+                    if (result) {
+                        document.getElementById('result').style.display = 'block';
+                        document.getElementById('result-content').textContent = 
+                            JSON.stringify(result, null, 2);
+                    }
+                } catch (error) {
+                    document.getElementById('error').style.display = 'block';
+                    document.getElementById('error-content').textContent = error.message;
+                }
+            });
+
+            // Handle progress updates
+            ipcRenderer.on('analysis-progress', (event, data) => {
+                const progressContainer = document.getElementById('progress-container');
+                const progressBar = document.getElementById('progress');
+                const status = document.getElementById('status');
+                
+                progressContainer.style.display = 'block';
+                status.textContent = data.status;
+                progressBar.style.width = `${data.progress * 100}%`;
+
+                if (data.result) {
+                    progressContainer.style.display = 'none';
                     document.getElementById('result').style.display = 'block';
                     document.getElementById('result-content').textContent = 
-                        JSON.stringify(result, null, 2);
+                        typeof data.result === 'string' ? data.result : JSON.stringify(data.result, null, 2);
                 }
-            } catch (error) {
+            });
+
+            // Handle errors
+            ipcRenderer.on('analysis-error', (event, message) => {
                 document.getElementById('error').style.display = 'block';
-                document.getElementById('error-content').textContent = error.message;
-            }
-        });
+                document.getElementById('error-content').textContent = message;
+            });
 
-        // Handle progress updates
-        ipcRenderer.on('analysis-progress', (event, data) => {
-            const progressContainer = document.getElementById('progress-container');
-            const progressBar = document.getElementById('progress');
-            const status = document.getElementById('status');
-            
-            progressContainer.style.display = 'block';
-            status.textContent = data.status;
-            progressBar.style.width = `${data.progress * 100}%`;
+            // Close button
+            document.querySelector('.close-button').addEventListener('click', () => {
+                window.close();
+            });
 
-            if (data.result) {
-                progressContainer.style.display = 'none';
-                document.getElementById('result').style.display = 'block';
-                document.getElementById('result-content').textContent = 
-                    typeof data.result === 'string' ? data.result : JSON.stringify(data.result, null, 2);
-            }
-        });
-
-        // Handle errors
-        ipcRenderer.on('analysis-error', (event, message) => {
-            document.getElementById('error').style.display = 'block';
-            document.getElementById('error-content').textContent = message;
-        });
-
-        // Close button
-        document.querySelector('.close-button').addEventListener('click', () => {
-            window.close();
-        });
-
-        // Dodaj obsługę przycisków
-        document.getElementById('copy-button').addEventListener('click', () => {
-            const resultContent = document.getElementById('result-content').textContent;
-            if (resultContent) {
-                ipcRenderer.invoke('set-prompt', resultContent);
-            }
+            // Dodaj obsługę przycisków
+            document.getElementById('copy-button').addEventListener('click', () => {
+                const resultContent = document.getElementById('result-content').textContent;
+                if (resultContent) {
+                    ipcRenderer.invoke('set-prompt', resultContent);
+                }
+            });
         });
     </script>
 </body>

@@ -15,7 +15,6 @@ const themeManager = require('./theme-manager');
 const styleSettingsWindow = require('./style-settings-window');
 const { exec } = require('child_process');
 const net = require('net');
-const visionWindow = require('./vision-window');
 const modelInstallWindow = require('./model-install-window');
 const startupWindow = require('./startup-window');
 const configManager = require('./config-manager');
@@ -70,6 +69,7 @@ const store = new Store({
 let mainWindow = null;
 let ollamaConfigWindow = null;
 let onboardingWindow = null;
+let visionWindow = null;
 
 // Constants
 const APP_VERSION = 'v1.0';
@@ -780,7 +780,6 @@ app.on('activate', async () => {
     }
 });
 
-// Handle window-all-closed event
 app.on('window-all-closed', () => {
     if (process.platform !== 'darwin') {
         app.quit();
@@ -988,10 +987,6 @@ ipcMain.on('open-settings', () => {
 
 ipcMain.on('open-styles', () => {
     stylesWindow.create();
-});
-
-ipcMain.on('open-vision', () => {
-    visionWindow.create();
 });
 
 ipcMain.on('open-credits', () => {
@@ -1230,6 +1225,137 @@ ipcMain.on('style-selection-complete', async (event, selectedStyleIds) => {
 app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
         appStartupManager.startup = createStartupWindow();
+    }
+});
+
+ipcMain.on('close-vision-window', () => {
+    if (visionWindow) {
+        visionWindow.close();
+    }
+});
+
+ipcMain.on('minimize-vision-window', () => {
+    if (visionWindow) {
+        visionWindow.minimize();
+    }
+});
+
+ipcMain.handle('analyze-image', async (event, base64Image) => {
+    try {
+        // Here you would implement the actual image analysis
+        // For now, we'll just return a mock result
+        return {
+            description: "A sample image analysis result"
+        };
+    } catch (error) {
+        console.error('Error analyzing image:', error);
+        throw error;
+    }
+});
+
+ipcMain.on('vision-result', (event, result) => {
+    // Send the result to the main window
+    mainWindow.webContents.send('vision-result', result);
+});
+
+// Vision window handlers
+ipcMain.on('open-vision', () => {
+    createVisionWindow();
+});
+
+// Get current theme
+ipcMain.on('get-current-theme', (event) => {
+    const settings = store.get('settings') || {};
+    const theme = `theme-${settings.theme || 'purple'}`;
+    console.log('Sending current theme:', theme);
+    event.reply('theme-changed', theme);
+});
+
+// Create Vision window
+function createVisionWindow() {
+    if (visionWindow) {
+        visionWindow.focus();
+        return;
+    }
+
+    visionWindow = new BrowserWindow({
+        width: 1000,
+        height: 700,
+        minWidth: 900,
+        minHeight: 600,
+        show: false,
+        frame: false,
+        titleBarStyle: 'hidden',
+        trafficLightPosition: { x: -100, y: -100 },
+        webPreferences: {
+            nodeIntegration: true,
+            contextIsolation: false
+        }
+    });
+
+    visionWindow.loadFile('vision.html');
+    
+    // Send current theme once window is ready
+    visionWindow.webContents.on('did-finish-load', () => {
+        const settings = store.get('settings') || {};
+        const theme = `theme-${settings.theme || 'purple'}`;
+        console.log('Sending current theme:', theme);
+        visionWindow.webContents.send('theme-changed', theme);
+        visionWindow.show();
+    });
+
+    visionWindow.on('closed', () => {
+        visionWindow = null;
+    });
+}
+
+// Vision window controls
+ipcMain.on('minimize-vision', () => {
+    if (visionWindow) visionWindow.minimize();
+});
+
+ipcMain.on('maximize-vision', () => {
+    if (visionWindow) {
+        if (visionWindow.isMaximized()) {
+            visionWindow.unmaximize();
+        } else {
+            visionWindow.maximize();
+        }
+    }
+});
+
+ipcMain.on('close-vision', () => {
+    if (visionWindow) visionWindow.close();
+});
+
+// Theme handlers
+ipcMain.on('get-current-theme', (event) => {
+    const settings = store.get('settings') || {};
+    const theme = `theme-${settings.theme || 'purple'}`;
+    console.log('Sending current theme:', theme);
+    event.reply('theme-changed', theme);
+});
+
+// When theme changes in main window, update Vision window
+ipcMain.on('theme-changed', (event, theme) => {
+    console.log('Theme change received in main process:', theme);
+    
+    // Update theme in electron store
+    store.set('settings.theme', theme);
+    console.log('Theme saved in store:', theme);
+    
+    // Notify all windows about theme change
+    const themeClass = `theme-${theme}`;
+    console.log('Broadcasting theme change:', themeClass);
+    BrowserWindow.getAllWindows().forEach(window => {
+        if (!window.isDestroyed()) {
+            window.webContents.send('theme-changed', themeClass);
+        }
+    });
+    
+    // Update vision window theme
+    if (visionWindow && !visionWindow.isDestroyed()) {
+        visionWindow.webContents.send('theme-changed', themeClass);
     }
 });
 

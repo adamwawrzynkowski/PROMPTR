@@ -780,6 +780,14 @@ function initializeButtons() {
         updateGeneratePromptsButton();
     }
 
+    // Vision button
+    const visionBtn = document.getElementById('visionBtn');
+    if (visionBtn) {
+        visionBtn.addEventListener('click', () => {
+            ipcRenderer.send('open-vision');
+        });
+    }
+
     // Przycisk Draw Things
     const drawThingsBtn = document.getElementById('draw-things-btn');
     if (drawThingsBtn) {
@@ -1306,126 +1314,54 @@ document.addEventListener('DOMContentLoaded', () => {
     initializePerformanceMonitoring();
 });
 
-// Virtual scrolling implementation
-class VirtualScroller {
-    constructor(container, items, renderCallback) {
-        this.container = container;
-        this.items = items;
-        this.renderCallback = renderCallback;
-        this.visibleItems = new Map();
-        this.lastScrollPosition = 0;
-        
-        // Create height placeholder
-        this.heightPlaceholder = document.createElement('div');
-        this.container.appendChild(this.heightPlaceholder);
-        
-        // Bind scroll handler with RAF for performance
-        this.scrollHandler = this.onScroll.bind(this);
-        this.container.addEventListener('scroll', () => {
-            if (!this.ticking) {
-                requestAnimationFrame(() => {
-                    this.scrollHandler();
-                    this.ticking = false;
-                });
-                this.ticking = true;
+// Theme handling
+const initializeTheme = async () => {
+    const themeSelect = document.getElementById('themeSelect');
+    if (!themeSelect) return;
+
+    const body = document.body;
+    
+    try {
+        // Load saved theme from electron store
+        const savedTheme = await ipcRenderer.invoke('get-setting', 'theme') || 'purple';
+        console.log('Initial theme loaded:', savedTheme);
+        themeSelect.value = savedTheme;
+        body.className = `theme-${savedTheme}`;
+
+        // Handle theme changes
+        themeSelect.addEventListener('change', async (e) => {
+            const selectedTheme = e.target.value;
+            console.log('Theme selected:', selectedTheme);
+            body.className = `theme-${selectedTheme}`;
+            try {
+                await ipcRenderer.invoke('set-setting', 'theme', selectedTheme);
+                // Notify other windows about theme change
+                console.log('Broadcasting theme change:', selectedTheme);
+                ipcRenderer.send('theme-changed', selectedTheme);
+            } catch (error) {
+                console.error('Error saving theme:', error);
             }
         });
-        
-        // Initial render
-        this.updateVisibleItems();
+    } catch (error) {
+        console.error('Error loading theme:', error);
+        // Set default theme if there's an error
+        body.className = 'theme-purple';
     }
-    
-    updateVisibleItems() {
-        const scrollTop = this.container.scrollTop;
-        const viewportHeight = this.container.clientHeight;
-        
-        // Calculate visible range with buffer
-        const startIndex = Math.max(0, Math.floor(scrollTop / CARD_HEIGHT) - BUFFER_SIZE);
-        const endIndex = Math.min(
-            this.items.length,
-            Math.ceil((scrollTop + viewportHeight) / CARD_HEIGHT) + BUFFER_SIZE
-        );
-        
-        // Update height placeholder
-        this.heightPlaceholder.style.height = `${this.items.length * CARD_HEIGHT}px`;
-        
-        // Remove items that are no longer visible
-        for (const [index, element] of this.visibleItems.entries()) {
-            if (index < startIndex || index >= endIndex) {
-                element.remove();
-                this.visibleItems.delete(index);
-            }
-        }
-        
-        // Add new visible items
-        for (let i = startIndex; i < endIndex; i++) {
-            if (!this.visibleItems.has(i) && i < this.items.length) {
-                const item = this.items[i];
-                const element = this.renderCallback(item);
-                element.style.position = 'absolute';
-                element.style.top = `${i * CARD_HEIGHT}px`;
-                element.style.width = '100%';
-                this.container.appendChild(element);
-                this.visibleItems.set(i, element);
-            }
-        }
-    }
-    
-    onScroll() {
-        this.updateVisibleItems();
-        this.lastScrollPosition = this.container.scrollTop;
-    }
-    
-    refresh(newItems) {
-        this.items = newItems;
-        this.visibleItems.clear();
-        this.container.innerHTML = '';
-        this.container.appendChild(this.heightPlaceholder);
-        this.updateVisibleItems();
-    }
-}
+};
 
-// Initialize virtual scrolling
-function initializeVirtualScrolling() {
-    const container = document.querySelector('.styles-container');
-    if (!container) return;
-    
-    // Get all styles
-    const styles = Array.from(container.querySelectorAll('.style-card'));
-    
-    // Remove existing cards
-    container.innerHTML = '';
-    
-    // Create virtual scroller
-    const virtualScroller = new VirtualScroller(
-        container,
-        styles,
-        (style) => {
-            const clone = style.cloneNode(true);
-            setupStyleCardEventListeners(clone, {
-                id: clone.dataset.styleId,
-                // Add other necessary style properties
-            });
-            return clone;
-        }
-    );
-    
-    // Store reference for later use
-    window.virtualScroller = virtualScroller;
-}
+document.addEventListener('DOMContentLoaded', () => {
+    initializeTheme();
+});
 
-// Optimize style card creation with DocumentFragment
-function createStyleCards(styles) {
-    const fragment = document.createDocumentFragment();
-    const container = document.querySelector('.styles-container');
-    
-    styles.forEach(style => {
-        const card = createStyleCard(style);
-        fragment.appendChild(card);
-    });
-    
-    container.appendChild(fragment);
-    initializeVirtualScrolling();
+// Funkcja pomocnicza do wyświetlania animacji ładowania
+function showLoadingAnimation(container, text) {
+    container.innerHTML = `
+        <div class="generating-text">
+            <i class="fas fa-sparkles generating-icon"></i>
+            ${Array.from(text).map(char => 
+                char === ' ' ? '<span>&nbsp;</span>' : `<span>${char}</span>`
+            ).join('')}
+        </div>`;
 }
 
 // Funkcja do ulepszania promptu
@@ -1619,47 +1555,124 @@ ipcRenderer.on('initialization-complete', () => {
     }
 });
 
-// Theme handling
-const initializeTheme = async () => {
-    const themeSelect = document.getElementById('themeSelect');
-    if (!themeSelect) return;
-
-    const body = document.body;
-    
-    try {
-        // Load saved theme from electron store
-        const savedTheme = await ipcRenderer.invoke('get-setting', 'theme') || 'purple';
-        themeSelect.value = savedTheme;
-        body.className = `theme-${savedTheme}`;
-
-        // Handle theme changes
-        themeSelect.addEventListener('change', async (e) => {
-            const selectedTheme = e.target.value;
-            body.className = `theme-${selectedTheme}`;
-            try {
-                await ipcRenderer.invoke('set-setting', 'theme', selectedTheme);
-            } catch (error) {
-                console.error('Error saving theme:', error);
+// Virtual scrolling implementation
+class VirtualScroller {
+    constructor(container, items, renderCallback) {
+        this.container = container;
+        this.items = items;
+        this.renderCallback = renderCallback;
+        this.visibleItems = new Map();
+        this.lastScrollPosition = 0;
+        
+        // Create height placeholder
+        this.heightPlaceholder = document.createElement('div');
+        this.container.appendChild(this.heightPlaceholder);
+        
+        // Bind scroll handler with RAF for performance
+        this.scrollHandler = this.onScroll.bind(this);
+        this.container.addEventListener('scroll', () => {
+            if (!this.ticking) {
+                requestAnimationFrame(() => {
+                    this.scrollHandler();
+                    this.ticking = false;
+                });
+                this.ticking = true;
             }
         });
-    } catch (error) {
-        console.error('Error loading theme:', error);
-        // Set default theme if there's an error
-        body.className = 'theme-purple';
+        
+        // Initial render
+        this.updateVisibleItems();
     }
-};
+    
+    updateVisibleItems() {
+        const scrollTop = this.container.scrollTop;
+        const viewportHeight = this.container.clientHeight;
+        
+        // Calculate visible range with buffer
+        const startIndex = Math.max(0, Math.floor(scrollTop / CARD_HEIGHT) - BUFFER_SIZE);
+        const endIndex = Math.min(
+            this.items.length,
+            Math.ceil((scrollTop + viewportHeight) / CARD_HEIGHT) + BUFFER_SIZE
+        );
+        
+        // Update height placeholder
+        this.heightPlaceholder.style.height = `${this.items.length * CARD_HEIGHT}px`;
+        
+        // Remove items that are no longer visible
+        for (const [index, element] of this.visibleItems.entries()) {
+            if (index < startIndex || index >= endIndex) {
+                element.remove();
+                this.visibleItems.delete(index);
+            }
+        }
+        
+        // Add new visible items
+        for (let i = startIndex; i < endIndex; i++) {
+            if (!this.visibleItems.has(i) && i < this.items.length) {
+                const item = this.items[i];
+                const element = this.renderCallback(item);
+                element.style.position = 'absolute';
+                element.style.top = `${i * CARD_HEIGHT}px`;
+                element.style.width = '100%';
+                this.container.appendChild(element);
+                this.visibleItems.set(i, element);
+            }
+        }
+    }
+    
+    onScroll() {
+        this.updateVisibleItems();
+        this.lastScrollPosition = this.container.scrollTop;
+    }
+    
+    refresh(newItems) {
+        this.items = newItems;
+        this.visibleItems.clear();
+        this.container.innerHTML = '';
+        this.container.appendChild(this.heightPlaceholder);
+        this.updateVisibleItems();
+    }
+}
 
-document.addEventListener('DOMContentLoaded', () => {
-    initializeTheme();
-});
+// Initialize virtual scrolling
+function initializeVirtualScrolling() {
+    const container = document.querySelector('.styles-container');
+    if (!container) return;
+    
+    // Get all styles
+    const styles = Array.from(container.querySelectorAll('.style-card'));
+    
+    // Remove existing cards
+    container.innerHTML = '';
+    
+    // Create virtual scroller
+    const virtualScroller = new VirtualScroller(
+        container,
+        styles,
+        (style) => {
+            const clone = style.cloneNode(true);
+            setupStyleCardEventListeners(clone, {
+                id: clone.dataset.styleId,
+                // Add other necessary style properties
+            });
+            return clone;
+        }
+    );
+    
+    // Store reference for later use
+    window.virtualScroller = virtualScroller;
+}
 
-// Funkcja pomocnicza do wyświetlania animacji ładowania
-function showLoadingAnimation(container, text) {
-    container.innerHTML = `
-        <div class="generating-text">
-            <i class="fas fa-sparkles generating-icon"></i>
-            ${Array.from(text).map(char => 
-                char === ' ' ? '<span>&nbsp;</span>' : `<span>${char}</span>`
-            ).join('')}
-        </div>`;
+// Optimize style card creation with DocumentFragment
+function createStyleCards(styles) {
+    const fragment = document.createDocumentFragment();
+    const container = document.querySelector('.styles-container');
+    
+    styles.forEach(style => {
+        const card = createStyleCard(style);
+        fragment.appendChild(card);
+    });
+    
+    container.appendChild(fragment);
+    initializeVirtualScrolling();
 }

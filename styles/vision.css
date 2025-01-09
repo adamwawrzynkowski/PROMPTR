@@ -1,0 +1,633 @@
+/* Default theme variables */
+:root {
+    --theme-color: #9333EA;
+    --theme-color-back: #4a4a48;
+    --theme-color-darker: #2e2d2b;
+    --theme-color-hover: rgba(147, 51, 234, 0.3);
+    --theme-color-transparent: rgba(147, 51, 234, 0.2);
+    --hover-action: #9333EA;
+    --accent-primary: #9333EA;
+    --accent-secondary: #c084fc;
+    --button-hover: #9333EA;
+    --switch-active: #9333EA;
+    --input-focus-border: #9333EA;
+    --generate-button-bg: #9333EA;
+    --generate-button-hover: #7928d1;
+    --switch-glow: rgba(147, 51, 234, 0.3);
+}
+
+/* Theme color variables */
+.theme-purple {
+    --theme-color: #9333EA;
+    --theme-color-back: #4a4a48;
+    --theme-color-darker: #2e2d2b;
+    --theme-color-hover: rgba(147, 51, 234, 0.3);
+    --theme-color-transparent: rgba(147, 51, 234, 0.2);
+    --hover-action: #9333EA;
+    --accent-primary: #9333EA;
+    --accent-secondary: #c084fc;
+    --button-hover: #9333EA;
+    --switch-active: #9333EA;
+    --input-focus-border: #9333EA;
+    --generate-button-bg: #9333EA;
+    --generate-button-hover: #7928d1;
+    --switch-glow: rgba(147, 51, 234, 0.3);
+    --gradient-background: linear-gradient(
+        110deg,
+        rgb(58, 37, 89) 20%,
+        rgb(67, 43, 102) 30%,
+        rgba(139, 92, 246, 0.3) 40%,
+        rgb(67, 43, 102) 50%,
+        rgb(58, 37, 89) 60%
+    );
+}
+
+.theme-red {
+    --theme-color: #dc2626;
+    --theme-color-back: #4a4a48;
+    --theme-color-darker: #2e2d2b;
+    --theme-color-hover: rgba(220, 38, 38, 0.3);
+    --theme-color-transparent: rgba(220, 38, 38, 0.2);
+    --hover-action: #dc2626;
+    --accent-primary: #dc2626;
+    --accent-secondary: #ef4444;
+    --button-hover: #dc2626;
+    --switch-active: #dc2626;
+    --input-focus-border: #dc2626;
+    --generate-button-bg: #dc2626;
+    --generate-button-hover: #b91c1c;
+    --switch-glow: rgba(220, 38, 38, 0.3);
+    --gradient-background: linear-gradient(
+        110deg,
+        rgb(138, 27, 27) 20%,
+        rgb(172, 20, 20) 30%,
+        rgba(183, 37, 37, 0.3) 40%,
+        rgb(172, 20, 20) 50%,
+        rgb(138, 27, 27) 60%
+    );
+}
+
+.theme-blue {
+    --theme-color: #3b82f6;
+    --theme-color-back: #4a4a48;
+    --theme-color-darker: #2e2d2b;
+    --theme-color-hover: rgba(59, 130, 246, 0.3);
+    --theme-color-transparent: rgba(59, 130, 246, 0.2);
+    --hover-action: #3b82f6;
+    --accent-primary: #3b82f6;
+    --accent-secondary: #60a5fa;
+    --button-hover: #3b82f6;
+    --switch-active: #3b82f6;
+    --input-focus-border: #3b82f6;
+    --generate-button-bg: #3b82f6;
+    --generate-button-hover: #2563eb;
+    --switch-glow: rgba(59, 130, 246, 0.3);
+    --gradient-background: linear-gradient(
+        110deg,
+        rgb(27, 71, 138) 20%,
+        rgb(20, 71, 172) 30%,
+        rgba(37, 105, 183, 0.3) 40%,
+        rgb(20, 71, 172) 50%,
+        rgb(27, 71, 138) 60%
+    );
+}
+
+.theme-green {
+    --theme-color: #22c55e;
+    --theme-color-back: #4a4a48;
+    --theme-color-darker: #2e2d2b;
+    --theme-color-hover: rgba(34, 197, 94, 0.3);
+    --theme-color-transparent: rgba(34, 197, 94, 0.2);
+    --hover-action: #22c55e;
+    --accent-primary: #22c55e;
+    --accent-secondary: #4ade80;
+    --button-hover: #22c55e;
+    --switch-active: #22c55e;
+    --input-focus-border: #22c55e;
+    --generate-button-bg: #22c55e;
+    --generate-button-hover: #16a34a;
+    --switch-glow: rgba(34, 197, 94, 0.3);
+    --gradient-background: linear-gradient(
+        110deg,
+        rgb(27, 138, 49) 20%,
+        rgb(20, 172, 55) 30%,
+        rgba(37, 183, 44, 0.3) 40%,
+        rgb(20, 172, 55) 50%,
+        rgb(27, 138, 49) 60%
+    );
+}
+
+.theme-yellow {
+    --theme-color: #eab308;
+    --theme-color-back: #4a4a48;
+    --theme-color-darker: #2e2d2b;
+    --theme-color-hover: rgba(234, 179, 8, 0.3);
+    --theme-color-transparent: rgba(234, 179, 8, 0.2);
+    --hover-action: #eab308;
+    --accent-primary: #eab308;
+    --accent-secondary: #facc15;
+    --button-hover: #eab308;
+    --switch-active: #eab308;
+    --input-focus-border: #eab308;
+    --generate-button-bg: #eab308;
+    --generate-button-hover: #ca8a04;
+    --switch-glow: rgba(234, 179, 8, 0.3);
+    --gradient-background: linear-gradient(
+        110deg,
+        rgb(138, 134, 27) 20%,
+        rgb(172, 170, 20) 30%,
+        rgba(195, 189, 23, 0.3) 40%,
+        rgb(172, 170, 20) 50%,
+        rgb(138, 134, 27) 60%
+    );
+}
+
+.theme-orange {
+    --theme-color: #f97316;
+    --theme-color-back: #4a4a48;
+    --theme-color-darker: #2e2d2b;
+    --theme-color-hover: rgba(249, 115, 22, 0.3);
+    --theme-color-transparent: rgba(249, 115, 22, 0.2);
+    --hover-action: #f97316;
+    --accent-primary: #f97316;
+    --accent-secondary: #fb923c;
+    --button-hover: #f97316;
+    --switch-active: #f97316;
+    --input-focus-border: #f97316;
+    --generate-button-bg: #f97316;
+    --generate-button-hover: #ea580c;
+    --switch-glow: rgba(249, 115, 22, 0.3);
+    --gradient-background: linear-gradient(
+        110deg,
+        rgb(138, 75, 27) 20%,
+        rgb(172, 106, 20) 30%,
+        rgba(195, 103, 23, 0.3) 40%,
+        rgb(172, 106, 20) 50%,
+        rgb(138, 75, 27) 60%
+    );
+}
+
+.theme-pink {
+    --theme-color: #ec4899;
+    --theme-color-back: #4a4a48;
+    --theme-color-darker: #2e2d2b;
+    --theme-color-hover: rgba(236, 72, 153, 0.3);
+    --theme-color-transparent: rgba(236, 72, 153, 0.2);
+    --hover-action: #ec4899;
+    --accent-primary: #ec4899;
+    --accent-secondary: #f472b6;
+    --button-hover: #ec4899;
+    --switch-active: #ec4899;
+    --input-focus-border: #ec4899;
+    --generate-button-bg: #ec4899;
+    --generate-button-hover: #db2777;
+    --switch-glow: rgba(236, 72, 153, 0.3);
+    --gradient-background: linear-gradient(
+        110deg,
+        rgb(202, 31, 199) 20%,
+        rgb(172, 20, 142) 30%,
+        rgba(178, 23, 195, 0.3) 40%,
+        rgb(172, 20, 142) 50%,
+        rgb(202, 31, 199) 60%
+    );
+}
+
+.theme-gray {
+    --theme-color: #7a7a7a;
+    --theme-color-back: #4a4a48;
+    --theme-color-darker: #2e2d2b;
+    --theme-color-hover: rgb(255, 255, 255);
+    --theme-color-transparent: rgba(255, 255, 255, 0.2);
+    --hover-action: #b0b0b0;
+    --accent-primary: #7a7a7a;
+    --accent-secondary: #4a4a48;
+    --button-hover: rgb(136, 136, 136);
+    --switch-active: #6f6f6f;
+    --input-focus-border: #7a7a7a;
+    --generate-button-bg: #7a7a7a;
+    --generate-button-hover: #7a7a7a;
+    --switch-glow: rgba(196, 196, 196, 0.3);
+    --gradient-background: linear-gradient(
+        110deg,
+        rgb(166, 166, 166) 20%,
+        rgb(119, 119, 119) 30%,
+        rgba(82, 79, 88, 0.3) 40%,
+        rgb(119, 119, 119) 50%,
+        rgb(166, 166, 166) 60%
+    );
+}
+
+.theme-rainbow {
+    --theme-color: #ff0000;
+    --theme-color-back: #4a4a48;
+    --theme-color-darker: #2e2d2b;
+    --theme-color-hover: rgba(255, 0, 0, 0.3);
+    --theme-color-transparent: rgba(255, 0, 0, 0.2);
+    --hover-action: #ff0000;
+    --accent-primary: #ff0000;
+    --accent-secondary: #ff4d4d;
+    --button-hover: #ff0000;
+    --switch-active: #ff0000;
+    --input-focus-border: #ff0000;
+    --generate-button-bg: #ff0000;
+    --generate-button-hover: #cc0000;
+    --switch-glow: rgba(255, 0, 0, 0.3);
+    --gradient-background: linear-gradient(
+        110deg,
+        rgb(255, 0, 0) 20%,
+        rgb(255, 165, 0) 30%,
+        rgb(255, 255, 0) 40%,
+        rgb(0, 128, 0) 50%,
+        rgb(0, 0, 255) 60%,
+        rgb(75, 0, 130) 70%,
+        rgb(238, 130, 238) 80%
+    );
+}
+
+.vision-content {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+}
+
+.vision-container {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: var(--spacing-xl);
+    padding: var(--spacing-xl);
+    height: 600px;
+    min-width: 900px;
+}
+
+.vision-left {
+    display: flex;
+    flex-direction: column;
+}
+
+.drop-zone {
+    flex: 1;
+    background: var(--card-background);
+    border: 2px dashed var(--accent-primary);
+    border-radius: var(--radius-lg);
+    padding: var(--spacing-xl);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    position: relative;
+    transition: all var(--transition-normal);
+    cursor: pointer;
+    overflow: hidden;
+}
+
+.drop-zone:hover {
+    border-color: var(--theme-color-back);
+    background: var(--card-background-darker);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+}
+
+.drop-zone.drag-over {
+    border-color: var(--accent-secondary);
+    background: var(--theme-color-hover);
+    transform: translateY(-3px);
+    box-shadow: var(--shadow-xl);
+}
+
+.drop-zone-content {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--spacing-lg);
+    text-align: center;
+    z-index: 1;
+}
+
+.drop-zone-icon {
+    width: 100px;
+    height: 100px;
+    border-radius: 50%;
+    background: var(--theme-color-hover);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all var(--transition-normal);
+}
+
+.drop-zone-icon i {
+    font-size: 48px;
+    color: var(--accent-primary);
+}
+
+.drop-zone:hover .drop-zone-icon {
+    transform: translateY(-5px);
+    background: var(--theme-color-transparent);
+}
+
+.drop-zone-text {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+}
+
+.drop-zone-text p {
+    margin: 0;
+    font-size: var(--text-xl);
+    color: var(--text);
+    font-weight: var(--font-medium);
+}
+
+.drop-zone-text span {
+    font-size: var(--text-base);
+    color: var(--text-secondary);
+}
+
+.vision-right {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xl);
+    padding: var(--spacing-lg);
+    background: var(--card-background);
+    border-radius: var(--radius-lg);
+    border: 1px solid var(--accent-primary);
+}
+
+.vision-info {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-lg);
+}
+
+.vision-info h2 {
+    margin: 0;
+    font-size: var(--text-2xl);
+    color: var(--text);
+    font-weight: var(--font-semibold);
+}
+
+.vision-info p {
+    margin: 0;
+    font-size: var(--text-lg);
+    color: var(--text-secondary);
+    line-height: 1.6;
+}
+
+.vision-features {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+    margin-top: var(--spacing-md);
+}
+
+.vision-feature {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    padding: var(--spacing-md);
+    background: var(--card-background-darker);
+    border-radius: var(--radius-md);
+    transition: all var(--transition-normal);
+}
+
+.vision-feature i {
+    font-size: var(--text-xl);
+    color: var(--accent-primary);
+}
+
+.vision-feature span {
+    font-size: var(--text-base);
+    color: var(--text);
+}
+
+.preview-image {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    min-height: 530px;
+    max-height: 530px;
+    object-fit: contain;
+    padding: var(--spacing-md);
+    border-radius: var(--radius-lg);
+}
+
+.vision-actions {
+    margin-top: auto;
+    display: flex;
+    justify-content: center;
+}
+
+.vision-window .select-btn,
+.vision-window #vision-btn {
+    height: 48px;
+    font-size: var(--text-lg);
+    font-weight: var(--font-medium);
+    background: var(--theme-color);
+    color: white;
+    border: 1px solid var(--theme-color);
+    border-radius: var(--radius-lg);
+    padding: 0 var(--spacing-xl);
+    cursor: pointer;
+    transition: all var(--transition-normal);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-sm);
+    min-width: 180px;
+}
+
+.vision-window .select-btn i,
+.vision-window #vision-btn i {
+    font-size: var(--text-xl);
+    color: white;
+}
+
+.vision-window .select-btn:hover,
+.vision-window #vision-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+    background: var(--theme-color-hover);
+    border-color: var(--theme-color);
+}
+
+.vision-window #vision-btn {
+    min-width: 250px;
+}
+
+.vision-window #vision-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.fa-spinner {
+    animation: spin 1s linear infinite;
+}
+
+.drop-text {
+    color: var(--text-secondary);
+    margin: 10px 0;
+}
+
+.or-text {
+    color: var(--text-secondary);
+    margin: 10px 0;
+    font-style: italic;
+}
+
+.analysis-section {
+    background: var(--card-background);
+    border-radius: 8px;
+    padding: 15px;
+    margin-top: 20px;
+}
+
+.analysis-result {
+    color: var(--text);
+    font-size: 14px;
+    line-height: 1.5;
+    margin-bottom: 15px;
+    white-space: pre-wrap;
+    word-break: break-word;
+}
+
+.analysis-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+}
+
+.analysis-actions button {
+    background: var(--button-background);
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    color: var(--text);
+    cursor: pointer;
+    font-size: 14px;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 120px;
+    justify-content: center;
+}
+
+.analysis-actions button:hover {
+    background: var(--button-hover);
+    transform: translateY(-1px);
+}
+
+.analysis-actions button i {
+    font-size: 14px;
+}
+
+#regenerate {
+    color: var(--text-secondary);
+}
+
+#use {
+    background: rgba(52, 199, 89, 0.2);
+    color: #34c759;
+}
+
+#use:hover {
+    background: rgba(52, 199, 89, 0.3);
+}
+
+.analyzing {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px;
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.analyzing-spinner {
+    width: 20px;
+    height: 20px;
+    border: 2px solid var(--text);
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+.error {
+    color: #ff3b30;
+    font-size: 14px;
+    padding: 12px;
+}
+
+#regenerate-detailed {
+    background: rgba(52, 152, 219, 0.2);
+    color: #3498db;
+}
+
+#regenerate-detailed:hover {
+    background: rgba(52, 152, 219, 0.3);
+}
+
+.model-selection {
+    margin: 10px 0;
+    width: 100%;
+}
+
+.model-selection select {
+    width: 100%;
+    padding: 8px;
+    border-radius: 4px;
+    border: 1px solid var(--border);
+    background: var(--background);
+    color: var(--text);
+}
+
+.vision-btn {
+    background: var(--theme-color);
+    color: var(--text);
+    border: none;
+    padding: 12px 24px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-size: 16px;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+    width: 100%;
+    max-width: 200px;
+    margin: 0 auto;
+}
+
+.vision-btn:hover {
+    transform: translateY(-1px);
+    background: color-mix(in srgb, var(--accent-color) 90%, white);
+}
+
+.vision-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.vision-btn i {
+    font-size: 18px;
+}
+
+.loading-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--theme-color);
+    border-top-color: transparent;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-left: 8px;
+}
