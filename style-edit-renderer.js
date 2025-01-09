@@ -12,6 +12,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const saveBtn = document.getElementById('save-btn');
     const nameInput = document.getElementById('style-name');
     const descriptionInput = document.getElementById('style-description');
+    const prefixInput = document.getElementById('style-prefix');
+    const suffixInput = document.getElementById('style-suffix');
     const systemInstructionsInput = document.getElementById('system-instructions');
     const tagsInput = document.getElementById('style-tags');
     const iconsGrid = document.getElementById('icons-grid');
@@ -99,6 +101,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     saveBtn.addEventListener('click', async () => {
         const name = nameInput.value.trim();
         const description = descriptionInput.value.trim();
+        const prefix = prefixInput.value.trim();
+        const suffix = suffixInput.value.trim();
         const systemInstructions = systemInstructionsInput.value.trim();
         const tags = tagsInput.value.split(',').map(tag => tag.trim()).filter(tag => tag);
 
@@ -111,10 +115,30 @@ document.addEventListener('DOMContentLoaded', async () => {
             return;
         }
 
+        if (!prefix) {
+            await ipcRenderer.invoke('show-message', {
+                type: 'error',
+                message: 'Error',
+                detail: 'Please enter a prompt prefix.'
+            });
+            return;
+        }
+
+        if (!suffix) {
+            await ipcRenderer.invoke('show-message', {
+                type: 'error',
+                message: 'Error',
+                detail: 'Please enter a prompt suffix.'
+            });
+            return;
+        }
+
         const style = {
-            id: currentStyleId || `custom_${Date.now()}`,
+            id: currentStyleId,
             name,
             description,
+            prefix,
+            suffix,
             icon: selectedIcon,
             systemInstructions,
             fixedTags: tags,
@@ -122,11 +146,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                 temperature: parseFloat(temperatureInput.value),
                 topK: parseInt(topKInput.value),
                 topP: parseFloat(topPInput.value)
-            }
+            },
+            custom: true
         };
 
         try {
             await ipcRenderer.invoke('save-style', style);
+            ipcRenderer.send('styles-updated');
             window.close();
         } catch (error) {
             console.error('Error saving style:', error);
@@ -148,6 +174,8 @@ document.addEventListener('DOMContentLoaded', async () => {
             if (style) {
                 nameInput.value = style.name || '';
                 descriptionInput.value = style.description || '';
+                prefixInput.value = style.prefix || '';
+                suffixInput.value = style.suffix || '';
                 systemInstructionsInput.value = style.systemInstructions || '';
                 tagsInput.value = (style.fixedTags || []).join(', ');
                 selectedIcon = style.icon || 'paint-brush';

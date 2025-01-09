@@ -302,33 +302,36 @@ class OllamaManager {
     async listModels() {
         try {
             const response = await this.makeRequest(`${this.getBaseUrl()}/api/tags`);
+            
             if (!response.ok) {
-                throw new Error('Failed to get installed models');
+                console.error('Failed to get installed models, response not OK');
+                return [];
             }
 
             const data = await response.json();
-            const installedModels = data.models || [];
-            
-            // Convert installed models to our format with type detection
-            return installedModels.map(model => {
-                // Extract base model name (without tags)
-                const baseName = model.name.split(':')[0];
-                
-                // Vision models typically have "vision" in their modelfile or name
-                // This is a basic heuristic - we can expand this logic as needed
-                const isVisionModel = 
-                    model.modelfile?.toLowerCase().includes('vision') ||
-                    baseName.toLowerCase().includes('llava') ||
-                    baseName.toLowerCase().includes('bakllava');
+            console.log('Raw response from /api/tags:', data);
 
-                return {
-                    name: model.name,
-                    type: isVisionModel ? 'Vision' : 'Text',
-                    installed: true
-                };
-            });
+            if (!data.models || !Array.isArray(data.models)) {
+                console.warn('No models array in response:', data);
+                return [];
+            }
+
+            // Lista modeli do pominięcia
+            const excludedModels = ['codellama'];
+
+            // Przetwórz wszystkie modele
+            const modelNames = data.models
+                .map(model => model.name)
+                .filter(name => {
+                    const baseName = name.split(':')[0].toLowerCase();
+                    return !excludedModels.includes(baseName);
+                })
+                .filter((name, index, self) => self.indexOf(name) === index);
+
+            console.log('Processed installed models:', modelNames);
+            return modelNames;
         } catch (error) {
-            console.error('Error listing models:', error);
+            console.error('Error getting installed models:', error);
             return [];
         }
     }
@@ -381,245 +384,37 @@ class OllamaManager {
             const model = await this.ensureTextModelSelected();
             console.log('Generating prompt with model:', model);
 
-            // Style-specific prefixes to set the tone immediately
-            const stylePrefixes = {
-                realistic: [
-                    "Photorealistic capture of",
-                    "Ultra-detailed photograph showing",
-                    "Professional 8K photograph of",
-                    "Hyperrealistic image depicting",
-                    "Documentary-style photograph of"
-                ],
-                cinematic: [
-                    "Epic movie scene featuring",
-                    "Cinematic frame capturing",
-                    "Hollywood blockbuster shot of",
-                    "Award-winning film still showing",
-                    "Dramatic movie sequence of"
-                ],
-                vintage: [
-                    "Weathered 1950s photograph of",
-                    "Nostalgic Polaroid capturing",
-                    "Aged sepia print showing",
-                    "Classic film photograph of",
-                    "Retro snapshot depicting"
-                ],
-                artistic: [
-                    "Masterful digital painting of",
-                    "Contemporary artwork featuring",
-                    "Expressive artistic rendition of",
-                    "Bold artistic interpretation of",
-                    "Creative mixed-media piece showing"
-                ],
-                abstract: [
-                    "Abstract interpretation dissolving",
-                    "Non-representational composition of",
-                    "Geometric abstraction based on",
-                    "Modernist deconstruction of",
-                    "Conceptual abstraction featuring"
-                ],
-                poetic: [
-                    "Dreamy ethereal vision of",
-                    "Soft, romantic portrayal of",
-                    "Delicate atmospheric scene of",
-                    "Whimsical ethereal capture of",
-                    "Poetic interpretation of"
-                ],
-                anime: [
-                    "Studio Ghibli inspired scene of",
-                    "Vibrant anime portrayal of",
-                    "Dynamic manga-style scene of",
-                    "Japanese animation featuring",
-                    "Dramatic anime interpretation of"
-                ],
-                cartoon: [
-                    "Playful animated scene of",
-                    "Disney-style rendering of",
-                    "Whimsical cartoon showing",
-                    "Pixar-inspired portrayal of",
-                    "Animated character study of"
-                ],
-                cute: [
-                    "Adorable kawaii version of",
-                    "Sweet chibi interpretation of",
-                    "Charming pastel scene of",
-                    "Cute Japanese-style",
-                    "Heartwarming kawaii scene with"
-                ],
-                scifi: [
-                    "Futuristic cyberpunk vision of",
-                    "High-tech sci-fi interpretation of",
-                    "Neon-lit cyberpunk scene featuring",
-                    "Advanced technological rendering of",
-                    "Holographic sci-fi display of"
-                ]
-            };
+            if (!style) {
+                throw new Error('Style is required for prompt generation');
+            }
 
-            // Get style-specific instructions
-            const styleInstructions = {
-                realistic: `Create a hyper-detailed, photorealistic prompt that captures every nuance:
-- Ultra-high resolution details (skin texture, surface materials, fabric weave)
-- Professional photography techniques (rule of thirds, leading lines, depth of field)
-- Natural lighting conditions (golden hour, rim lighting, ambient occlusion)
-- Environmental context (atmospheric perspective, environmental reflections)
-- Surface properties (subsurface scattering, micro-details, weathering)
-- Camera specifications (85mm lens, f/2.8 aperture, bokeh effect)
+            // Use style's prefix and suffix if available, otherwise use defaults
+            const prefix = style.prefix || 'Generate a Stable Diffusion prompt for: ';
+            const suffix = style.suffix || '';
+            const systemInstructions = style.systemInstructions || '';
 
-Start your prompt with one of these:
-${stylePrefixes.realistic.join('\n')}
+            // Create the system message with instructions
+            const systemMessage = `You are an AI assistant specializing in creating image generation prompts.
+                ${systemInstructions}
+                
+                IMPORTANT: 
+                1. Do not include any instructions or meta-text in your response.
+                2. Just provide the pure description.
+                3. Do not repeat or include any of the following in your response:
+                   - The prefix: "${prefix}"
+                   - The suffix: "${suffix}"
+                4. Focus only on describing the image content.
+                5. Your description will be automatically formatted later.`;
 
-Must end with: ultra detailed, 8k uhd, high resolution, raw photo, photorealistic, masterpiece, perfect composition, award winning photography, professional color grading, dramatic lighting, octane render`,
-
-                cinematic: `Create an epic, movie-quality scene that could be a film still:
-- Specific film techniques (anamorphic lens, letterbox format, motion blur)
-- Hollywood-style lighting (volumetric lighting, rim lights, dramatic shadows)
-- Dramatic composition (extreme angles, foreground framing, rule of thirds)
-- Atmospheric elements (smoke, haze, particles in light beams)
-- Color grading (complementary colors, rich contrast, cinematic LUTs)
-- Production value (set design, practical effects, depth staging)
-
-Start your prompt with one of these:
-${stylePrefixes.cinematic.join('\n')}
-
-Must end with: cinematic 4k, anamorphic lens, movie still, professional cinematography, epic composition, golden ratio, dramatic atmosphere, volumetric lighting, film grain, Arri Alexa`,
-
-                vintage: `Create a historically authentic, aged photograph with period-specific details:
-- Era-specific photography techniques (daguerreotype, tintype, polaroid)
-- Time-appropriate color palette (sepia, faded colors, color bleeding)
-- Period-accurate details (clothing, architecture, technology)
-- Authentic aging effects (film grain, light leaks, dust scratches)
-- Classic composition (centered subjects, formal poses, wide margins)
-- Historical context (cultural elements, time-specific artifacts)
-
-Start your prompt with one of these:
-${stylePrefixes.vintage.join('\n')}
-
-Must end with: vintage photograph, old film grain, color fading, light leaks, chromatic aberration, polaroid, kodachrome, retro, nostalgic, period accurate, analog imperfections`,
-
-                artistic: `Create a bold, expressive artistic interpretation:
-- Specific art movement influence (impressionism, surrealism, art nouveau)
-- Artistic techniques (impasto, glazing, mixed media)
-- Color theory application (complementary colors, color harmony)
-- Texture and brushwork (visible strokes, textural elements)
-- Compositional dynamics (golden ratio, dynamic symmetry)
-- Emotional expression (mood, atmosphere, symbolic elements)
-
-Start your prompt with one of these:
-${stylePrefixes.artistic.join('\n')}
-
-Must end with: digital painting, artistic masterpiece, trending on artstation, award winning illustration, professional art, dynamic composition, expressive brushwork, mixed media, contemporary art`,
-
-                abstract: `Create a non-representational, conceptual piece:
-- Abstract elements (geometric shapes, organic forms, color fields)
-- Visual rhythm (repetition, pattern, movement)
-- Compositional balance (asymmetry, tension, harmony)
-- Color relationships (color theory, optical mixing)
-- Textural complexity (layering, transparency, opacity)
-- Conceptual depth (symbolism, metaphor, meaning)
-
-Start your prompt with one of these:
-${stylePrefixes.abstract.join('\n')}
-
-Must end with: abstract art, contemporary composition, modern art, minimalist, conceptual design, geometric abstraction, color field, non-representational, gallery quality`,
-
-                poetic: `Create a dreamy, ethereal scene with emotional resonance:
-- Atmospheric effects (mist, soft light, bokeh)
-- Delicate details (floating particles, gentle movement)
-- Color harmony (soft pastels, subtle gradients)
-- Romantic elements (flowing fabrics, organic shapes)
-- Emotional qualities (serenity, melancholy, wonder)
-- Dreamy techniques (double exposure, light leaks, blur)
-
-Start your prompt with one of these:
-${stylePrefixes.poetic.join('\n')}
-
-Must end with: ethereal atmosphere, dreamy, soft focus, romantic lighting, emotional, delicate details, painterly, poetic mood, fine art photography`,
-
-                anime: `Create a distinctive Japanese animation style scene:
-- Anime-specific elements (cel shading, speed lines, dramatic angles)
-- Character design features (large eyes, expressive faces, dynamic poses)
-- Distinctive lighting (rim lighting, dramatic shadows, light beams)
-- Background style (detailed environments, perspective lines)
-- Action dynamics (motion blur, impact frames, energy effects)
-- Color palette (vibrant colors, high contrast, bold outlines)
-
-Start your prompt with one of these:
-${stylePrefixes.anime.join('\n')}
-
-Must end with: anime style, cel shaded, japanese animation, manga art, studio ghibli, key animation, anime aesthetic, jrpg style, vibrant colors, sharp lines`,
-
-                cartoon: `Create a playful, animated cartoon scene:
-- Animation style (bold outlines, exaggerated features)
-- Character elements (squash and stretch, expressive faces)
-- Color design (flat colors, vibrant palette)
-- Visual effects (action lines, impact stars, emotion symbols)
-- Playful physics (exaggerated perspective, impossible poses)
-- Background style (simplified details, pattern fills)
-
-Start your prompt with one of these:
-${stylePrefixes.cartoon.join('\n')}
-
-Must end with: cartoon style, animation key frame, character design, bold colors, vector art, clean lines, disney style, pixar render, toon shading, illustration`,
-
-                cute: `Create an adorable kawaii-style scene:
-- Kawaii elements (chibi proportions, rounded shapes)
-- Color palette (pastel colors, soft gradients)
-- Cute details (sparkles, hearts, stars)
-- Character features (simple faces, blush marks, tiny details)
-- Sweet atmosphere (fluffy textures, bubble effects)
-- Decorative elements (flowers, ribbons, polka dots)
-
-Start your prompt with one of these:
-${stylePrefixes.cute.join('\n')}
-
-Must end with: kawaii style, cute, pastel colors, chibi, adorable, japanese cute, soft shading, moe aesthetic, sweet atmosphere`,
-
-                scifi: `Create a futuristic science fiction scene:
-- Advanced technology (holographic displays, energy fields)
-- Futuristic materials (chrome, neon, plasma effects)
-- Lighting effects (bioluminescence, laser beams, LED arrays)
-- Architectural elements (sleek surfaces, impossible structures)
-- Atmospheric details (particle effects, energy distortions)
-- Tech aesthetics (user interfaces, data visualization)
-
-Start your prompt with one of these:
-${stylePrefixes.scifi.join('\n')}
-
-Must end with: science fiction, cyberpunk, futuristic, high tech, concept art, neon lighting, holographic, advanced technology, digital effects, hyperrealistic render`
-            };
-
-            const selectedStyle = styleInstructions[styleId] || styleInstructions.realistic;
-            const stylePrefix = stylePrefixes[styleId] || stylePrefixes.realistic;
-            const randomPrefix = stylePrefix[Math.floor(Math.random() * stylePrefix.length)];
-
-            const systemInstruction = `You are a specialized AI trained to generate highly detailed, style-specific prompts for Stable Diffusion image generation.
-Your task is to create natural, flowing descriptions that perfectly capture the essence of each style.
-
-${selectedStyle}
-
-Rules for prompt generation:
-1. ONLY output a natural, flowing description - no technical terms or tags
-2. Start with one of the style-specific prefixes
-3. Create a rich, detailed scene description that naturally incorporates style elements
-4. Focus on visual elements, atmosphere, and mood
-5. Use natural language throughout - avoid technical terms or comma-separated tags
-6. DO NOT add any style tags, quality terms, or technical specifications at the end
-7. DO NOT use phrases like "in the style of" or mention the style name
-8. Keep everything as one flowing paragraph
-9. Write as if describing a scene to an artist, not a computer
-
-Example format (just the structure, do not copy these words):
-[style prefix] A rich description of the scene incorporating all style elements naturally within the narrative, focusing on visual details, atmosphere, and mood. The description should flow like natural language without any technical terms or tags.`;
-
+            // Prepare the request body
             const requestBody = {
                 model: model,
-                prompt: systemInstruction + "\n\nCreate a natural, flowing description for: " + basePrompt,
+                prompt: `${systemMessage}\n\nUser input: ${basePrompt}\n\nProvide only the description, without any instructions, prefix, suffix, or meta-text:`,
                 stream: false,
                 options: {
-                    temperature: style?.modelParameters?.temperature || 0.85,
-                    top_p: style?.modelParameters?.top_p || 0.95,
-                    top_k: style?.modelParameters?.top_k || 60,
-                    repeat_penalty: style?.modelParameters?.repeat_penalty || 1.3
+                    temperature: style?.modelParams?.temperature || 0.7,
+                    top_k: style?.modelParams?.topK || 40,
+                    top_p: style?.modelParams?.topP || 0.9
                 }
             };
 
@@ -639,12 +434,63 @@ Example format (just the structure, do not copy these words):
             }
 
             const data = await response.json();
+            let generatedText = data.response.trim();
+
+            // Remove any remaining instruction-like text
+            const instructionPhrases = [
+                'Create a humorous and playful description of:',
+                'Focus on exaggerated, quirky features',
+                'Create a detailed description',
+                'Generate a description',
+                'Provide a description',
+                'Here\'s a description',
+                'Create an image of',
+                'The scene shows',
+                'The image should show',
+                'The image features'
+            ];
+
+            for (const phrase of instructionPhrases) {
+                if (generatedText.toLowerCase().startsWith(phrase.toLowerCase())) {
+                    generatedText = generatedText.substring(phrase.length).trim();
+                }
+            }
+
+            // Remove any trailing instructions
+            const trailingInstructions = [
+                'Focus on',
+                'Make sure to',
+                'Remember to',
+                'Include',
+                'Emphasize'
+            ];
+
+            for (const instruction of trailingInstructions) {
+                const index = generatedText.toLowerCase().lastIndexOf(instruction.toLowerCase());
+                if (index !== -1) {
+                    generatedText = generatedText.substring(0, index).trim();
+                }
+            }
+
+            // Remove the prefix if it somehow got included in the response
+            if (generatedText.toLowerCase().startsWith(prefix.toLowerCase())) {
+                generatedText = generatedText.substring(prefix.length).trim();
+            }
+
+            // Remove the suffix if it somehow got included in the response
+            if (generatedText.toLowerCase().endsWith(suffix.toLowerCase())) {
+                generatedText = generatedText.substring(0, generatedText.length - suffix.length).trim();
+            }
+
+            console.log('Generated description:', generatedText);
+
+            // Return in the expected format
             return {
-                prompt: data.response.trim(),
+                prompt: generatedText,
                 parameters: requestBody.options
             };
         } catch (error) {
-            console.error('Error in generatePrompt:', error);
+            console.error('Error generating prompt:', error);
             throw error;
         }
     }

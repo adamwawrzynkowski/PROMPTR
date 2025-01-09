@@ -258,10 +258,10 @@
     align-items: center;
     justify-content: center;
     gap: 8px;
-    margin-left: auto;
+    margin-left: 0px;
     padding: 0 12px;
     height: 36px;
-    width: 140px;
+    width: 160px;
     border-radius: 8px;
     border: 1px solid var(--theme-color-back);
     background: var(--card-background);
@@ -291,7 +291,7 @@
     margin-left: auto;
     padding: 0 12px;
     height: 36px;
-    width: 160px;
+    width: 200px;
     border-radius: 8px;
     border: 1px solid var(--theme-color-back);
     background: var(--card-background);
@@ -703,6 +703,15 @@
     100% {
         background-position: 1000px 0;
     }
+}
+
+.manage-styles-btn {
+    border: 1px solid var(--theme-color);
+}
+
+.manage-styles-btn:hover {
+    background: var(--theme-color-back);
+    border: 1px solid var(--theme-color);
 }
 
 .styles-nav-right .style-card-button:first-child {

@@ -164,30 +164,51 @@ body {
     line-height: 1.4;
 }
 
+/* Buttons container */
+.buttons-container {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 20px;
+    justify-content: center;
+}
+
 /* Add new style button */
 .add-style-btn {
-    background: var(--theme-color);
-    border: none;
+    border: 1px solid var(--theme-color-back);
     padding: 12px;
     border-radius: 8px;
     color: white;
     cursor: pointer;
-    display: flex;
+    font-size: 14px;
+    display: inline-flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
-    font-weight: 500;
     transition: all 0.2s ease;
-    margin-top: auto;
+    width: 200px;
 }
 
 .add-style-btn:hover {
-    background: var(--generate-button-hover);
+    border: 1px solid var(--theme-color);
     transform: translateY(-1px);
 }
 
+.add-style-btn:active {
+    transform: translateY(0);
+}
+
 .add-style-btn i {
+    font-size: 16px;
+}
+
+/* No styles info */
+.no-styles-info {
+    text-align: center;
+    color: var(--text);
+    padding: 20px;
     font-size: 14px;
+    opacity: 0.7;
+    font-style: italic;
 }
 
 /* Scrollbar styles */
@@ -210,12 +231,12 @@ body {
 }
 
 /* Theme-specific styles */
-.theme-purple .add-style-btn { background: var(--theme-color); }
-.theme-red .add-style-btn { background: var(--theme-color); }
-.theme-blue .add-style-btn { background: var(--theme-color); }
-.theme-green .add-style-btn { background: var(--theme-color); }
-.theme-yellow .add-style-btn { background: var(--theme-color); }
-.theme-pink .add-style-btn { background: var(--theme-color); }
+.theme-purple .add-style-btn { background: var(--theme-color-darker); }
+.theme-red .add-style-btn { background: var(--theme-color-darker); }
+.theme-blue .add-style-btn { background: var(--theme-color-darker); }
+.theme-green .add-style-btn { background: var(--theme-color-darker); }
+.theme-yellow .add-style-btn { background: var(--theme-color-darker); }
+.theme-pink .add-style-btn { background: var(--theme-color-darker); }
 
 .theme-purple .style-item:hover { border-color: var(--theme-color); }
 .theme-red .style-item:hover { border-color: var(--theme-color); }

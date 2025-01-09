@@ -32,6 +32,14 @@
                 <textarea id="style-description" placeholder="Enter style description"></textarea>
             </div>
             <div class="form-group">
+                <label for="style-prefix">Prompt Prefix</label>
+                <input type="text" id="style-prefix" placeholder="e.g., Generate a Stable Diffusion prompt for a funny image of: ">
+            </div>
+            <div class="form-group">
+                <label for="style-suffix">Prompt Suffix</label>
+                <textarea id="style-suffix" placeholder="e.g., Include: cartoonish style, exaggerated features, vibrant colors, humorous elements, funny expressions, comical situation."></textarea>
+            </div>
+            <div class="form-group">
                 <div class="system-instructions-header">
                     <label for="system-instructions">System Instructions</label>
                     <button class="generate-instructions-btn" id="generate-instructions-btn" title="Generate instructions from description">
@@ -71,6 +79,6 @@
             </button>
         </div>
     </div>
-    <script src="style-edit-renderer.js"></script>
+    <script src="style-edit-window-renderer.js"></script>
 </body>
 </html>

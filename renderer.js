@@ -2,7 +2,7 @@ const { ipcRenderer } = require('electron');
 const tagGenerator = require('./tag-generator');
 
 // Dodaj na początku pliku
-const HISTORY_LIMIT = 10;
+const HISTORY_LIMIT = 100;
 const styleHistories = new Map(); // Przechowuje historię promptów dla każdego stylu
 
 // Dodaj na początku pliku
@@ -87,18 +87,9 @@ function createStyleCard(style) {
     const title = document.createElement('div');
     title.className = 'style-card-title';
     title.innerHTML = `<i class="fas fa-${style.icon}"></i> ${style.name}`;
-    
-    // Add custom parameters indicator if needed
-    if (hasCustomParameters(style)) {
-        const customIcon = document.createElement('i');
-        customIcon.className = 'fas fa-sliders-h';
-        customIcon.style.fontSize = '12px';
-        customIcon.style.marginLeft = '8px';
-        customIcon.style.color = 'var(--accent)';
-        customIcon.title = 'Custom model parameters';
-        title.appendChild(customIcon);
-    }
-    
+
+    titleContainer.appendChild(title);
+
     const favoriteBtn = document.createElement('button');
     favoriteBtn.className = 'favorite-btn';
     favoriteBtn.innerHTML = '<i class="fas fa-star"></i>';
@@ -112,7 +103,6 @@ function createStyleCard(style) {
         updateStyleCounts();
     };
     
-    titleContainer.appendChild(title);
     titleContainer.appendChild(favoriteBtn);
     
     const description = document.createElement('div');
@@ -276,18 +266,8 @@ function createStyleCard(style) {
     copyBtn.title = 'Copy prompt';
     copyBtn.onclick = () => copyStylePrompt(style.id);
     
-    const settingsBtn = document.createElement('button');
-    settingsBtn.className = 'prompt-action-btn';
-    settingsBtn.innerHTML = '<i class="fas fa-cog"></i>';
-    settingsBtn.title = 'Style settings';
-    settingsBtn.onclick = (e) => {
-        e.stopPropagation();
-        openStyleSettings(style.id);
-    };
-    
     leftActions.appendChild(historyButtons);
     leftActions.appendChild(copyBtn);
-    leftActions.appendChild(settingsBtn);
     
     const magicRefinerBtn = document.createElement('button');
     magicRefinerBtn.className = 'prompt-action-btn magic-refiner-btn disabled';
@@ -793,14 +773,6 @@ function initializeButtons() {
     if (drawThingsBtn) {
         updateDrawThingsButton(drawThingsBtn);
         setInterval(() => updateDrawThingsButton(drawThingsBtn), 5000);
-    }
-
-    // Przycisk Settings
-    const settingsBtn = document.getElementById('settings-btn');
-    if (settingsBtn) {
-        settingsBtn.addEventListener('click', () => {
-            ipcRenderer.send('open-settings');
-        });
     }
 
     // Przycisk Add Style

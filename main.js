@@ -815,46 +815,19 @@ ipcMain.handle('detect-and-translate', async (event, text) => {
     }
 });
 
-ipcMain.handle('generate-prompt', async (event, data) => {
+ipcMain.handle('generate-prompt', async (event, { basePrompt, styleId }) => {
     try {
-        console.log('Received generate-prompt request:', data);
-        
-        if (!data || !data.basePrompt) {
-            throw new Error('No base prompt provided');
-        }
-        
-        const { basePrompt, styleId } = data;
-        
-        // Ensure we have the current model from Ollama manager
-        if (!ollamaManager.currentModel) {
-            throw new Error('No text model selected. Please select a model in settings.');
-        }
-        
-        // Always get the latest style data from the styles manager
-        if (!styleId) {
-            throw new Error('No style ID provided');
-        }
-        
+        // Get the style from the styles manager
         const style = await stylesManager.getStyle(styleId);
         if (!style) {
-            throw new Error(`Style ${styleId} not found`);
+            throw new Error('Style not found');
         }
-        
-        console.log('Using style from styles manager:', style);
-        
-        // Generate the prompt
-        const result = await ollamaManager.generatePrompt(
-            basePrompt,
-            styleId,
-            style
-        );
-        
-        return {
-            prompt: result.prompt,
-            parameters: result.parameters
-        };
+
+        // Generate the prompt using the style
+        const result = await ollamaManager.generatePrompt(basePrompt, styleId, style);
+        return result;
     } catch (error) {
-        console.error('Error in generate-prompt:', error);
+        console.error('Error generating prompt:', error);
         throw error;
     }
 });
@@ -1025,8 +998,19 @@ ipcMain.handle('delete-model', async (event, modelName) => {
 
 // Style management handlers
 ipcMain.handle('get-styles', async () => {
-    console.log('Handling get-styles request');
-    return await stylesManager.getAllStyles();
+    try {
+        console.log('Handling get-styles request');
+        if (!stylesManager.initialized) {
+            console.log('Initializing styles manager...');
+            await stylesManager.initialize();
+        }
+        const styles = await stylesManager.getAllStyles();
+        console.log('Retrieved styles:', styles);
+        return styles;
+    } catch (error) {
+        console.error('Error getting styles:', error);
+        throw error;
+    }
 });
 
 ipcMain.handle('get-style', async (event, styleId) => {
@@ -1039,11 +1023,17 @@ ipcMain.handle('get-style', async (event, styleId) => {
 });
 
 ipcMain.handle('save-style', async (event, style) => {
-    return await stylesManager.saveStyle(style);
-});
-
-ipcMain.handle('delete-style', async (event, styleId) => {
-    return await stylesManager.deleteStyle(styleId);
+    try {
+        if (style.id) {
+            await stylesManager.updateStyle(style);
+        } else {
+            await stylesManager.createStyle(style);
+        }
+        return { success: true };
+    } catch (error) {
+        console.error('Error saving style:', error);
+        throw error;
+    }
 });
 
 ipcMain.handle('update-style', async (event, style) => {
@@ -1507,4 +1497,97 @@ ipcMain.on('create-style', () => {
     window.once('ready-to-show', () => {
         window.show();
     });
+});
+
+ipcMain.handle('show-message', async (event, options) => {
+    return dialog.showMessageBox({
+        type: options.type || 'info',
+        title: options.message || 'Message',
+        message: options.detail || '',
+        buttons: ['OK']
+    });
+});
+
+// Add handlers for style management
+ipcMain.handle('open-style-edit-window', async (event, styleId) => {
+    try {
+        console.log('Opening style edit window for style:', styleId);
+        
+        // Get the style data if editing existing style
+        let style = {};
+        if (styleId) {
+            style = await stylesManager.getStyle(styleId);
+            if (!style) {
+                throw new Error('Style not found');
+            }
+            console.log('Retrieved style data:', style);
+        }
+
+        // Create the edit window
+        let editWindow = new BrowserWindow({
+            width: 800,
+            height: 800,
+            webPreferences: {
+                nodeIntegration: true,
+                contextIsolation: false
+            },
+            parent: BrowserWindow.getFocusedWindow() || mainWindow,
+            modal: true
+        });
+
+        // Load the edit window HTML
+        await editWindow.loadFile('style-edit-window.html');
+
+        // Send the style data to the edit window
+        editWindow.webContents.on('did-finish-load', () => {
+            console.log('Sending style data to edit window');
+            editWindow.webContents.send('style-data', style);
+        });
+
+        // Handle window closed
+        editWindow.on('closed', () => {
+            editWindow = null;
+        });
+
+        return true;
+    } catch (error) {
+        console.error('Error opening style edit window:', error);
+        throw error;
+    }
+});
+
+ipcMain.handle('show-confirmation', async (event, options) => {
+    const { response } = await dialog.showMessageBox(mainWindow, {
+        type: 'question',
+        title: options.title || 'Confirm',
+        message: options.message,
+        buttons: options.buttons || ['Yes', 'Cancel'],
+        defaultId: 1, // Cancel będzie domyślną opcją
+        cancelId: 1,  // Cancel będzie użyty przy naciśnięciu Esc
+        noLink: true  // Lepszy wygląd na macOS
+    });
+    return response;
+});
+
+ipcMain.handle('delete-style', async (event, styleId) => {
+    try {
+        const { response } = await dialog.showMessageBox(mainWindow, {
+            type: 'question',
+            title: 'Delete Style',
+            message: 'Are you sure you want to delete this style?',
+            buttons: ['Delete', 'Cancel'],
+            defaultId: 1,
+            cancelId: 1,
+            noLink: true
+        });
+
+        if (response === 0) { // Użytkownik kliknął Delete
+            await stylesManager.deleteStyle(styleId);
+            return true;
+        }
+        return false;
+    } catch (error) {
+        console.error('Error deleting style:', error);
+        throw error;
+    }
 });

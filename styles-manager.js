@@ -182,155 +182,106 @@ class StylesManager {
         this.initialized = false;
     }
 
-    async loadStyles() {
-        try {
-            console.log('Loading styles from:', this.stylesPath);
-            if (await fs.access(this.stylesPath).then(() => true).catch(() => false)) {
-                const data = await fs.readFile(this.stylesPath, 'utf8');
-                const loadedStyles = JSON.parse(data);
-                console.log('Loaded styles from file:', loadedStyles);
-                
-                // Compare with default styles and update if needed
-                this.styles = DEFAULT_STYLES.map(defaultStyle => {
-                    const savedStyle = loadedStyles.find(s => s.id === defaultStyle.id);
-                    if (savedStyle && !savedStyle.custom) {
-                        // For non-custom styles, ensure we use the default prefix and suffix
-                        return {
-                            ...savedStyle,
-                            prefix: defaultStyle.prefix,
-                            suffix: defaultStyle.suffix
-                        };
-                    }
-                    return savedStyle || defaultStyle;
-                });
-                
-                // Add any custom styles that aren't in defaults
-                const customStyles = loadedStyles.filter(s => 
-                    s.custom && !this.styles.some(ds => ds.id === s.id)
-                );
-                this.styles = [...this.styles, ...customStyles];
-                
-                console.log('Final merged styles:', this.styles);
-                await this.saveStyles(); // Save back the merged styles
-            } else {
-                console.log('No styles file found, using defaults');
-                this.styles = DEFAULT_STYLES;
-                await this.saveStyles();
-            }
-        } catch (error) {
-            console.error('Error loading styles:', error);
-            this.styles = DEFAULT_STYLES;
-            await this.saveStyles();
-        }
-    }
-
-    async saveStyles() {
-        try {
-            const stylesDir = path.dirname(this.stylesPath);
-            await fs.mkdir(stylesDir, { recursive: true });
-            await fs.writeFile(this.stylesPath, JSON.stringify(this.styles, null, 2));
-            console.log('Saved styles:', this.styles);
-        } catch (error) {
-            console.error('Error saving styles:', error);
-        }
-    }
-
     async initialize() {
-        console.log('Initialize called, initialized status:', this.initialized);
-        if (this.initialized) {
-            console.log('Already initialized, returning');
-            return;
-        }
+        if (this.initialized) return;
         
         try {
             await this.loadStyles();
             this.initialized = true;
-            console.log('Styles manager initialized with styles:', this.styles);
         } catch (error) {
-            console.error('Error initializing styles manager:', error);
-            this.styles = DEFAULT_STYLES;
+            console.error('Error initializing styles:', error);
+            this.styles = [...DEFAULT_STYLES];
+            await this.saveStyles();
             this.initialized = true;
         }
     }
 
-    async getAllStyles() {
-        if (!this.initialized) {
-            console.log('Getting styles before initialization, initializing now');
-            await this.initialize();
+    async loadStyles() {
+        try {
+            const data = await fs.readFile(this.stylesPath, 'utf8');
+            this.styles = JSON.parse(data);
+        } catch (error) {
+            if (error.code === 'ENOENT') {
+                this.styles = [...DEFAULT_STYLES];
+                await this.saveStyles();
+            } else {
+                throw error;
+            }
         }
+    }
+
+    async saveStyles() {
+        await fs.writeFile(this.stylesPath, JSON.stringify(this.styles, null, 2));
+    }
+
+    async getAllStyles() {
+        await this.initialize();
         return this.styles;
     }
 
     async getStyle(styleId) {
-        if (!this.initialized) {
-            console.log('Getting style before initialization, initializing now');
-            await this.initialize();
-        }
-        const style = this.styles.find(s => s.id === styleId);
-        console.log('Getting style:', styleId, 'Found:', style);
-        return style;
-    }
-
-    async updateStyle(updatedStyle) {
-        const index = this.styles.findIndex(style => style.id === updatedStyle.id);
-        if (index !== -1) {
-            this.styles[index] = { ...this.styles[index], ...updatedStyle };
-            await this.saveStyles();
-            return this.styles[index];
-        }
-        return null;
+        await this.initialize();
+        return this.styles.find(style => style.id === styleId);
     }
 
     async createStyle(style) {
         await this.initialize();
-        console.log('Creating new style:', style);
         
-        const newStyle = {
-            id: style.id || `custom_${Date.now()}`,
-            name: style.name || 'New Style',
-            description: style.description || '',
-            icon: style.icon || 'paint-brush',
-            prefix: style.prefix || '',
-            suffix: style.suffix || '',
-            fixedTags: style.fixedTags || [],
-            custom: true,
-            active: false,
-            modelParameters: {
-                temperature: 0.7,
-                top_k: 50,
-                top_p: 0.9,
-                repeat_penalty: 1.1,
-                ...(style.modelParameters || {})
-            }
+        // Generate unique ID for new style
+        style.id = `custom_${Date.now()}`;
+        style.custom = true;
+        
+        this.styles.push(style);
+        await this.saveStyles();
+        return style;
+    }
+
+    async updateStyle(updatedStyle) {
+        await this.initialize();
+        
+        const index = this.styles.findIndex(style => style.id === updatedStyle.id);
+        if (index === -1) {
+            throw new Error(`Style with id ${updatedStyle.id} not found`);
+        }
+        
+        this.styles[index] = {
+            ...this.styles[index],
+            ...updatedStyle,
+            custom: this.styles[index].custom // Preserve custom flag
         };
         
-        this.styles.push(newStyle);
         await this.saveStyles();
-        return newStyle;
+        return this.styles[index];
     }
 
     async deleteStyle(styleId) {
         await this.initialize();
-        console.log('Deleting style:', styleId);
         
         const index = this.styles.findIndex(style => style.id === styleId);
-        if (index !== -1) {
-            this.styles.splice(index, 1);
-            await this.saveStyles();
-            return true;
+        if (index === -1) {
+            throw new Error(`Style with id ${styleId} not found`);
         }
-        return false;
+        
+        // Only allow deleting custom styles
+        if (!this.styles[index].custom) {
+            throw new Error('Cannot delete built-in style');
+        }
+        
+        this.styles.splice(index, 1);
+        await this.saveStyles();
     }
 
     async activateStyle(styleId) {
         await this.initialize();
-        const style = await this.getStyle(styleId);
-        if (style) {
-            style.active = true;
-            await this.updateStyle(style);
-            return true;
+        
+        const style = this.styles.find(s => s.id === styleId);
+        if (!style) {
+            throw new Error(`Style with id ${styleId} not found`);
         }
-        return false;
+        
+        style.active = true;
+        await this.saveStyles();
+        return style;
     }
 }
 
