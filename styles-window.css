@@ -1,0 +1,232 @@
+/* Base styles */
+:root {
+    --background: rgb(23, 23, 23);
+    --text: rgb(255, 255, 255);
+    --text-secondary: rgba(255, 255, 255, 0.7);
+    --border: rgba(255, 255, 255, 0.1);
+    --card-background: rgba(255, 255, 255, 0.05);
+    --button-background: rgba(255, 255, 255, 0.1);
+    --button-hover: rgba(255, 255, 255, 0.2);
+}
+
+body {
+    background: var(--background);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    margin: 0;
+    padding: 0;
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Titlebar styles */
+.titlebar {
+    -webkit-app-region: drag;
+    height: 38px;
+    background: rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(12px);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 12px;
+    border-bottom: 1px solid var(--border);
+}
+
+.titlebar-title {
+    color: var(--text);
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.titlebar-close {
+    -webkit-app-region: no-drag;
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 6px;
+    transition: all 0.2s ease;
+}
+
+.titlebar-close:hover {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--text);
+}
+
+/* Main content styles */
+.styles-window {
+    flex: 1;
+    padding: 20px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+/* Actions bar */
+.styles-actions {
+    display: flex;
+    gap: 10px;
+    padding-bottom: 20px;
+    border-bottom: 1px solid var(--border);
+}
+
+.action-btn {
+    background: var(--button-background);
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    color: var(--text);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    transition: all 0.2s ease;
+}
+
+.action-btn:hover {
+    background: var(--button-hover);
+    transform: translateY(-1px);
+}
+
+.action-btn i {
+    font-size: 14px;
+}
+
+/* Styles list */
+.styles-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 20px;
+    padding: 10px 0;
+}
+
+.style-item {
+    background: var(--card-background);
+    border-radius: 8px;
+    padding: 16px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    border: 1px solid var(--border);
+    transition: all 0.2s ease;
+}
+
+.style-item:hover {
+    transform: translateY(-2px);
+    border-color: var(--theme-color);
+}
+
+.style-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.style-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 500;
+}
+
+.style-title i {
+    color: var(--theme-color);
+}
+
+.style-actions {
+    display: flex;
+    gap: 6px;
+}
+
+.style-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 6px;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.style-btn:hover {
+    background: var(--button-background);
+    color: var(--text);
+}
+
+.style-description {
+    color: var(--text-secondary);
+    font-size: 13px;
+    line-height: 1.4;
+}
+
+/* Add new style button */
+.add-style-btn {
+    background: var(--theme-color);
+    border: none;
+    padding: 12px;
+    border-radius: 8px;
+    color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    margin-top: auto;
+}
+
+.add-style-btn:hover {
+    background: var(--generate-button-hover);
+    transform: translateY(-1px);
+}
+
+.add-style-btn i {
+    font-size: 14px;
+}
+
+/* Scrollbar styles */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+/* Theme-specific styles */
+.theme-purple .add-style-btn { background: var(--theme-color); }
+.theme-red .add-style-btn { background: var(--theme-color); }
+.theme-blue .add-style-btn { background: var(--theme-color); }
+.theme-green .add-style-btn { background: var(--theme-color); }
+.theme-yellow .add-style-btn { background: var(--theme-color); }
+.theme-pink .add-style-btn { background: var(--theme-color); }
+
+.theme-purple .style-item:hover { border-color: var(--theme-color); }
+.theme-red .style-item:hover { border-color: var(--theme-color); }
+.theme-blue .style-item:hover { border-color: var(--theme-color); }
+.theme-green .style-item:hover { border-color: var(--theme-color); }
+.theme-yellow .style-item:hover { border-color: var(--theme-color); }
+.theme-pink .style-item:hover { border-color: var(--theme-color); }
+
+.theme-purple .style-title i { color: var(--theme-color); }
+.theme-red .style-title i { color: var(--theme-color); }
+.theme-blue .style-title i { color: var(--theme-color); }
+.theme-green .style-title i { color: var(--theme-color); }
+.theme-yellow .style-title i { color: var(--theme-color); }
+.theme-pink .style-title i { color: var(--theme-color); }

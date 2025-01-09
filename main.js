@@ -985,8 +985,12 @@ ipcMain.on('open-settings', () => {
     settingsWindow.create();
 });
 
-ipcMain.on('open-styles', () => {
-    stylesWindow.create();
+ipcMain.on('open-styles-window', () => {
+    if (stylesWindow.window) {
+        stylesWindow.window.focus();
+    } else {
+        stylesWindow.create();
+    }
 });
 
 ipcMain.on('open-credits', () => {
@@ -1467,3 +1471,40 @@ function createOnboardingWindow() {
     
     return onboardingWindow;
 }
+
+ipcMain.handle('generate-system-instructions', async (event, description) => {
+    try {
+        const prompt = `Based on the following style description, generate clear and concise system instructions that would help an AI model understand and follow this style consistently:
+
+Description: ${description}
+
+Generate instructions that:
+1. Define the tone and voice
+2. Specify any formatting preferences
+3. Highlight key characteristics
+4. Include any specific constraints or requirements
+
+Keep the instructions clear, specific, and actionable.`;
+
+        // Use the default model to generate instructions
+        const response = await ollamaManager.generate({
+            prompt: prompt,
+            model: config.get('defaultModel'),
+            temperature: 0.7,
+            top_k: 40,
+            top_p: 0.9
+        });
+
+        return response.response;
+    } catch (error) {
+        console.error('Error generating system instructions:', error);
+        throw error;
+    }
+});
+
+ipcMain.on('create-style', () => {
+    const window = styleEditWindow.create();
+    window.once('ready-to-show', () => {
+        window.show();
+    });
+});

@@ -1,12 +1,30 @@
 const { ipcRenderer } = require('electron');
+const Store = require('electron-store');
+const store = new Store();
 
 document.addEventListener('DOMContentLoaded', async () => {
+    // Initialize theme
+    const theme = store.get('settings.theme', 'purple');
+    document.body.className = `theme-${theme}`;
+
+    // Initialize UI elements
     const closeBtn = document.getElementById('close-btn');
     const saveBtn = document.getElementById('save-btn');
     const nameInput = document.getElementById('style-name');
     const descriptionInput = document.getElementById('style-description');
+    const systemInstructionsInput = document.getElementById('system-instructions');
     const tagsInput = document.getElementById('style-tags');
     const iconsGrid = document.getElementById('icons-grid');
+    const generateInstructionsBtn = document.getElementById('generate-instructions-btn');
+    
+    // Model parameters elements
+    const temperatureInput = document.getElementById('temperature');
+    const topKInput = document.getElementById('top-k');
+    const topPInput = document.getElementById('top-p');
+    const temperatureValue = document.getElementById('temperature-value');
+    const topKValue = document.getElementById('top-k-value');
+    const topPValue = document.getElementById('top-p-value');
+
     let currentStyleId = null;
     let selectedIcon = 'paint-brush';
 
@@ -20,7 +38,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         'pencil', 'paintbrush', 'spray-can', 'swatchbook'
     ];
 
-    // Funkcja do renderowania siatki ikon
+    // Render icons grid
     function renderIconsGrid() {
         iconsGrid.innerHTML = availableIcons
             .map(icon => `
@@ -32,7 +50,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             `)
             .join('');
 
-        // Dodaj event listenery do ikon
+        // Add event listeners to icons
         document.querySelectorAll('.icon-option').forEach(option => {
             option.addEventListener('click', () => {
                 document.querySelectorAll('.icon-option').forEach(opt => 
@@ -43,7 +61,84 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // Obsługa edycji istniejącego stylu
+    // Update parameter value displays
+    function updateParamValue(input, display) {
+        display.textContent = input.value;
+    }
+
+    temperatureInput.addEventListener('input', () => updateParamValue(temperatureInput, temperatureValue));
+    topKInput.addEventListener('input', () => updateParamValue(topKInput, topKValue));
+    topPInput.addEventListener('input', () => updateParamValue(topPInput, topPValue));
+
+    // Generate system instructions from description
+    generateInstructionsBtn.addEventListener('click', async () => {
+        const description = descriptionInput.value.trim();
+        if (!description) {
+            await ipcRenderer.invoke('show-message', {
+                type: 'error',
+                message: 'Error',
+                detail: 'Please enter a description first.'
+            });
+            return;
+        }
+
+        try {
+            const instructions = await ipcRenderer.invoke('generate-system-instructions', description);
+            systemInstructionsInput.value = instructions;
+        } catch (error) {
+            console.error('Error generating instructions:', error);
+            await ipcRenderer.invoke('show-message', {
+                type: 'error',
+                message: 'Error',
+                detail: 'Failed to generate instructions. Please try again.'
+            });
+        }
+    });
+
+    // Handle saving style
+    saveBtn.addEventListener('click', async () => {
+        const name = nameInput.value.trim();
+        const description = descriptionInput.value.trim();
+        const systemInstructions = systemInstructionsInput.value.trim();
+        const tags = tagsInput.value.split(',').map(tag => tag.trim()).filter(tag => tag);
+
+        if (!name) {
+            await ipcRenderer.invoke('show-message', {
+                type: 'error',
+                message: 'Error',
+                detail: 'Please enter a style name.'
+            });
+            return;
+        }
+
+        const style = {
+            id: currentStyleId || `custom_${Date.now()}`,
+            name,
+            description,
+            icon: selectedIcon,
+            systemInstructions,
+            fixedTags: tags,
+            modelParams: {
+                temperature: parseFloat(temperatureInput.value),
+                topK: parseInt(topKInput.value),
+                topP: parseFloat(topPInput.value)
+            }
+        };
+
+        try {
+            await ipcRenderer.invoke('save-style', style);
+            window.close();
+        } catch (error) {
+            console.error('Error saving style:', error);
+            await ipcRenderer.invoke('show-message', {
+                type: 'error',
+                message: 'Error',
+                detail: 'Failed to save style. Please try again.'
+            });
+        }
+    });
+
+    // Handle editing existing style
     ipcRenderer.on('edit-style', async (event, styleId) => {
         currentStyleId = styleId;
         document.getElementById('window-title').textContent = 'Edit Style';
@@ -51,59 +146,40 @@ document.addEventListener('DOMContentLoaded', async () => {
         try {
             const style = await ipcRenderer.invoke('get-style', styleId);
             if (style) {
-                nameInput.value = style.name;
-                descriptionInput.value = style.description;
-                tagsInput.value = style.fixedTags.join(', ');
-                selectedIcon = style.icon || 'paint-brush'; 
-                renderIconsGrid(); 
+                nameInput.value = style.name || '';
+                descriptionInput.value = style.description || '';
+                systemInstructionsInput.value = style.systemInstructions || '';
+                tagsInput.value = (style.fixedTags || []).join(', ');
+                selectedIcon = style.icon || 'paint-brush';
+                
+                if (style.modelParams) {
+                    temperatureInput.value = style.modelParams.temperature || 0.7;
+                    topKInput.value = style.modelParams.topK || 40;
+                    topPInput.value = style.modelParams.topP || 0.9;
+                    
+                    updateParamValue(temperatureInput, temperatureValue);
+                    updateParamValue(topKInput, topKValue);
+                    updateParamValue(topPInput, topPValue);
+                }
+                
+                renderIconsGrid();
             }
         } catch (error) {
             console.error('Error loading style:', error);
-        }
-    });
-
-    // Obsługa przycisku Save
-    saveBtn.addEventListener('click', async () => {
-        const style = {
-            id: currentStyleId, 
-            name: nameInput.value.trim(),
-            description: descriptionInput.value.trim(),
-            icon: selectedIcon || 'paint-brush', 
-            fixedTags: tagsInput.value.split(',').map(tag => tag.trim()).filter(Boolean)
-        };
-
-        try {
-            if (currentStyleId) {
-                await ipcRenderer.invoke('update-style', currentStyleId, style);
-            } else {
-                await ipcRenderer.invoke('add-style', style);
-            }
-            // Wyślij event odświeżenia do okna zarządzania stylami
-            ipcRenderer.send('refresh-styles');
+            await ipcRenderer.invoke('show-message', {
+                type: 'error',
+                message: 'Error',
+                detail: 'Failed to load style. Please try again.'
+            });
             window.close();
-        } catch (error) {
-            console.error('Error saving style:', error);
         }
     });
 
-    // Obsługa przycisku Close
+    // Close button handler
     closeBtn.addEventListener('click', () => {
         window.close();
     });
 
-    // Inicjalizacja siatki ikon
+    // Initial render
     renderIconsGrid();
-
-    // Dodaj obsługę przycisku analizy obrazu
-    document.getElementById('analyze-image-btn').addEventListener('click', () => {
-        // Otwórz okno analizy obrazu z parametrem 'style'
-        ipcRenderer.send('open-vision-for-style');
-    });
-
-    // Nasłuchuj na wynik analizy obrazu
-    ipcRenderer.on('vision-result', (event, description, source) => {
-        if (source === 'style' && descriptionInput) {
-            descriptionInput.value = description;
-        }
-    });
-}); 
+});

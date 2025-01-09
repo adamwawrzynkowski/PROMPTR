@@ -1,74 +1,74 @@
+/* Base styles */
 :root {
-    --background: rgb(30, 27, 46);
-    --card-background: rgb(40, 37, 56);
-    --text: #ffffff;
+    --background: rgb(23, 23, 23);
+    --text: rgb(255, 255, 255);
     --text-secondary: rgba(255, 255, 255, 0.7);
     --border: rgba(255, 255, 255, 0.1);
+    --card-background: rgba(255, 255, 255, 0.05);
     --button-background: rgba(255, 255, 255, 0.1);
     --button-hover: rgba(255, 255, 255, 0.2);
+    --theme-color: #007bff;
+    --generate-button-hover: #0056b3;
 }
 
 body {
-    margin: 0;
-    padding: 0;
     background: var(--background);
     color: var(--text);
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    margin: 0;
+    padding: 0;
     height: 100vh;
     overflow: hidden;
-    border-radius: 12px;
+    display: flex;
+    flex-direction: column;
 }
 
+/* Titlebar styles */
 .titlebar {
     -webkit-app-region: drag;
     height: 38px;
-    background: rgba(40, 37, 56, 0.5);
-    backdrop-filter: blur(10px);
+    background: rgba(0, 0, 0, 0.3);
+    backdrop-filter: blur(12px);
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 15px;
-    border-top-left-radius: 12px;
-    border-top-right-radius: 12px;
+    padding: 0 12px;
+    border-bottom: 1px solid var(--border);
 }
 
 .titlebar-title {
     color: var(--text);
-    font-size: 14px;
-    font-weight: 600;
-    margin-right: auto;
+    font-size: 13px;
+    font-weight: 500;
 }
 
-/* Window control styles moved to titlebar.css */
-
-.styles-window {
-    display: flex;
-    flex-direction: column;
-    height: calc(100vh - 38px);
-    width: 100%;
-    background: var(--background);
-    border-radius: 12px;
+.titlebar-close {
+    -webkit-app-region: no-drag;
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 6px;
+    transition: all 0.2s ease;
 }
 
-.window-header {
-    padding: 20px 20px 0 20px;
-}
-
-.window-header h1 {
-    margin: 0;
-    font-size: 20px;
-    font-weight: 600;
+.titlebar-close:hover {
+    background: rgba(255, 255, 255, 0.1);
     color: var(--text);
 }
 
-.style-edit-form {
+/* Form styles */
+.styles-window {
+    flex: 1;
     padding: 20px;
+    overflow-y: auto;
+}
+
+.style-edit-form {
     display: flex;
     flex-direction: column;
     gap: 20px;
-    height: calc(100vh - 32px - 80px);
-    overflow-y: auto;
-    padding-bottom: 80px;
 }
 
 .form-group {
@@ -78,51 +78,50 @@ body {
 }
 
 .form-group label {
-    color: var(--text-secondary);
-    font-size: 14px;
+    color: var(--text);
+    font-size: 13px;
     font-weight: 500;
 }
 
-.form-group input,
-.form-group textarea {
+input[type="text"],
+textarea {
     background: var(--card-background);
     border: 1px solid var(--border);
-    border-radius: 8px;
-    padding: 12px;
+    border-radius: 6px;
+    padding: 8px 12px;
     color: var(--text);
-    font-size: 14px;
-    resize: vertical;
-    min-height: 40px;
+    font-size: 13px;
+    transition: all 0.2s ease;
 }
 
-.form-group textarea {
-    width: calc(100% - 24px);
-    min-height: 120px;
-}
-
-.form-group input:focus,
-.form-group textarea:focus {
+input[type="text"]:focus,
+textarea:focus {
+    border-color: var(--theme-color);
     outline: none;
-    border-color: rgba(255, 255, 255, 0.3);
 }
 
+textarea {
+    resize: vertical;
+    min-height: 80px;
+}
+
+/* Icons grid */
 .icons-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(40px, 1fr));
-    gap: 10px;
-    padding: 10px;
+    grid-template-columns: repeat(auto-fill, minmax(36px, 1fr));
+    gap: 8px;
+    padding: 8px;
     background: var(--card-background);
-    border-radius: 8px;
     border: 1px solid var(--border);
-    max-height: 200px;
-    overflow-y: auto;
+    border-radius: 6px;
 }
 
 .icon-option {
+    aspect-ratio: 1;
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 8px;
+    background: var(--button-background);
     border-radius: 6px;
     cursor: pointer;
     transition: all 0.2s ease;
@@ -132,39 +131,145 @@ body {
 .icon-option:hover {
     background: var(--button-hover);
     color: var(--text);
+    transform: translateY(-1px);
 }
 
 .icon-option.selected {
-    background: var(--button-background);
-    color: var(--text);
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: var(--theme-color);
+    color: white;
 }
 
-.save-btn {
-    margin-top: 20px;
-    width: 100%;
-    padding: 12px;
+/* System instructions section */
+.system-instructions-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.generate-instructions-btn {
     background: var(--button-background);
     border: none;
-    border-radius: 8px;
+    padding: 6px 12px;
+    border-radius: 6px;
     color: var(--text);
-    font-weight: 600;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    transition: all 0.2s ease;
+}
+
+.generate-instructions-btn:hover {
+    background: var(--theme-color);
+}
+
+.generate-instructions-btn i {
+    font-size: 12px;
+}
+
+/* Model parameters */
+.model-params {
+    background: var(--card-background);
+    padding: 16px;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+}
+
+.params-grid {
+    display: grid;
+    gap: 16px;
+}
+
+.param-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.param-item label {
+    min-width: 100px;
+}
+
+input[type="range"] {
+    flex: 1;
+    height: 4px;
+    -webkit-appearance: none;
+    background: var(--border);
+    border-radius: 2px;
+    outline: none;
+}
+
+input[type="range"]::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 16px;
+    height: 16px;
+    background: var(--theme-color);
+    border-radius: 50%;
     cursor: pointer;
     transition: all 0.2s ease;
+}
+
+input[type="range"]::-webkit-slider-thumb:hover {
+    transform: scale(1.1);
+}
+
+.param-value {
+    min-width: 40px;
+    text-align: right;
+    color: var(--text-secondary);
+}
+
+/* Save button */
+.save-btn {
+    background: var(--theme-color);
+    border: none;
+    padding: 12px;
+    border-radius: 8px;
+    color: white;
+    cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
+    font-weight: 500;
+    transition: all 0.2s ease;
+    margin-top: 20px;
 }
 
 .save-btn:hover {
-    background: var(--button-hover);
+    background: var(--generate-button-hover);
     transform: translateY(-1px);
 }
 
 .save-btn i {
     font-size: 14px;
 }
+
+/* Theme-specific styles */
+.theme-purple .icon-option.selected,
+.theme-purple .generate-instructions-btn:hover,
+.theme-purple .save-btn { background: var(--theme-color); }
+
+.theme-red .icon-option.selected,
+.theme-red .generate-instructions-btn:hover,
+.theme-red .save-btn { background: var(--theme-color); }
+
+.theme-blue .icon-option.selected,
+.theme-blue .generate-instructions-btn:hover,
+.theme-blue .save-btn { background: var(--theme-color); }
+
+.theme-green .icon-option.selected,
+.theme-green .generate-instructions-btn:hover,
+.theme-green .save-btn { background: var(--theme-color); }
+
+.theme-yellow .icon-option.selected,
+.theme-yellow .generate-instructions-btn:hover,
+.theme-yellow .save-btn { background: var(--theme-color); }
+
+.theme-pink .icon-option.selected,
+.theme-pink .generate-instructions-btn:hover,
+.theme-pink .save-btn { background: var(--theme-color); }
 
 /* Scrollbar styles */
 ::-webkit-scrollbar {
@@ -184,39 +289,3 @@ body {
 ::-webkit-scrollbar-thumb:hover {
     background: rgba(255, 255, 255, 0.3);
 }
-
-.description-wrapper {
-    position: relative;
-    display: flex;
-    gap: 10px;
-}
-
-.description-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 8px;
-}
-
-.analyze-image-btn {
-    background: var(--button-background);
-    border: none;
-    padding: 6px 12px;
-    border-radius: 6px;
-    color: var(--text);
-    cursor: pointer;
-    transition: all 0.2s ease;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 13px;
-}
-
-.analyze-image-btn i {
-    font-size: 14px;
-}
-
-.analyze-image-btn:hover {
-    background: var(--button-hover);
-    transform: translateY(-1px);
-} 

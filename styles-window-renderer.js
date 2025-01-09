@@ -1,146 +1,105 @@
 const { ipcRenderer } = require('electron');
+const Store = require('electron-store');
+const store = new Store();
 
 document.addEventListener('DOMContentLoaded', async () => {
-    const stylesList = document.querySelector('.styles-list');
-    const addStyleBtn = document.getElementById('add-style-btn');
-    const closeBtn = document.getElementById('close-btn');
-    const importBtn = document.getElementById('import-btn');
+    // Initialize theme
+    const theme = store.get('settings.theme', 'purple');
+    document.body.className = `theme-${theme}`;
 
-    // Funkcja do renderowania pojedynczego stylu
-    function renderStyle(id, style) {
-        const isBuiltIn = !id.startsWith('custom_');
-        return `
-            <div class="style-item" data-id="${id}">
-                <div class="style-header">
-                    <span class="style-name">
-                        <i class="fas fa-${style.icon}"></i>
-                        ${style.name}
-                    </span>
-                    ${!isBuiltIn ? `
-                        <div class="style-actions">
-                            <button class="edit-btn" title="Edit">
-                                <i class="fas fa-edit"></i>
-                            </button>
-                            <button class="export-btn" title="Export Style">
-                                <i class="fas fa-file-export"></i>
-                            </button>
-                            <button class="delete-btn" title="Delete">
-                                <i class="fas fa-trash"></i>
-                            </button>
-                        </div>
-                    ` : ''}
+    // Initialize close button
+    const closeBtn = document.getElementById('close-btn');
+    closeBtn.addEventListener('click', () => {
+        window.close();
+    });
+
+    // Initialize style list
+    const stylesList = document.getElementById('stylesList');
+    
+    function createStyleItem(style) {
+        const item = document.createElement('div');
+        item.className = 'style-item';
+        item.innerHTML = `
+            <div class="style-header">
+                <div class="style-title">
+                    <i class="fas fa-${style.icon || 'paint-brush'}"></i>
+                    <span>${style.name}</span>
                 </div>
-                <div class="style-description">${style.description}</div>
-                <div class="style-tags">
-                    ${style.fixedTags.map(tag => `
-                        <span class="style-tag">${tag}</span>
-                    `).join('')}
+                <div class="style-actions">
+                    <button class="style-btn edit-btn" title="Edit Style">
+                        <i class="fas fa-edit"></i>
+                    </button>
+                    <button class="style-btn delete-btn" title="Delete Style">
+                        <i class="fas fa-trash"></i>
+                    </button>
                 </div>
             </div>
+            <div class="style-description">${style.description || 'No description available'}</div>
         `;
+
+        // Add event listeners
+        const editBtn = item.querySelector('.edit-btn');
+        const deleteBtn = item.querySelector('.delete-btn');
+
+        editBtn.addEventListener('click', () => {
+            ipcRenderer.send('edit-style', style.id);
+        });
+
+        deleteBtn.addEventListener('click', async () => {
+            const confirmed = await ipcRenderer.invoke('show-confirmation', {
+                message: 'Are you sure you want to delete this style?',
+                detail: 'This action cannot be undone.'
+            });
+
+            if (confirmed) {
+                await ipcRenderer.invoke('delete-style', style.id);
+                loadStyles();
+            }
+        });
+
+        return item;
     }
 
-    // Funkcja do ładowania stylów
     async function loadStyles() {
         try {
             const styles = await ipcRenderer.invoke('get-styles');
-            
-            // Podziel style na wbudowane i customowe
-            const builtInStyles = styles.filter(style => !style.custom);
-            const customStyles = styles.filter(style => style.custom);
-
-            // Renderuj style
-            stylesList.innerHTML = `
-                ${builtInStyles.map(style => renderStyle(style.id, style)).join('')}
-                
-                <div class="custom-styles-header">
-                    <span>Custom Styles</span>
-                </div>
-                ${customStyles.map(style => renderStyle(style.id, style)).join('')}
-            `;
-
-            // Dodaj event listenery
-            document.querySelectorAll('.style-item[data-id^="custom_"]').forEach(item => {
-                const id = item.dataset.id;
-                
-                item.querySelector('.edit-btn')?.addEventListener('click', () => {
-                    ipcRenderer.send('edit-style', id);
-                });
-
-                item.querySelector('.export-btn')?.addEventListener('click', async () => {
-                    try {
-                        const style = await ipcRenderer.invoke('get-style', id);
-                        const result = await ipcRenderer.invoke('export-styles', [style]);
-                        if (result.success) {
-                            showToast(result.message);
-                        } else {
-                            showToast(result.message, 'error');
-                        }
-                    } catch (error) {
-                        console.error('Error exporting style:', error);
-                        showToast('Error exporting style', 'error');
-                    }
-                });
-
-                item.querySelector('.delete-btn')?.addEventListener('click', async () => {
-                    if (confirm('Are you sure you want to delete this style?')) {
-                        await ipcRenderer.invoke('delete-style', id);
-                        loadStyles(); // Przeładuj listę
-                    }
-                });
+            stylesList.innerHTML = '';
+            styles.forEach(style => {
+                stylesList.appendChild(createStyleItem(style));
             });
         } catch (error) {
             console.error('Error loading styles:', error);
         }
     }
 
-    // Nasłuchuj na odświeżenie stylów
-    ipcRenderer.on('refresh-styles', () => {
-        loadStyles();
-    });
+    // Initialize buttons
+    const addStyleBtn = document.getElementById('add-style-btn');
+    const importBtn = document.getElementById('import-btn');
+    const exportBtn = document.getElementById('export-btn');
 
-    // Obsługa przycisku Add New Style
     addStyleBtn.addEventListener('click', () => {
-        ipcRenderer.send('create-new-style');
+        ipcRenderer.send('create-style');
     });
 
-    // Obsługa przycisku zamykania
-    closeBtn.addEventListener('click', () => {
-        window.close();
-    });
-
-    // Obsługa importu stylów
     importBtn.addEventListener('click', async () => {
-        try {
-            const result = await ipcRenderer.invoke('import-styles');
-            if (result.success) {
-                loadStyles(); // Odśwież listę
-                showToast(result.message);
-            } else {
-                showToast(result.message, 'error');
-            }
-        } catch (error) {
-            console.error('Error importing styles:', error);
-            showToast('Error importing styles', 'error');
+        const result = await ipcRenderer.invoke('import-style');
+        if (result.success) {
+            loadStyles();
         }
     });
 
-    // Funkcja do wyświetlania powiadomień
-    function showToast(message, type = 'success') {
-        const toast = document.createElement('div');
-        toast.className = `toast ${type}`;
-        toast.textContent = message;
-        document.body.appendChild(toast);
-        
-        setTimeout(() => {
-            toast.classList.add('show');
-            setTimeout(() => {
-                toast.classList.remove('show');
-                setTimeout(() => toast.remove(), 300);
-            }, 3000);
-        }, 100);
-    }
+    exportBtn.addEventListener('click', async () => {
+        const styles = await ipcRenderer.invoke('get-styles');
+        if (styles.length > 0) {
+            await ipcRenderer.invoke('export-style');
+        }
+    });
 
-    // Załaduj style przy starcie
+    // Load initial styles
     loadStyles();
-}); 
+
+    // Listen for style updates
+    ipcRenderer.on('styles-updated', () => {
+        loadStyles();
+    });
+});

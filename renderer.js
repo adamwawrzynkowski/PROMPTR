@@ -860,6 +860,14 @@ function initializeButtons() {
             ipcRenderer.send('open-ollama-config');
         });
     }
+
+    // Add Manage Styles button handler
+    const manageStylesBtn = document.querySelector('.manage-styles-btn');
+    if (manageStylesBtn) {
+        manageStylesBtn.addEventListener('click', () => {
+            ipcRenderer.send('open-styles-window');
+        });
+    }
 }
 
 // Funkcja debounce (jeśli jeszcze nie jest zdefiniowana)

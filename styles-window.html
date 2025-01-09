@@ -4,6 +4,8 @@
     <meta charset="UTF-8">
     <title>Styles</title>
     <link rel="stylesheet" href="styles/main.css">
+    <link rel="stylesheet" href="styles/themes.css">
+    <link rel="stylesheet" href="styles-window.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 </head>
 <body>
@@ -19,8 +21,12 @@
                 <i class="fas fa-file-import"></i>
                 Import Style
             </button>
+            <button class="action-btn" id="export-btn">
+                <i class="fas fa-file-export"></i>
+                Export Style
+            </button>
         </div>
-        <div class="styles-list">
+        <div class="styles-list" id="stylesList">
             <!-- Style będą dodawane tutaj dynamicznie -->
         </div>
         <button class="add-style-btn" id="add-style-btn">

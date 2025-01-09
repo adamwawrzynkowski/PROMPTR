@@ -1,0 +1,11 @@
+version: 1.0.0
+files:
+  - url: PROMPTR-1.0.0-arm64-mac.zip
+    sha512: NizsdGmrJTtyNoZ0U1J5QMq8JoNla3Lh3K9Oca6c6H5WZz+phRH66I7rCGtlUk1snbD1+6S9nmjHUCnwsJwWUQ==
+    size: 151724402
+  - url: PROMPTR-1.0.0-arm64.dmg
+    sha512: S10UFQsQFfT0ynWWmv++0ex/ydF4yAC+IwePBHTRRhco63iv6IwlIPQVhDLsxS+5A5OWMMfjwWOYE7dxW9QeSA==
+    size: 157165051
+path: PROMPTR-1.0.0-arm64-mac.zip
+sha512: NizsdGmrJTtyNoZ0U1J5QMq8JoNla3Lh3K9Oca6c6H5WZz+phRH66I7rCGtlUk1snbD1+6S9nmjHUCnwsJwWUQ==
+releaseDate: '2025-01-09T02:07:19.916Z'
