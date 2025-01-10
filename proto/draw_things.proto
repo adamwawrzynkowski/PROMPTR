@@ -1,0 +1,16 @@
+syntax = "proto3";
+
+package drawthings;
+
+service Pipeline {
+  rpc Run (RunRequest) returns (RunResponse) {}
+}
+
+message RunRequest {
+  string prompt = 1;
+}
+
+message RunResponse {
+  bool success = 1;
+  string error = 2;
+}

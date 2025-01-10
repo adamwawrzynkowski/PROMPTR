@@ -11,6 +11,9 @@ const DEFAULT_TAGS = [
 ];
 
 // Dodaj na początku pliku
+const activeGenerations = new Map();
+
+// Dodaj na początku pliku
 window.addEventListener('error', (event) => {
     console.error('Renderer error:', event.error);
 });
@@ -18,6 +21,9 @@ window.addEventListener('error', (event) => {
 window.addEventListener('unhandledrejection', (event) => {
     console.error('Unhandled rejection in renderer:', event.reason);
 });
+
+// Flaga do blokowania równoległych generacji sekwencyjnych
+let isSequentialGenerationInProgress = false;
 
 // Funkcja do zarządzania historią promptów
 function addToStyleHistory(styleId, prompt) {
@@ -75,7 +81,7 @@ function navigateHistory(styleId, direction) {
 function createStyleCard(style) {
     const card = document.createElement('div');
     card.className = 'style-card';
-    card.dataset.styleId = style.id;
+    card.setAttribute('data-style-id', style.id);
     card.dataset.favorite = localStorage.getItem(`style_${style.id}_favorite`) === 'true' ? 'true' : 'false';
 
     const header = document.createElement('div');
@@ -123,6 +129,12 @@ function createStyleCard(style) {
     generateBtn.onclick = async (e) => {
         e.stopPropagation();
         e.preventDefault();
+
+        // Check if already generating
+        if (activeGenerations.has(style.id)) {
+            return;
+        }
+
         const promptInput = document.getElementById('promptInput');
         const basePrompt = promptInput.value.trim();
         
@@ -141,6 +153,9 @@ function createStyleCard(style) {
                 return;
             }
 
+            // Mark as generating
+            activeGenerations.set(style.id, true);
+
             // Show loading animation
             promptDisplay.style.display = 'none';
             loadingContainer.style.display = 'flex';
@@ -149,44 +164,41 @@ function createStyleCard(style) {
             generateBtn.disabled = true;
 
             // Generate prompt
-            console.log('Generating prompt for style:', style.id);
-            
-            // Get style parameters
-            const styleParams = await ipcRenderer.invoke('get-style', style.id);
-            console.log('Style parameters:', styleParams);
-            
-            const response = await ipcRenderer.invoke('generate-prompt', {
-                basePrompt: basePrompt,
-                styleId: style.id
-            });
-            
-            console.log('Generate prompt response:', response);
-            
-            // Hide loading animation
-            loadingContainer.style.display = 'none';
-            promptDisplay.style.display = 'block';
+            try {
+                const result = await ipcRenderer.invoke('generate-prompt', {
+                    basePrompt: style.prefix ? `${style.prefix}${basePrompt}` : basePrompt,
+                    styleId: style.id
+                });
 
-            if (response && response.prompt) {
-                // Show generated prompt with animation
-                await revealPrompt(response.prompt, promptDisplay);
-                
-                // Add to history
-                addToStyleHistory(style.id, response.prompt);
-                updateHistoryButtons(style.id);
-            } else {
-                console.error('Invalid response format:', response);
-                promptDisplay.textContent = 'Error: Invalid response format';
+                if (result && result.prompt) {
+                    // Hide loading animation
+                    loadingContainer.style.display = 'none';
+                    promptContainer.style.display = 'block';
+                    promptDisplay.style.display = 'block';
+
+                    // Clear and reveal new prompt
+                    promptDisplay.textContent = '';
+                    await revealPrompt(result.prompt, promptDisplay);
+                    addToStyleHistory(style.id, result.prompt);
+                    updateHistoryButtons(style.id);
+                } else {
+                    throw new Error('Empty response from model');
+                }
+            } catch (error) {
+                console.error('Error generating prompt:', error);
+                promptDisplay.textContent = `Error: ${error.message}`;
+                promptDisplay.style.display = 'block';
             }
-        } catch (error) {
-            console.error('Error generating prompt:', error);
-            const promptDisplay = card.querySelector('.prompt-text');
-            const loadingContainer = card.querySelector('.generating-container');
-            loadingContainer.style.display = 'none';
-            promptDisplay.style.display = 'block';
-            promptDisplay.textContent = `Error: ${error.message || 'Failed to generate prompt'}`;
         } finally {
+            // Restore UI state
+            const loadingContainer = card.querySelector('.generating-container');
+            if (loadingContainer) {
+                loadingContainer.style.display = 'none';
+            }
             generateBtn.classList.remove('disabled', 'loading');
             generateBtn.disabled = false;
+            // Clear generating flag
+            activeGenerations.delete(style.id);
         }
     };
     
@@ -270,36 +282,113 @@ function createStyleCard(style) {
     leftActions.appendChild(copyBtn);
     
     const magicRefinerBtn = document.createElement('button');
-    magicRefinerBtn.className = 'prompt-action-btn magic-refiner-btn disabled';
+    magicRefinerBtn.className = 'prompt-action-btn magic-refiner-btn disabled';  // Start as disabled
     magicRefinerBtn.innerHTML = '<i class="fas fa-magic"></i> Magic Refiner';
     magicRefinerBtn.title = 'Magic Refiner';
-    magicRefinerBtn.disabled = true;
+    magicRefinerBtn.disabled = true;  // Start as disabled
     magicRefinerBtn.onclick = () => refinePrompt(style.id);
 
     const drawBtn = document.createElement('button');
-    drawBtn.className = 'prompt-action-btn draw-btn';
+    drawBtn.className = 'prompt-action-btn draw-btn disabled';  // Start as disabled
     drawBtn.innerHTML = '<i class="fas fa-arrow-right"></i> Send to Draw Things';
     drawBtn.title = 'Send to Draw Things';
+    drawBtn.disabled = true;  // Start as disabled
     drawBtn.onclick = () => sendToDrawThings(style.id);
+
+    // Create tooltip element
+    function createDrawThingsTooltip() {
+        const tooltip = document.createElement('div');
+        tooltip.className = 'custom-tooltip';
+        tooltip.innerHTML = `
+            <div class="custom-tooltip-title">Draw Things Integration Setup</div>
+            <p>PROMPTR integrates seamlessly with the Draw Things app. To activate the integration, follow these steps:</p>
+            <ol>
+                <li>Open the Draw Things app.</li>
+                <li>Switch the settings tab to 'Advanced' or 'All'.</li>
+                <li>Locate the 'API Server' option and enable it.</li>
+                <li>Ensure the settings are configured as follows:</li>
+            </ol>
+            <ul>
+                <li>Protocol: HTTP</li>
+                <li>Port: 3333</li>
+                <li>IP: 127.0.0.1</li>
+            </ul>
+            <div class="custom-tooltip-footer">Once these steps are completed, PROMPTR will be ready to interact with Draw Things! 🎨✨</div>
+        `;
+        document.body.appendChild(tooltip);
+        return tooltip;
+    }
+
+    // Add tooltip functionality to button
+    function addDrawThingsTooltip(drawBtn) {
+        const tooltip = createDrawThingsTooltip();
+        let timeout;
+
+        drawBtn.addEventListener('mouseenter', () => {
+            const rect = drawBtn.getBoundingClientRect();
+            tooltip.style.left = `${rect.left}px`;
+            tooltip.style.top = `${rect.bottom + 10}px`; // 10px below the button
+            
+            // Show tooltip
+            clearTimeout(timeout);
+            tooltip.classList.add('visible');
+            
+            // Adjust position if tooltip goes off screen
+            const tooltipRect = tooltip.getBoundingClientRect();
+            const viewportWidth = window.innerWidth;
+            const viewportHeight = window.innerHeight;
+            
+            if (tooltipRect.right > viewportWidth) {
+                tooltip.style.left = `${viewportWidth - tooltipRect.width - 10}px`;
+            }
+            
+            if (tooltipRect.bottom > viewportHeight) {
+                tooltip.style.top = `${rect.top - tooltipRect.height - 10}px`;
+            }
+        });
+
+        drawBtn.addEventListener('mouseleave', () => {
+            timeout = setTimeout(() => {
+                tooltip.classList.remove('visible');
+            }, 200);
+        });
+
+        tooltip.addEventListener('mouseenter', () => {
+            clearTimeout(timeout);
+        });
+
+        tooltip.addEventListener('mouseleave', () => {
+            tooltip.classList.remove('visible');
+        });
+    }
+
+    addDrawThingsTooltip(drawBtn);
 
     // Obserwuj zmiany w tekście promptu
     const observer = new MutationObserver((mutations) => {
-        for (const mutation of mutations) {
+        mutations.forEach((mutation) => {
             if (mutation.type === 'characterData' || mutation.type === 'childList') {
-                const hasPrompt = promptText.textContent.trim() !== 'Click Generate to create a prompt...';
+                const promptContent = promptText.textContent.trim();
+                const hasPrompt = promptContent && promptContent !== 'Click Generate to create a prompt...';
+                
+                // Update Magic Refiner button
                 magicRefinerBtn.disabled = !hasPrompt;
                 magicRefinerBtn.classList.toggle('disabled', !hasPrompt);
+                
+                // Update Draw Things button
+                drawBtn.disabled = !hasPrompt;
+                drawBtn.classList.toggle('disabled', !hasPrompt);
             }
-        }
+        });
     });
 
-    // Rozpocznij obserwowanie zmian w tekście promptu
+    // Start observing prompt text changes
     observer.observe(promptText, { 
         characterData: true, 
-        childList: true, 
-        subtree: true 
+        childList: true,
+        subtree: true
     });
-    
+
     actions.appendChild(leftActions);
     actions.appendChild(magicRefinerBtn);
     actions.appendChild(drawBtn);
@@ -586,9 +675,28 @@ async function loadStyles() {
 
 // Funkcja do aktualizacji promptu w karcie stylu
 function updateStylePrompt(styleId, prompt) {
-    const promptOutput = document.querySelector(`#prompt-${styleId}`);
-    if (promptOutput) {
-        promptOutput.textContent = prompt;
+    const card = document.querySelector(`.style-card[data-style-id="${styleId}"]`);
+    if (!card) return;
+
+    const promptText = card.querySelector('.prompt-text');
+    const magicRefinerBtn = card.querySelector('.magic-refiner-btn');
+    const drawBtn = card.querySelector('.draw-btn');
+    
+    if (promptText) {
+        promptText.textContent = prompt || 'Click Generate to create a prompt...';
+        
+        // Update button states
+        const hasPrompt = prompt && prompt.trim() !== '' && prompt !== 'Click Generate to create a prompt...';
+        
+        if (magicRefinerBtn) {
+            magicRefinerBtn.disabled = !hasPrompt;
+            magicRefinerBtn.classList.toggle('disabled', !hasPrompt);
+        }
+        
+        if (drawBtn) {
+            drawBtn.disabled = !hasPrompt;
+            drawBtn.classList.toggle('disabled', !hasPrompt);
+        }
     }
 }
 
@@ -608,14 +716,49 @@ function copyStylePrompt(styleId) {
 
 // Funkcja do wysyłania do Draw Things
 async function sendToDrawThings(styleId) {
-    const promptOutput = document.querySelector(`#prompt-${styleId}`);
-    if (!promptOutput || !promptOutput.textContent) return;
-
     try {
-        await ipcRenderer.invoke('send-to-draw-things', promptOutput.textContent);
-        showToast('Prompt sent to Draw Things');
+        const card = document.querySelector(`.style-card[data-style-id="${styleId}"]`);
+        if (!card) return;
+
+        const promptText = card.querySelector('.prompt-text');
+        const drawBtn = card.querySelector('.draw-btn');
+        
+        if (!promptText || !drawBtn) return;
+        
+        const prompt = promptText.textContent.trim();
+        if (!prompt || prompt === 'Click Generate to create a prompt...') {
+            showToast('No prompt to send to Draw Things');
+            return;
+        }
+
+        // Disable button and show loading state
+        drawBtn.disabled = true;
+        drawBtn.classList.add('disabled');
+        const originalContent = drawBtn.innerHTML;
+        drawBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+
+        try {
+            // Check Draw Things connection first
+            const isConnected = await ipcRenderer.invoke('check-draw-things-connection');
+            if (!isConnected) {
+                throw new Error('Draw Things is not connected. Please check if the app is running and API Server is enabled.');
+            }
+
+            // Send prompt to Draw Things
+            await ipcRenderer.invoke('send-to-draw-things', prompt);
+            showToast('Successfully sent to Draw Things! 🎨');
+        } catch (error) {
+            console.error('Error sending to Draw Things:', error);
+            showToast(`Error: ${error.message}`);
+        } finally {
+            // Restore button state
+            drawBtn.disabled = false;
+            drawBtn.classList.remove('disabled');
+            drawBtn.innerHTML = originalContent;
+        }
     } catch (error) {
-        showToast(error.message);
+        console.error('Error in sendToDrawThings:', error);
+        showToast('An unexpected error occurred');
     }
 }
 
@@ -727,8 +870,8 @@ function initializeButtons() {
             }
 
             // Get current view
-            const currentView = document.querySelector('.switch-btn.active')?.dataset?.view;
-            if (!currentView) return;
+            const activeButton = document.querySelector('.switch-btn.active');
+            const currentView = activeButton?.dataset.view || 'active';
 
             try {
                 if (currentView === 'inactive') {
@@ -790,7 +933,7 @@ function initializeButtons() {
 
         if (btn.classList.contains('prev-btn')) {
             btn.addEventListener('click', () => {
-                const prompt = navigateHistory(styleId, -1);
+                const prompt = navigateHistory(styleId, 'prev');
                 if (prompt) {
                     const promptDisplay = btn.closest('.style-card').querySelector('.prompt-text');
                     revealPrompt(prompt, promptDisplay);
@@ -799,7 +942,7 @@ function initializeButtons() {
             });
         } else if (btn.classList.contains('next-btn')) {
             btn.addEventListener('click', () => {
-                const prompt = navigateHistory(styleId, 1);
+                const prompt = navigateHistory(styleId, 'next');
                 if (prompt) {
                     const promptDisplay = btn.closest('.style-card').querySelector('.prompt-text');
                     revealPrompt(prompt, promptDisplay);
@@ -915,6 +1058,12 @@ async function generateTagsInBatches(text) {
 
 // Funkcja do sekwencyjnego generowania promptów
 async function generatePromptsSequentially(basePrompt, view = 'active') {
+    // Prevent parallel sequential generations
+    if (isSequentialGenerationInProgress) {
+        console.log('Sequential generation already in progress, skipping');
+        return;
+    }
+
     console.log('Starting prompt generation with:', { basePrompt, view });
     
     if (!basePrompt || !basePrompt.trim()) {
@@ -922,19 +1071,52 @@ async function generatePromptsSequentially(basePrompt, view = 'active') {
         return;
     }
 
+    isSequentialGenerationInProgress = true;
+
     try {
-        const styleCards = Array.from(document.querySelectorAll(`.style-card`))
+        // Get active model before starting
+        const { ipcRenderer } = require('electron');
+        const config = await ipcRenderer.invoke('get-config');
+        if (!config || !config.currentModel) {
+            showToast('Please select a text model in settings first');
+            return;
+        }
+
+        // Get all styles
+        const styles = await ipcRenderer.invoke('get-styles');
+        console.log('All styles:', styles);
+
+        // Get all visible style cards
+        const styleCards = Array.from(document.querySelectorAll('.style-card'))
             .filter(card => {
-                if (view === 'favorites') {
-                    return card.dataset.favorite === 'true';
-                } else if (view === 'active') {
-                    return localStorage.getItem(`style_${card.dataset.styleId}_active`) === 'true';
+                // Only process cards that are currently visible
+                if (card.style.display === 'none') {
+                    return false;
                 }
-                return false;
+
+                const styleId = card.dataset.styleId;
+                const style = styles.find(s => s.id === styleId);
+                if (!style) {
+                    console.log('Style not found:', styleId);
+                    return false;
+                }
+
+                return true;
             });
 
-        console.log(`Found ${styleCards.length} style cards for view: ${view}`);
+        console.log(`Found ${styleCards.length} visible style cards for view: ${view}`);
+        
+        if (styleCards.length === 0) {
+            if (view === 'favorites') {
+                showToast('No favorite styles found. Please add some styles to favorites first.');
+            } else {
+                showToast('No active styles found. Please activate some styles first.');
+            }
+            return;
+        }
+
         let successCount = 0;
+        let errors = [];
 
         for (const card of styleCards) {
             const generateBtn = card.querySelector('.generate-btn');
@@ -945,6 +1127,7 @@ async function generatePromptsSequentially(basePrompt, view = 'active') {
 
             if (!card || !promptContainer || !loadingContainer || !promptDisplay) {
                 console.error('Missing required elements for card:', styleId);
+                errors.push(`Missing UI elements for style ${styleId}`);
                 continue;
             }
 
@@ -959,33 +1142,45 @@ async function generatePromptsSequentially(basePrompt, view = 'active') {
                 }
 
                 // Get the latest style data
-                const style = await window.electronAPI.getStyle(styleId);
+                const style = await ipcRenderer.invoke('get-style', styleId);
                 if (!style) {
-                    console.error('Style not found:', styleId);
-                    continue;
+                    throw new Error(`Style not found: ${styleId}`);
                 }
+
+                console.log(`Generating prompt for style ${styleId}:`, style);
 
                 // Build the complete prompt
                 let finalPrompt = basePrompt;
                 if (style.prefix) finalPrompt = `${style.prefix}${finalPrompt}`;
                 if (style.suffix) finalPrompt = `${finalPrompt}${style.suffix}`;
 
-                const result = await window.electronAPI.generatePrompt(finalPrompt, styleId);
+                const result = await ipcRenderer.invoke('generate-prompt', {
+                    basePrompt: finalPrompt,
+                    styleId
+                });
                 
                 // Update UI with result
                 if (result && result.prompt) {
-                    // Hide loading animation
+                    // Hide loading animation and show prompt container
                     loadingContainer.style.display = 'none';
                     promptContainer.style.display = 'block';
+                    promptDisplay.style.display = 'block';
                     
+                    // Clear existing content and add new prompt
+                    promptDisplay.textContent = '';
                     await revealPrompt(result.prompt, promptDisplay);
+                    
                     addToStyleHistory(styleId, result.prompt);
                     updateHistoryButtons(styleId);
                     successCount++;
+                } else {
+                    throw new Error('Empty response from model');
                 }
             } catch (error) {
                 console.error(`Error generating prompt for style ${styleId}:`, error);
-                promptDisplay.textContent = 'Error generating prompt';
+                errors.push(`Error for style ${styleId}: ${error.message}`);
+                promptDisplay.textContent = `Error: ${error.message}`;
+                promptDisplay.style.display = 'block';
             } finally {
                 // Restore UI state
                 loadingContainer.style.display = 'none';
@@ -999,11 +1194,14 @@ async function generatePromptsSequentially(basePrompt, view = 'active') {
         if (successCount > 0) {
             showToast(`Successfully generated ${successCount} prompts`);
         } else {
-            showToast('Failed to generate any prompts');
+            console.error('Generation errors:', errors);
+            showToast(`Failed to generate prompts: ${errors[0]}`);
         }
     } catch (error) {
         console.error('Error in generatePromptsSequentially:', error);
-        showToast('Error generating prompts');
+        showToast(`Error: ${error.message}`);
+    } finally {
+        isSequentialGenerationInProgress = false;
     }
 }
 
@@ -1656,3 +1854,225 @@ function createStyleCards(styles) {
     container.appendChild(fragment);
     initializeVirtualScrolling();
 }
+
+// Optimize renderer performance
+document.addEventListener('DOMContentLoaded', () => {
+    // Use requestIdleCallback for non-critical updates
+    const idleCallback = window.requestIdleCallback || window.requestAnimationFrame;
+    
+    // Optimize scroll performance
+    let scrollTimeout;
+    const scrollHandler = () => {
+        if (scrollTimeout) {
+            window.cancelAnimationFrame(scrollTimeout);
+        }
+        scrollTimeout = window.requestAnimationFrame(() => {
+            // Your scroll handling code here
+        });
+    };
+    window.addEventListener('scroll', scrollHandler, { passive: true });
+    
+    // Optimize animations
+    let focused = true;
+    let animationFrame;
+    
+    window.addEventListener('focus', () => {
+        focused = true;
+        if (!animationFrame) {
+            animationFrame = requestAnimationFrame(updateUI);
+        }
+    });
+    
+    window.addEventListener('blur', () => {
+        focused = false;
+        if (animationFrame) {
+            cancelAnimationFrame(animationFrame);
+            animationFrame = null;
+        }
+    });
+    
+    // Use IntersectionObserver for lazy loading
+    const observer = new IntersectionObserver((entries) => {
+        entries.forEach(entry => {
+            if (entry.isIntersecting) {
+                entry.target.classList.add('visible');
+                observer.unobserve(entry.target);
+            }
+        });
+    }, { rootMargin: '50px' });
+    
+    // Observe elements that should be lazy loaded
+    document.querySelectorAll('.lazy-load').forEach(el => observer.observe(el));
+    
+    function updateUI() {
+        if (!focused) return;
+        
+        // Use idle callback for non-critical updates
+        idleCallback(() => {
+            // Update UI here
+        });
+        
+        animationFrame = requestAnimationFrame(updateUI);
+    }
+    
+    // Start the UI update loop
+    updateUI();
+});
+
+// Funkcja do aktualizacji stanu przycisków
+function updateButtonStates() {
+    const promptText = document.querySelector('.prompt-text');
+    const magicRefinerBtn = document.querySelector('.magic-refiner');
+    const drawBtn = document.querySelector('.send-to-draw-things');
+    
+    if (promptText && magicRefinerBtn && drawBtn) {
+        const activeTab = document.querySelector('.tab.active');
+        if (!activeTab) {
+            drawBtn.disabled = true;
+            drawBtn.classList.add('disabled');
+            magicRefinerBtn.disabled = true;
+            magicRefinerBtn.classList.add('disabled');
+            return;
+        }
+
+        const tabId = activeTab.getAttribute('data-tab-id');
+        const tabContent = tabs[tabId];
+        
+        // Check if we have any prompt content
+        let hasPrompt = false;
+        
+        if (tabContent) {
+            if (tabContent.type === 'style') {
+                // For style tabs, check if there's a prompt in the content
+                hasPrompt = tabContent.prompt && tabContent.prompt.trim() !== '';
+            } else {
+                // For regular tabs, check the prompt-text content
+                hasPrompt = promptText.textContent.trim() !== 'Click Generate to create a prompt...' 
+                    && promptText.textContent.trim() !== '';
+            }
+        }
+            
+        // Update Magic Refiner button
+        magicRefinerBtn.disabled = !hasPrompt;
+        magicRefinerBtn.classList.toggle('disabled', !hasPrompt);
+        
+        // Update Draw Things button
+        drawBtn.disabled = !hasPrompt;
+        drawBtn.classList.toggle('disabled', !hasPrompt);
+    }
+}
+
+// Dodaj nasłuchiwacza do obserwatora
+const observer = new MutationObserver((mutations) => {
+    mutations.forEach((mutation) => {
+        if (mutation.target.classList.contains('prompt-text')) {
+            updateButtonStates();
+        }
+    });
+});
+
+// Dodaj nasłuchiwacza do zmiany zakładki
+function switchTab(tabElement) {
+    const prevActive = document.querySelector('.tab.active');
+    if (prevActive) {
+        prevActive.classList.remove('active');
+    }
+
+    tabElement.classList.add('active');
+    const tabId = tabElement.getAttribute('data-tab-id');
+    
+    // Update content and button states
+    updateTabContent(tabId);
+    updateButtonStates();
+}
+
+// Dodaj nasłuchiwacza do aktualizacji promptu
+function updatePrompt(tabId, newPrompt) {
+    if (!tabs[tabId]) {
+        tabs[tabId] = {};
+    }
+    tabs[tabId].prompt = newPrompt;
+    updateButtonStates();
+}
+
+// Update style tab content
+function updateStyleTabContent(tabId, content) {
+    if (!tabs[tabId]) {
+        tabs[tabId] = { type: 'style' };
+    }
+    tabs[tabId].prompt = content;
+    updateButtonStates();
+}
+
+// Handle style input changes
+function handleStyleInputChange(event) {
+    const activeTab = document.querySelector('.tab.active');
+    if (activeTab) {
+        const tabId = activeTab.getAttribute('data-tab-id');
+        updateStyleTabContent(tabId, event.target.value);
+    }
+}
+
+// Add to existing style tab creation
+function createStyleTab() {
+    const tabId = 'tab-' + Date.now();
+    
+    // Create tab
+    const tab = document.createElement('div');
+    tab.className = 'tab';
+    tab.setAttribute('data-tab-id', tabId);
+    
+    // Initialize tab data
+    tabs[tabId] = {
+        type: 'style',
+        prompt: ''
+    };
+    
+    // Create input for style tab
+    const input = document.createElement('textarea');
+    input.className = 'style-input';
+    input.addEventListener('input', handleStyleInputChange);
+    
+    // Add to tab content
+    const tabContent = document.createElement('div');
+    tabContent.className = 'tab-content style-tab-content';
+    tabContent.appendChild(input);
+    
+    // Update button states
+    updateButtonStates();
+    
+    return { tab, tabContent };
+}
+
+// Funkcja do aktualizacji stanu połączenia
+function updateConnectionStatus(status) {
+    const statusElement = document.getElementById('connection-status');
+    if (statusElement) {
+        const ollamaStatus = status.ollama ? '🟢' : '🔴';
+        const drawThingsStatus = status.drawThings ? '🟢' : '🔴';
+        
+        statusElement.innerHTML = `
+            Ollama: ${ollamaStatus}
+            Draw Things: ${drawThingsStatus}
+        `;
+    }
+}
+
+// Funkcja do sprawdzania połączeń
+async function checkConnections() {
+    try {
+        const status = await ipcRenderer.invoke('check-connections');
+        updateConnectionStatus(status);
+    } catch (error) {
+        console.error('Error checking connections:', error);
+    }
+}
+
+// Dodaj sprawdzanie połączeń do inicjalizacji
+document.addEventListener('DOMContentLoaded', () => {
+    // Sprawdź połączenia na początku
+    checkConnections();
+    
+    // Sprawdzaj połączenia co 30 sekund
+    setInterval(checkConnections, 30000);
+});

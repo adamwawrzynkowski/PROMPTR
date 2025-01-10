@@ -3,8 +3,8 @@ const path = require('path');
 
 function create() {
     const window = new BrowserWindow({
-        width: 400,
-        height: 600,
+        width: 500,
+        height: 700,
         frame: false,
         transparent: true,
         resizable: false,
@@ -12,7 +12,8 @@ function create() {
         useContentSize: true, // Use content size instead of window size
         webPreferences: {
             nodeIntegration: true,
-            contextIsolation: false
+            contextIsolation: false,
+            enableRemoteModule: true
         }
     });
 
@@ -24,8 +25,8 @@ function create() {
         const contentSize = window.getContentSize();
         console.log('Content size:', contentSize);
         
-        if (contentSize[1] < 600) {
-            window.setContentSize(400, 600, true);
+        if (contentSize[1] < 700) {
+            window.setContentSize(500, 700, true);
         }
         
         window.show();

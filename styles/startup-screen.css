@@ -122,6 +122,100 @@ html, body {
     margin-top: 0.5rem;
 }
 
+/* Ollama Error Styles */
+.ollama-error {
+    background: rgba(255, 0, 0, 0.1);
+    border: 1px solid rgba(255, 0, 0, 0.2);
+    border-radius: 8px;
+    padding: 20px;
+    margin-top: -30px; 
+    text-align: left;
+    max-width: 400px;
+    width: 100%;
+    box-sizing: border-box;
+    -webkit-app-region: no-drag;
+}
+
+.ollama-error .error-icon {
+    color: #ff4444;
+    font-size: 24px;
+    margin-bottom: 15px;
+    text-align: center;
+}
+
+.ollama-error h2 {
+    color: #ff4444;
+    font-size: 18px;
+    margin-bottom: 15px;
+    text-align: center;
+}
+
+.ollama-error p {
+    color: #cccccc;
+    margin-bottom: 15px;
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+.ollama-error ol {
+    color: #cccccc;
+    margin: 0 0 20px 20px;
+    font-size: 14px;
+    line-height: 1.4;
+}
+
+.ollama-error ol li {
+    margin-bottom: 10px;
+}
+
+.ollama-error a {
+    color: #4a9eff;
+    text-decoration: none;
+}
+
+.ollama-error a:hover {
+    text-decoration: underline;
+}
+
+.error-actions {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 20px;
+    -webkit-app-region: no-drag;
+}
+
+.retry-btn, .quit-btn {
+    padding: 8px 16px;
+    border-radius: 4px;
+    border: none;
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: background-color 0.2s;
+    -webkit-app-region: no-drag;
+}
+
+.retry-btn {
+    background-color: #4a9eff;
+    color: white;
+}
+
+.retry-btn:hover {
+    background-color: #3b7fd9;
+}
+
+.quit-btn {
+    background-color: #ff4444;
+    color: white;
+}
+
+.quit-btn:hover {
+    background-color: #d93b3b;
+}
+
 /* Animations */
 @keyframes fadeIn {
     from { opacity: 0; transform: translateY(20px); }

@@ -44,11 +44,19 @@ async function checkOllamaConnection() {
         } else {
             progressStatus.textContent = 'Failed to connect to Ollama';
             progressFill.style.width = '0%';
+            // Send message to main process to show startup window with Ollama error
+            ipcRenderer.send('show-startup-window', { ollamaError: true });
+            // Close onboarding window after a short delay
+            setTimeout(() => window.close(), 1000);
         }
     } catch (error) {
         console.error('Error checking Ollama:', error);
         progressStatus.textContent = 'Error connecting to Ollama';
         progressFill.style.width = '0%';
+        // Send message to main process to show startup window with Ollama error
+        ipcRenderer.send('show-startup-window', { ollamaError: true });
+        // Close onboarding window after a short delay
+        setTimeout(() => window.close(), 1000);
     }
 }
 

@@ -1,6 +1,13 @@
 const electron = require('electron');
 const { BrowserWindow, ipcMain, dialog, shell } = electron;
 const app = electron.app;
+
+// Optimize GPU usage while keeping hardware acceleration
+app.commandLine.appendSwitch('ignore-gpu-blacklist');
+app.commandLine.appendSwitch('enable-gpu-rasterization');
+app.commandLine.appendSwitch('enable-zero-copy');
+app.commandLine.appendSwitch('enable-hardware-overlays', 'single-fullscreen,single-on-top');
+
 const path = require('path');
 const Store = require('electron-store');
 const fs = require('fs').promises;
@@ -32,6 +39,110 @@ const creditsWindow = require('./credits-window');
 const fetch = require('node-fetch');
 const pidusage = require('pidusage');
 const os = require('os');
+const grpc = require('@grpc/grpc-js');
+const protoLoader = require('@grpc/proto-loader');
+
+// Load Draw Things proto file
+const PROTO_PATH = path.join(__dirname, 'proto', 'draw_things.proto');
+const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
+    keepCase: true,
+    longs: String,
+    enums: String,
+    defaults: true,
+    oneofs: true
+});
+
+const drawThingsProto = grpc.loadPackageDefinition(packageDefinition).drawthings;
+
+// Create Draw Things client
+let drawThingsClient = null;
+
+function createDrawThingsClient() {
+    if (!drawThingsClient) {
+        console.log('Creating new Draw Things gRPC client...');
+        const Pipeline = drawThingsProto.Pipeline;
+        drawThingsClient = new Pipeline(
+            '127.0.0.1:3333',
+            grpc.credentials.createInsecure()
+        );
+        console.log('Available methods:', Object.keys(Pipeline.prototype));
+    }
+    return drawThingsClient;
+}
+
+// Check Draw Things connection
+async function checkDrawThingsConnection() {
+    return new Promise((resolve) => {
+        try {
+            console.log('Checking Draw Things connection...');
+            const client = createDrawThingsClient();
+            const deadline = new Date();
+            deadline.setSeconds(deadline.getSeconds() + 2);
+            
+            client.waitForReady(deadline, (error) => {
+                if (error) {
+                    console.log('Draw Things connection check failed:', error.message);
+                    drawThingsClient = null;
+                    resolve(false);
+                } else {
+                    console.log('Draw Things connection successful!');
+                    resolve(true);
+                }
+            });
+        } catch (error) {
+            console.log('Error creating Draw Things client:', error.message);
+            drawThingsClient = null;
+            resolve(false);
+        }
+    });
+}
+
+// Handle Draw Things requests
+ipcMain.handle('send-to-draw-things', async (event, prompt) => {
+    try {
+        console.log('Attempting to send prompt to Draw Things:', prompt);
+        const client = createDrawThingsClient();
+
+        return new Promise((resolve, reject) => {
+            const request = {
+                prompt: prompt
+            };
+            console.log('Sending request:', request);
+            
+            client.run(request, (error, response) => {
+                if (error) {
+                    console.error('Draw Things API error:', {
+                        code: error.code,
+                        details: error.details,
+                        message: error.message
+                    });
+                    drawThingsClient = null;
+                    reject(new Error('Failed to connect to Draw Things. Please check if the app is running and API Server is enabled.'));
+                    return;
+                }
+                
+                console.log('Received response:', response);
+                resolve({ success: true });
+            });
+        });
+    } catch (error) {
+        console.error('Error in send-to-draw-things:', error);
+        throw error;
+    }
+});
+
+// Add Draw Things connection check handler
+ipcMain.handle('check-draw-things-connection', async () => {
+    return checkDrawThingsConnection();
+});
+
+// Add general connection check handler (only for Draw Things)
+ipcMain.handle('check-connections', async () => {
+    const drawThingsStatus = await checkDrawThingsConnection();
+    return {
+        drawThings: drawThingsStatus
+    };
+});
 
 // Initialize electron store with schema
 const store = new Store({
@@ -101,109 +212,68 @@ class AppStartupManager {
 
     async initializeApp() {
         try {
-            this.isStartupComplete = false;
+            // Create startup window
+            this.startup = createStartupWindow();
             
-            // Create startup window if it doesn't exist
-            if (!this.startup) {
-                this.startup = startupWindow.create();
-            }
+            // Wait for startup window to be ready
+            await new Promise(resolve => {
+                ipcMain.once('startup-window-ready', resolve);
+            });
 
             this.updateStartupProgress('Checking system resources...', 10);
             await this.checkSystemResources();
 
-            this.updateStartupProgress('Initializing configuration...', 30);
+            this.updateStartupProgress('Checking Ollama connection...', 20);
+            try {
+                const response = await fetch('http://127.0.0.1:11434/api/tags');
+                if (!response.ok) {
+                    throw new Error('Ollama server not responding');
+                }
+            } catch (error) {
+                console.error('Ollama connection error:', error);
+                this.updateStartupProgress('Ollama not running', 0, {
+                    ollamaError: true
+                });
+                return;
+            }
+
+            this.updateStartupProgress('Initializing configuration...', 40);
             await this.initializeConfiguration();
 
-            // Initialize Ollama Manager
-            this.updateStartupProgress('Initializing Ollama Manager...', 40);
-            const ollamaInitialized = await ollamaManager.initialize((progress, status, message) => {
+            this.updateStartupProgress('Creating main window...', 60);
+            this.mainWindow = await createWindow();
+
+            this.updateStartupProgress('Loading application...', 80);
+
+            // Final startup steps
+            this.updateStartupProgress('Ready!', 100);
+            
+            // Close startup window and show main window
+            setTimeout(() => {
                 if (this.startup) {
-                    this.startup.webContents.send('startup-progress', { progress, status, message });
+                    this.startup.close();
+                    this.startup = null;
                 }
-            });
-            if (!ollamaInitialized) {
-                // Show a dialog with instructions
-                const { response } = await dialog.showMessageBox(this.startup, {
-                    type: 'error',
-                    title: 'Ollama Not Available',
-                    message: 'Could not connect to Ollama service',
-                    detail: 'Please ensure that:\n\n1. Ollama is installed on your system\n2. You can run "ollama serve" from the terminal\n\nWould you like to visit the Ollama installation page?',
-                    buttons: ['Visit Ollama Website', 'Cancel'],
-                    defaultId: 0,
-                    cancelId: 1
-                });
-
-                if (response === 0) {
-                    shell.openExternal('https://ollama.ai/download');
+                if (this.mainWindow) {
+                    this.mainWindow.show();
+                    this.mainWindow.focus();
                 }
-                
-                throw new Error('Failed to initialize Ollama Manager. Please install Ollama and try again.');
-            }
-
-            // Set up IPC handlers for model import
-            modelImportWindow.setupIpcHandlers();
-
-            this.updateStartupProgress('Setting up models...', 50);
-            await setupDefaultModels();
-
-            this.updateStartupProgress('Creating main window...', 90);
-            try {
-                // Create main window but don't show it yet
-                this.mainWindow = await createWindow();
-                
-                // Signal initialization complete
-                if (this.startup) {
-                    this.startup.webContents.send('initialization-complete');
-                }
-
-                this.updateStartupProgress('Finalizing startup...', 95);
                 this.isStartupComplete = true;
-                this.updateStartupProgress('Startup complete', 100);
+            }, 500);
 
-                // Close startup window and show main window after a short delay
-                setTimeout(() => {
-                    if (this.startup && !this.startup.isDestroyed()) {
-                        this.startup.close();
-                    }
-                    if (this.mainWindow && !this.mainWindow.isDestroyed()) {
-                        this.mainWindow.show();
-                        this.mainWindow.focus();
-                    }
-                }, 500);
-                
-            } catch (error) {
-                console.error('Error creating main window:', error);
-                throw error;
-            }
         } catch (error) {
             console.error('Startup error:', error);
-            const detailedError = this.getDetailedErrorMessage(error);
-            if (this.startup && !this.startup.isDestroyed()) {
-                this.startup.webContents.send('startup-error', detailedError);
-            }
-            throw error;
+            await this.handleStartupError(error);
         }
     }
 
-    getDetailedErrorMessage(error) {
-        let message = error.message || 'Unknown error occurred';
-        
-        if (error.code === 'ENOENT') {
-            message = 'Required file or directory not found: ' + message;
-        } else if (error.code === 'EACCES') {
-            message = 'Permission denied: ' + message;
-        } else if (error.code === 'ECONNREFUSED') {
-            message = 'Connection failed: ' + message;
-        }
-        
-        return message;
-    }
-
-    updateStartupProgress(status, progress) {
-        if (this.startup && !this.startup.isDestroyed()) {
+    updateStartupProgress(status, progress, extra = {}) {
+        if (this.startup) {
             this.startup.webContents.send('startup-progress', {
                 status,
-                progress: Math.min(100, Math.max(0, progress))
+                progress,
+                message: '',
+                ...extra
             });
         }
     }
@@ -329,6 +399,20 @@ class AppStartupManager {
         // Add retry mechanism
         setTimeout(() => this.retry(), 3000);
     }
+
+    getDetailedErrorMessage(error) {
+        let message = error.message || 'Unknown error occurred';
+        
+        if (error.code === 'ENOENT') {
+            message = 'Required file or directory not found: ' + message;
+        } else if (error.code === 'EACCES') {
+            message = 'Permission denied: ' + message;
+        } else if (error.code === 'ECONNREFUSED') {
+            message = 'Connection failed: ' + message;
+        }
+        
+        return message;
+    }
 }
 
 // Create instance of AppStartupManager
@@ -360,16 +444,19 @@ async function setupDefaultModels() {
             return;
         }
 
-        // Get current config
+        // Get current config from both sources
         const configPath = path.join(app.getPath('userData'), 'config.json');
-        let config;
+        let config = {};
         try {
             const configData = await fs.readFile(configPath, 'utf8');
             config = JSON.parse(configData);
         } catch (error) {
-            config = {};
+            console.log('No existing config.json found');
         }
 
+        // Get settings from electron store
+        const settings = store.get('settings') || {};
+        
         const isVisionModel = (model) => {
             const name = model.name.toLowerCase();
             return name.includes('llava') || 
@@ -378,7 +465,7 @@ async function setupDefaultModels() {
         };
 
         // Set default text model if none is set
-        let currentModel = config.currentModel;
+        let currentModel = config.currentModel || settings.currentModel;
         if (!currentModel) {
             const defaultTextModel = installedModels.models.find(model => 
                 !isVisionModel(model)
@@ -386,6 +473,7 @@ async function setupDefaultModels() {
             if (defaultTextModel) {
                 currentModel = defaultTextModel.name;
                 config.currentModel = currentModel;
+                store.set('settings.currentModel', currentModel);
                 console.log('Set default text model:', defaultTextModel.name);
             }
         }
@@ -398,6 +486,7 @@ async function setupDefaultModels() {
             if (defaultTextModel) {
                 currentModel = defaultTextModel.name;
                 config.currentModel = currentModel;
+                store.set('settings.currentModel', currentModel);
                 console.log('Set default text model:', defaultTextModel.name);
             }
         }
@@ -412,12 +501,15 @@ async function setupDefaultModels() {
         }
 
         // Set default vision model if none is set
-        if (!config.visionModel) {
+        let visionModel = config.visionModel || settings.visionModel;
+        if (!visionModel) {
             const defaultVisionModel = installedModels.models.find(model => 
                 isVisionModel(model)
             );
             if (defaultVisionModel) {
-                config.visionModel = defaultVisionModel.name;
+                visionModel = defaultVisionModel.name;
+                config.visionModel = visionModel;
+                store.set('settings.visionModel', visionModel);
                 console.log('Set default vision model:', defaultVisionModel.name);
             }
         }
@@ -435,70 +527,51 @@ async function setupDefaultModels() {
 
 // Create main application window
 async function createWindow() {
-    // Get saved window size
-    const windowSize = store.get('settings.windowSize', { width: 1200, height: 800 });
-    console.log('Loading saved window size:', windowSize);
-
+    const { width, height } = store.get('settings.windowSize') || { width: 1200, height: 800 };
+    
     mainWindow = new BrowserWindow({
-        width: windowSize.width,
-        height: windowSize.height,
+        width,
+        height,
         minWidth: 800,
         minHeight: 600,
-        show: false,
         frame: false,
-        titleBarStyle: 'hidden',
-        trafficLightPosition: { x: -100, y: -100 },
-        titleBarOverlay: false,
-        backgroundColor: '#1e1b2e',
         webPreferences: {
             nodeIntegration: true,
             contextIsolation: false,
-            enableRemoteModule: true,
+            backgroundThrottling: true,
+            enablePreferredSizeMode: false,
             spellcheck: false,
-            backgroundThrottling: false,
-            enablePreferredSizeMode: true,
-            enableWebSQL: false,
-            v8CacheOptions: 'code',
-        }
+            v8CacheOptions: 'code'
+        },
+        backgroundColor: '#1e1e1e',
+        show: false,
+        titleBarStyle: 'hiddenInset',
+        trafficLightPosition: { x: -100, y: -100 }
     });
-
-    // Performance optimizations
-    app.commandLine.appendSwitch('disable-renderer-backgrounding');
-    app.commandLine.appendSwitch('disable-background-timer-throttling');
-    app.commandLine.appendSwitch('disable-background-networking');
-    app.commandLine.appendSwitch('enable-features', 'VaapiVideoDecoder');
-
-    // Enable hardware acceleration
-    app.commandLine.appendSwitch('enable-accelerated-compositing');
-    app.commandLine.appendSwitch('enable-gpu-rasterization');
-    app.commandLine.appendSwitch('enable-zero-copy');
-    app.commandLine.appendSwitch('ignore-gpu-blacklist');
-    app.commandLine.appendSwitch('enable-native-gpu-memory-buffers');
-
-    await mainWindow.loadFile('index.html');
-
-    // Optimize rendering
-    mainWindow.webContents.setZoomFactor(1.0);
-    mainWindow.webContents.setVisualZoomLevelLimits(1, 1);
-    mainWindow.webContents.setBackgroundThrottling(false);
 
     // Optimize window performance
+    mainWindow.webContents.setFrameRate(60); // Restore to 60 FPS for smoothness
+    mainWindow.webContents.setBackgroundThrottling(true);
+    
+    // Load the index.html file
+    await mainWindow.loadFile('index.html');
+    
+    // Optimize rendering
     mainWindow.webContents.on('did-finish-load', () => {
-        mainWindow.webContents.setZoomFactor(1.0);
-        mainWindow.webContents.setVisualZoomLevelLimits(1, 1);
+        // Enable smooth scrolling
+        mainWindow.webContents.executeJavaScript(`
+            document.querySelector('body').style.scrollBehavior = 'smooth';
+        `);
+    });
+    
+    // Only show window when ready
+    mainWindow.once('ready-to-show', () => {
+        mainWindow.show();
     });
 
-    // Save window size when it's resized
+    // Save window size on resize
     mainWindow.on('resize', () => {
         const [width, height] = mainWindow.getSize();
-        console.log('Saving new window size:', { width, height });
-        store.set('settings.windowSize', { width, height });
-    });
-
-    // Save window size when it's closed
-    mainWindow.on('close', () => {
-        const [width, height] = mainWindow.getSize();
-        console.log('Saving window size before close:', { width, height });
         store.set('settings.windowSize', { width, height });
     });
 
@@ -508,8 +581,8 @@ async function createWindow() {
 // Create startup window
 function createStartupWindow() {
     const startup = new BrowserWindow({
-        width: 450,
-        height: 550,
+        width: 500,
+        height: 700,
         frame: false,
         resizable: false,
         show: false,
@@ -525,7 +598,6 @@ function createStartupWindow() {
     startup.loadFile('startup.html');
     startup.once('ready-to-show', () => {
         startup.show();
-        startup.focus();
     });
 
     return startup;
@@ -794,11 +866,38 @@ ipcMain.on('retry-startup', () => {
 // Add list-models and get-config handlers
 ipcMain.handle('get-config', async () => {
     try {
-        const configPath = path.join(app.getPath('userData'), 'config.json');
-        const configData = await fs.readFile(configPath, 'utf8');
-        return JSON.parse(configData);
+        // First try to get from electron store
+        const settings = store.get('settings') || {};
+        let currentModel = settings.currentModel;
+        let visionModel = settings.visionModel;
+
+        // If not found in store, try to get from config.json
+        if (!currentModel || !visionModel) {
+            try {
+                const configPath = path.join(app.getPath('userData'), 'config.json');
+                const configData = await fs.readFile(configPath, 'utf8');
+                const config = JSON.parse(configData);
+                
+                // Update store with config values if they exist
+                if (config.currentModel && !currentModel) {
+                    currentModel = config.currentModel;
+                    store.set('settings.currentModel', currentModel);
+                }
+                if (config.visionModel && !visionModel) {
+                    visionModel = config.visionModel;
+                    store.set('settings.visionModel', visionModel);
+                }
+            } catch (error) {
+                console.error('Error reading config.json:', error);
+            }
+        }
+
+        return {
+            currentModel,
+            visionModel
+        };
     } catch (error) {
-        console.error('Error reading config:', error);
+        console.error('Error getting config:', error);
         return {
             currentModel: null,
             visionModel: null
@@ -1354,61 +1453,137 @@ ipcMain.on('theme-changed', (event, theme) => {
 });
 
 // Performance monitoring
-async function getPerformanceStats() {
-    // CPU Usage
-    const cpus = os.cpus();
-    const cpuCount = cpus.length;
-    let totalCPUUsage = 0;
-    
-    cpus.forEach(cpu => {
-        const total = Object.values(cpu.times).reduce((acc, tv) => acc + tv, 0);
-        const idle = cpu.times.idle;
-        totalCPUUsage += ((total - idle) / total) * 100;
+async function getAppleSiliconMetrics() {
+    return new Promise((resolve) => {
+        // Use ioreg to get GPU information
+        const cmd = "ioreg -l | grep -A 1 PerformanceStatistics";
+        exec(cmd, (error, stdout, stderr) => {
+            if (error) {
+                console.warn('Error getting GPU metrics:', error);
+                // Fallback to CPU only
+                const cpus = os.cpus();
+                let totalCPUUsage = 0;
+                
+                cpus.forEach(cpu => {
+                    const total = Object.values(cpu.times).reduce((acc, tv) => acc + tv, 0);
+                    const idle = cpu.times.idle;
+                    totalCPUUsage += ((total - idle) / total) * 100;
+                });
+
+                resolve({
+                    cpu: Math.min(100, totalCPUUsage / cpus.length),
+                    gpu: 0
+                });
+                return;
+            }
+
+            try {
+                // Extract GPU utilization from ioreg output
+                let gpuUtilization = 0;
+                
+                // Look for Device Utilization or Renderer Utilization
+                const deviceMatch = stdout.match(/"Device Utilization %"=(\d+)/);
+                const rendererMatch = stdout.match(/"Renderer Utilization %"=(\d+)/);
+                
+                if (deviceMatch) {
+                    gpuUtilization = parseInt(deviceMatch[1]);
+                } else if (rendererMatch) {
+                    gpuUtilization = parseInt(rendererMatch[1]);
+                }
+
+                // Get CPU usage
+                const cpus = os.cpus();
+                let totalCPUUsage = 0;
+                
+                cpus.forEach(cpu => {
+                    const total = Object.values(cpu.times).reduce((acc, tv) => acc + tv, 0);
+                    const idle = cpu.times.idle;
+                    totalCPUUsage += ((total - idle) / total) * 100;
+                });
+
+                resolve({
+                    cpu: Math.min(100, totalCPUUsage / cpus.length),
+                    gpu: Math.min(100, gpuUtilization)
+                });
+            } catch (error) {
+                console.warn('Error parsing GPU metrics:', error);
+                resolve({ cpu: 0, gpu: 0 });
+            }
+        });
     });
-    
-    // RAM Usage
-    const totalMem = os.totalmem();
-    const freeMem = os.freemem();
-    const systemMemUsed = totalMem - freeMem;
-    
-    // GPU Usage (estimated from process)
-    const processInfo = process.getProcessMemoryInfo ? 
-        await process.getProcessMemoryInfo() : 
-        { gpuMemory: 0 };
-    const gpuUsage = processInfo.gpuMemory || 0;
-    
-    // Ollama process monitoring
-    const ollamaPid = await findOllamaProcess();
-    let ollamaStats = {
-        cpu: 0,
-        memory: 0
-    };
-    
-    if (ollamaPid) {
-        try {
-            ollamaStats = await pidusage(ollamaPid);
-        } catch (error) {
-            console.log('Error getting Ollama stats:', error);
+}
+
+// Performance monitoring
+async function getPerformanceStats() {
+    try {
+        // RAM Usage
+        const totalMem = os.totalmem();
+        const freeMem = os.freemem();
+        const systemMemUsed = totalMem - freeMem;
+        const ramPercentage = (systemMemUsed / totalMem) * 100;
+        
+        let metrics = { cpu: 0, gpu: 0 };
+        
+        // Get CPU and GPU metrics based on platform
+        if (process.platform === 'darwin') {
+            try {
+                metrics = await getAppleSiliconMetrics();
+            } catch (error) {
+                console.warn('Error getting Apple Silicon metrics:', error);
+            }
+        } else {
+            // Fallback to basic CPU measurement for non-macOS
+            const cpus = os.cpus();
+            let totalCPUUsage = 0;
+            
+            cpus.forEach(cpu => {
+                const total = Object.values(cpu.times).reduce((acc, tv) => acc + tv, 0);
+                const idle = cpu.times.idle;
+                totalCPUUsage += ((total - idle) / total) * 100;
+            });
+            
+            metrics.cpu = Math.min(100, totalCPUUsage / cpus.length);
         }
+        
+        // Ollama process monitoring
+        const ollamaPid = await findOllamaProcess();
+        let ollamaStats = {
+            cpu: 0,
+            memory: 0
+        };
+        
+        if (ollamaPid) {
+            try {
+                ollamaStats = await pidusage(ollamaPid);
+            } catch (error) {
+                console.warn('Error getting Ollama stats:', error);
+            }
+        }
+        
+        return {
+            system: {
+                cpu: metrics.cpu,
+                ram: ramPercentage,
+                gpu: metrics.gpu
+            },
+            ollama: {
+                cpu: Math.min(100, ollamaStats.cpu || 0),
+                ram: ollamaStats.memory ? (ollamaStats.memory / totalMem) * 100 : 0,
+                active: !!ollamaPid
+            }
+        };
+    } catch (error) {
+        console.error('Error in getPerformanceStats:', error);
+        return {
+            system: { cpu: 0, ram: 0, gpu: 0 },
+            ollama: { cpu: 0, ram: 0, active: false }
+        };
     }
-    
-    return {
-        system: {
-            cpu: totalCPUUsage / cpuCount,
-            ram: systemMemUsed,
-            gpu: (gpuUsage / totalMem) * 100
-        },
-        ollama: {
-            cpu: ollamaStats.cpu || 0,
-            ram: ollamaStats.memory || 0,
-            active: !!ollamaPid
-        }
-    };
 }
 
 // Function to find Ollama process ID
 async function findOllamaProcess() {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
         const cmd = process.platform === 'darwin' ? 
             "pgrep -x ollama" : 
             "tasklist /FI \"IMAGENAME eq ollama.exe\" /NH";
@@ -1435,6 +1610,34 @@ async function findOllamaProcess() {
 // Register performance monitoring handler
 ipcMain.handle('get-performance-stats', async () => {
     return await getPerformanceStats();
+});
+
+// Handle tag generation
+ipcMain.handle('generate-tags', async (event, { text, systemPrompt }) => {
+    try {
+        const response = await fetch(`http://127.0.0.1:11434/api/generate`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                model: DEFAULT_TEXT_MODEL,
+                prompt: text,
+                system: systemPrompt,
+                stream: false
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        return data.response;
+    } catch (error) {
+        console.error('Error generating tags:', error);
+        throw error;
+    }
 });
 
 // Create onboarding window
@@ -1589,5 +1792,118 @@ ipcMain.handle('delete-style', async (event, styleId) => {
     } catch (error) {
         console.error('Error deleting style:', error);
         throw error;
+    }
+});
+
+ipcMain.handle('request-sudo-password', async (event) => {
+    return new Promise((resolve) => {
+        const promptWindow = new BrowserWindow({
+            width: 400,
+            height: 150,
+            webPreferences: {
+                nodeIntegration: true,
+                contextIsolation: false
+            },
+            frame: false,
+            resizable: false,
+            alwaysOnTop: true
+        });
+
+        promptWindow.loadURL(`data:text/html,
+            <html>
+                <body style="background: #1e1e1e; color: white; font-family: system-ui;">
+                    <div style="padding: 20px;">
+                        <h3>Sudo Password Required</h3>
+                        <p>Enter password to monitor system performance:</p>
+                        <input type="password" id="password" style="width: 100%; margin-bottom: 10px;">
+                        <button onclick="submit()" style="margin-right: 10px;">OK</button>
+                        <button onclick="window.close()">Cancel</button>
+                    </div>
+                    <script>
+                        function submit() {
+                            const password = document.getElementById('password').value;
+                            window.postMessage({ type: 'password', password });
+                        }
+                    </script>
+                </body>
+            </html>
+        `);
+
+        promptWindow.webContents.on('ipc-message', (event, channel, data) => {
+            if (channel === 'password') {
+                resolve(data);
+                promptWindow.close();
+            }
+        });
+
+        promptWindow.on('closed', () => {
+            resolve(null);
+        });
+    });
+});
+
+ipcMain.on('retry-ollama-connection', async () => {
+    try {
+        const response = await fetch('http://127.0.0.1:11434/api/tags');
+        if (response.ok) {
+            // Ollama is now running, continue startup
+            appStartupManager.retry();
+        } else {
+            // Still not running
+            appStartupManager.updateStartupProgress('Ollama not running', 0, {
+                ollamaError: true
+            });
+        }
+    } catch (error) {
+        // Connection failed
+        appStartupManager.updateStartupProgress('Ollama not running', 0, {
+            ollamaError: true
+        });
+    }
+});
+
+ipcMain.on('quit-app', () => {
+    app.quit();
+});
+
+// Startup window IPC handlers
+ipcMain.on('retry-ollama-connection', async () => {
+    try {
+        const response = await fetch('http://127.0.0.1:11434/api/tags');
+        if (response.ok) {
+            BrowserWindow.getAllWindows().forEach(window => {
+                window.webContents.send('startup-progress', {
+                    progress: 0,
+                    status: 'Reconnecting...',
+                    message: '',
+                    ollamaError: false
+                });
+            });
+            appStartupManager.initializeApp();
+        }
+    } catch (error) {
+        console.error('Failed to reconnect to Ollama:', error);
+    }
+});
+
+ipcMain.on('quit-app', () => {
+    app.quit();
+});
+
+// Handle show-startup-window event
+ipcMain.on('show-startup-window', (event, options = {}) => {
+    const startupWindow = require('./startup-window');
+    const window = startupWindow.create();
+    
+    // If Ollama error is present, send startup progress with error state
+    if (options.ollamaError) {
+        window.webContents.on('did-finish-load', () => {
+            window.webContents.send('startup-progress', {
+                progress: 0,
+                status: 'Error',
+                message: 'Failed to connect to Ollama',
+                ollamaError: true
+            });
+        });
     }
 });

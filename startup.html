@@ -23,11 +23,33 @@
                 </div>
                 <div class="startup-message" id="startup-message"></div>
             </div>
+
+            <!-- Ollama Error Message -->
+            <div class="ollama-error" id="ollama-error" style="display: none;">
+                <div class="error-icon">
+                    <i class="fas fa-exclamation-triangle"></i>
+                </div>
+                <h2>Ollama Not Found</h2>
+                <p>PROMPTR requires Ollama to be installed and running. Please follow these steps:</p>
+                <ol>
+                    <li>Install Ollama from <a href="#" id="ollama-link">https://ollama.ai</a></li>
+                    <li>Start Ollama on your system</li>
+                    <li>Restart PROMPTR</li>
+                </ol>
+                <div class="error-actions">
+                    <button id="retry-button" class="retry-btn">
+                        <i class="fas fa-sync-alt"></i> Retry Connection
+                    </button>
+                    <button id="quit-button" class="quit-btn">
+                        <i class="fas fa-times"></i> Quit PROMPTR
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
 
     <script>
-        const { ipcRenderer } = require('electron');
+        const { ipcRenderer, shell } = require('electron');
 
         // Notify main process that window is ready
         ipcRenderer.send('startup-window-ready');
@@ -38,11 +60,35 @@
             const statusEl = document.getElementById('startup-status');
             const messageEl = document.getElementById('startup-message');
             const percentageEl = document.getElementById('startup-percentage');
+            const ollamaError = document.getElementById('ollama-error');
             
             if (progressBar) progressBar.style.width = `${data.progress}%`;
             if (statusEl) statusEl.textContent = data.status;
             if (messageEl) messageEl.textContent = data.message;
             if (percentageEl) percentageEl.textContent = `${data.progress}%`;
+
+            // Handle Ollama error
+            if (data.ollamaError) {
+                document.querySelector('.startup-progress').style.display = 'none';
+                ollamaError.style.display = 'block';
+            } else {
+                document.querySelector('.startup-progress').style.display = 'block';
+                ollamaError.style.display = 'none';
+            }
+        });
+
+        // Handle button clicks
+        document.getElementById('retry-button').addEventListener('click', () => {
+            ipcRenderer.send('retry-ollama-connection');
+        });
+
+        document.getElementById('quit-button').addEventListener('click', () => {
+            ipcRenderer.send('quit-app');
+        });
+
+        document.getElementById('ollama-link').addEventListener('click', (e) => {
+            e.preventDefault();
+            shell.openExternal('https://ollama.ai');
         });
     </script>
 </body>
