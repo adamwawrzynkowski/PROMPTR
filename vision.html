@@ -19,13 +19,32 @@
                 </button>
             </div>
             <div class="title-bar-left">
-                <div class="title-bar-logo">Vision</div>
+                <div class="title-bar-logo">Vision (Beta)</div>
             </div>
         </div>
 
         <!-- Content -->
         <div class="vision-content">
-            <div class="vision-container">
+            <!-- Model Installation Section -->
+            <div id="model-install-section" class="model-install-section" style="display: none;">
+                <div class="model-install-content">
+                    <h2>Vision Model Required</h2>
+                    <p>The llama3.2-vision:11b model is required for image analysis. Would you like to install it now?</p>
+                    <div class="model-install-progress" style="display: none;">
+                        <div class="progress-bar">
+                            <div class="progress-fill"></div>
+                        </div>
+                        <div class="progress-text">0%</div>
+                    </div>
+                    <button id="install-model-btn" class="btn primary">
+                        <i class="fas fa-download"></i>
+                        Install Model
+                    </button>
+                </div>
+            </div>
+
+            <!-- Vision Content Section -->
+            <div id="vision-main-content" class="vision-container" style="display: none;">
                 <!-- Left side - Drop zone -->
                 <div class="vision-left">
                     <div class="drop-zone" id="vision-drop-zone">
@@ -49,7 +68,8 @@
 
                 <!-- Right side - Info & Actions -->
                 <div class="vision-right">
-                    <div class="vision-info">
+                    <!-- Analysis Info -->
+                    <div id="analysis-info" class="vision-info">
                         <h2>Image Analysis</h2>
                         <p>Upload an image for analysis. PROMPTR will generate a description and a prompt based on it, which you can use within the app.</p>
                         
@@ -67,13 +87,40 @@
                                 <span>Style recognition</span>
                             </div>
                         </div>
+
+                        <div class="vision-actions">
+                            <button id="vision-button" class="btn primary" disabled>
+                                <i class="fas fa-wand-magic-sparkles"></i>
+                                Analyze Image
+                            </button>
+                        </div>
                     </div>
 
-                    <div class="vision-actions">
-                        <button id="vision-button" class="btn primary" disabled>
-                            <i class="fas fa-wand-magic-sparkles"></i>
-                            Analyze Image
-                        </button>
+                    <!-- Analysis Progress -->
+                    <div id="analysis-progress" class="vision-info" style="display: none;">
+                        <div class="analyzing-spinner"></div>
+                        <h2>Analyzing Image...</h2>
+                        <p>Please wait while we analyze your image. This may take a moment.</p>
+                    </div>
+
+                    <!-- Analysis Result -->
+                    <div id="analysis-result" class="vision-info" style="display: none;">
+                        <h2>Analysis Result</h2>
+                        <div class="result-content" id="result-content"></div>
+                        <div class="result-actions">
+                            <button id="copy-to-prompt-btn" class="btn primary">
+                                <i class="fas fa-file-import"></i>
+                                Copy to Prompt
+                            </button>
+                            <button id="copy-to-clipboard-btn" class="btn secondary">
+                                <i class="fas fa-copy"></i>
+                                Copy
+                            </button>
+                            <button id="cancel-btn" class="btn">
+                                <i class="fas fa-arrow-left"></i>
+                                Back
+                            </button>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -81,12 +128,61 @@
     </div>
 
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
+        document.addEventListener('DOMContentLoaded', async function() {
             const { ipcRenderer } = require('electron');
+            
+            // Check for the vision model on load
+            const modelName = 'llama3.2-vision:11b';
+            const modelAvailable = await ipcRenderer.invoke('check-model-availability', modelName);
+            
+            const modelInstallSection = document.getElementById('model-install-section');
+            const visionMainContent = document.getElementById('vision-main-content');
+            const installButton = document.getElementById('install-model-btn');
+            const progressBar = document.querySelector('.model-install-progress');
+            const progressFill = document.querySelector('.progress-fill');
+            const progressText = document.querySelector('.progress-text');
 
-            // Obsługa drag & drop
+            // Analysis sections
+            const analysisInfo = document.getElementById('analysis-info');
+            const analysisProgress = document.getElementById('analysis-progress');
+            const analysisResult = document.getElementById('analysis-result');
+            const resultContent = document.getElementById('result-content');
+
+            if (!modelAvailable) {
+                modelInstallSection.style.display = 'flex';
+                visionMainContent.style.display = 'none';
+
+                installButton.addEventListener('click', async () => {
+                    installButton.disabled = true;
+                    progressBar.style.display = 'block';
+
+                    try {
+                        await ipcRenderer.invoke('install-model', modelName);
+                        modelInstallSection.style.display = 'none';
+                        visionMainContent.style.display = 'flex';
+                    } catch (error) {
+                        console.error('Error installing model:', error);
+                        alert('Failed to install model. Please try again.');
+                        installButton.disabled = false;
+                    }
+                });
+
+                // Listen for progress updates
+                ipcRenderer.on('model-install-progress', (event, data) => {
+                    const progress = typeof data === 'number' ? data : data.progress;
+                    progressFill.style.width = `${progress}%`;
+                    progressText.textContent = `${Math.round(progress)}%`;
+                });
+            } else {
+                modelInstallSection.style.display = 'none';
+                visionMainContent.style.display = 'flex';
+            }
+
+            // Vision window functionality
             const dragArea = document.getElementById('vision-drop-zone');
             const fileInput = document.getElementById('file-input');
+            const previewImage = document.getElementById('preview-image');
+            const visionButton = document.getElementById('vision-button');
             let selectedImage = null;
 
             dragArea.addEventListener('click', () => {
@@ -119,117 +215,63 @@
                     const reader = new FileReader();
                     reader.onload = (e) => {
                         selectedImage = e.target.result;
-                        document.getElementById('preview-image').src = selectedImage;
-                        document.getElementById('preview-image').hidden = false;
+                        previewImage.src = selectedImage;
+                        previewImage.hidden = false;
+                        visionButton.disabled = false;
+                        
+                        // Reset UI state
+                        analysisInfo.style.display = 'block';
+                        analysisProgress.style.display = 'none';
+                        analysisResult.style.display = 'none';
                     };
                     reader.readAsDataURL(file);
                 }
             }
 
-            // Aktualizacja listy modeli
-            ipcRenderer.on('update-models', (event, models) => {
-                const selector = document.getElementById('model-selector');
-                selector.innerHTML = ''; // Wyczyść obecne opcje
-                
-                // Dodaj opcję Ollama jeśli jest dostępna
-                const ollamaModel = models.find(m => m.type === 'ollama');
-                if (ollamaModel) {
-                    selector.add(new Option(ollamaModel.name, ollamaModel.id));
-                    
-                    // Dodaj separator jeśli są też modele custom
-                    if (models.length > 1) {
-                        const separator = document.createElement('option');
-                        separator.disabled = true;
-                        separator.text = '──────────';
-                        selector.add(separator);
+            visionButton.addEventListener('click', async () => {
+                if (selectedImage) {
+                    visionButton.disabled = true;
+                    analysisInfo.style.display = 'none';
+                    analysisProgress.style.display = 'block';
+                    analysisResult.style.display = 'none';
+
+                    try {
+                        const result = await ipcRenderer.invoke('analyze-image', selectedImage);
+                        resultContent.textContent = result;
+                        analysisProgress.style.display = 'none';
+                        analysisResult.style.display = 'block';
+                    } catch (error) {
+                        console.error('Error analyzing image:', error);
+                        alert('Failed to analyze image. Please try again.');
+                        analysisInfo.style.display = 'block';
+                        analysisProgress.style.display = 'none';
+                        visionButton.disabled = false;
                     }
                 }
-                
-                // Dodaj modele custom
-                const customModels = models.filter(m => m.type === 'custom');
-                customModels.forEach(model => {
-                    selector.add(new Option(model.name, model.id));
-                });
-
-                // Jeśli nie ma żadnych modeli
-                if (models.length === 0) {
-                    const option = new Option('No models available', '');
-                    option.disabled = true;
-                    selector.add(option);
-                }
             });
 
-            // Obsługa przycisku analizy
-            document.getElementById('vision-button').addEventListener('click', async () => {
-                if (!selectedImage) {
-                    alert('Please select an image first');
-                    return;
-                }
-
-                const modelSelector = document.getElementById('model-selector');
-                const selectedModel = modelSelector.value;
-                const isCustomModel = selectedModel !== 'ollama';
-
-                try {
-                    document.getElementById('progress-container').style.display = 'block';
-                    document.getElementById('result').style.display = 'none';
-                    document.getElementById('error').style.display = 'none';
-                    document.getElementById('progress').style.width = '0%';
-                    document.getElementById('status').textContent = 'Starting analysis...';
-
-                    const result = await ipcRenderer.invoke('analyze-image', 
-                        selectedImage,
-                        'content',
-                        isCustomModel,
-                        selectedModel
-                    );
-
-                    if (result) {
-                        document.getElementById('result').style.display = 'block';
-                        document.getElementById('result-content').textContent = 
-                            JSON.stringify(result, null, 2);
-                    }
-                } catch (error) {
-                    document.getElementById('error').style.display = 'block';
-                    document.getElementById('error-content').textContent = error.message;
-                }
+            // Result action buttons
+            document.getElementById('copy-to-prompt-btn').addEventListener('click', () => {
+                ipcRenderer.send('set-prompt', resultContent.textContent);
             });
 
-            // Handle progress updates
-            ipcRenderer.on('analysis-progress', (event, data) => {
-                const progressContainer = document.getElementById('progress-container');
-                const progressBar = document.getElementById('progress');
-                const status = document.getElementById('status');
-                
-                progressContainer.style.display = 'block';
-                status.textContent = data.status;
-                progressBar.style.width = `${data.progress * 100}%`;
-
-                if (data.result) {
-                    progressContainer.style.display = 'none';
-                    document.getElementById('result').style.display = 'block';
-                    document.getElementById('result-content').textContent = 
-                        typeof data.result === 'string' ? data.result : JSON.stringify(data.result, null, 2);
-                }
+            document.getElementById('copy-to-clipboard-btn').addEventListener('click', () => {
+                navigator.clipboard.writeText(resultContent.textContent);
             });
 
-            // Handle errors
-            ipcRenderer.on('analysis-error', (event, message) => {
-                document.getElementById('error').style.display = 'block';
-                document.getElementById('error-content').textContent = message;
+            document.getElementById('cancel-btn').addEventListener('click', () => {
+                analysisResult.style.display = 'none';
+                analysisInfo.style.display = 'block';
+                visionButton.disabled = false;
             });
 
-            // Close button
-            document.querySelector('.close-button').addEventListener('click', () => {
-                window.close();
+            // Window controls
+            document.getElementById('close-button').addEventListener('click', () => {
+                ipcRenderer.send('close-vision-window');
             });
 
-            // Dodaj obsługę przycisków
-            document.getElementById('copy-button').addEventListener('click', () => {
-                const resultContent = document.getElementById('result-content').textContent;
-                if (resultContent) {
-                    ipcRenderer.invoke('set-prompt', resultContent);
-                }
+            document.getElementById('minimize-button').addEventListener('click', () => {
+                ipcRenderer.send('minimize-vision-window');
             });
         });
     </script>

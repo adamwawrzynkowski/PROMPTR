@@ -83,6 +83,22 @@
 }
 
 .coffee-button,
+.info-button {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    padding: 5px 8px;
+    cursor: pointer;
+    transition: color 0.2s;
+    font-size: 14px;
+}
+
+.coffee-button:hover,
+.info-button:hover {
+    color: var(--text);
+}
+
+.coffee-button,
 .title-bar-button {
     background: transparent;
     border: 1px solid transparent;
@@ -506,4 +522,54 @@
     border-top: 1px solid var(--theme-color-back);
     padding-top: 4px;
     margin-top: 2px;
+}
+
+/* History button */
+#history-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    padding: 5px 8px;
+    cursor: pointer;
+    transition: color 0.2s;
+    font-size: 14px;
+}
+
+#history-btn:hover {
+    color: var(--text);
+}
+
+/* Toast notifications */
+.toast {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: var(--background-secondary);
+    color: var(--text);
+    padding: 12px 24px;
+    border-radius: 8px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    z-index: 9999;
+    opacity: 0;
+    transition: transform 0.3s ease, opacity 0.3s ease;
+    border: 1px solid var(--border);
+}
+
+.toast.show {
+    transform: translateX(-50%) translateY(0);
+    opacity: 1;
+}
+
+/* Loading animation */
+.loading-animation {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-secondary);
+    font-size: 14px;
+}
+
+.loading-animation i {
+    font-size: 16px;
 }

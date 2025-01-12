@@ -8,6 +8,10 @@ const store = new Store();
 const currentTheme = store.get('settings.theme', 'purple');
 document.body.className = `theme-${currentTheme.toLowerCase()}`;
 
+// Get current model from store
+const currentModel = store.get('settings.currentModel') || store.get('currentModel');
+console.log('Current model from store:', currentModel);
+
 // Predefined text models
 const textModels = [
     {
@@ -19,7 +23,7 @@ const textModels = [
     {
         name: 'PROMPTR Fast',
         description: 'An ultra-lightweight model designed for quick responses and minimal resource usage.',
-        modelName: 'qwen:0.5b',
+        modelName: 'qwen2.5:0.5b',
         type: 'Fast Model',
         warning: 'This model prioritizes speed over quality and may produce less accurate results. Recommended for systems with limited resources.'
     },
@@ -42,6 +46,15 @@ const textModels = [
         type: 'Specialized Model',
         warning: 'This model is intended for personal use only. Please ensure ethical usage and comply with all applicable laws and regulations.'
     }
+];
+
+// List of models that should keep their parameters
+const MODELS_WITH_PARAMS = [
+    'qwen2.5',
+    'mistral',
+    'gemma',
+    'dolphin-llama3',
+    'llama3.2'
 ];
 
 // Elements
@@ -74,77 +87,192 @@ function createTextModelItem(model) {
     const downloadButton = modelItem.querySelector('.download-button');
     const removeButton = modelItem.querySelector('.remove-button');
     
+    // Check if model is installed
+    const isInstalled = store.get(`installedModels.${model.modelName}`, false);
+    if (isInstalled) {
+        modelItem.setAttribute('data-installed', 'true');
+    }
+    
+    // Add visual indicator for currently selected model
+    const baseModelName = model.modelName.split(':')[0];
+    const currentBaseModel = currentModel ? currentModel.split(':')[0] : null;
+    
+    if (baseModelName === currentBaseModel) {
+        modelItem.classList.add('current-model');
+        const currentBadge = document.createElement('div');
+        currentBadge.className = 'current-model-badge';
+        currentBadge.innerHTML = '<i class="fas fa-check-circle"></i> Current Model';
+        modelItem.querySelector('.model-header').appendChild(currentBadge);
+        downloadButton.querySelector('span').textContent = 'Current Model';
+    } else {
+        downloadButton.querySelector('span').textContent = 'Choose';
+    }
+    
     downloadButton.addEventListener('click', () => installModel(model.modelName, modelItem));
     removeButton.addEventListener('click', () => removeModel(model.modelName, modelItem));
     
     return modelItem;
 }
 
+// Add progress handler
+ipcRenderer.on('model-install-progress', (event, { progress, status }) => {
+    console.log('Received progress update:', progress, status);
+    const progressElements = document.querySelectorAll('.model-progress');
+    const statusElements = document.querySelectorAll('.model-status');
+    
+    progressElements.forEach(progressElement => {
+        if (progressElement) {
+            console.log('Updating progress element:', progress);
+            progressElement.value = progress;
+        }
+    });
+    
+    statusElements.forEach(statusElement => {
+        if (statusElement) {
+            console.log('Updating status element:', status);
+            statusElement.textContent = status;
+        }
+    });
+});
+
 // Install model
 async function installModel(modelName, modelItem) {
     try {
+        console.log('Starting model installation:', modelName);
         const downloadButton = modelItem.querySelector('.download-button');
-        const removeButton = modelItem.querySelector('.remove-button');
         const progressElement = modelItem.querySelector('.model-progress');
-        const progressFill = modelItem.querySelector('.progress-fill');
-        const progressText = modelItem.querySelector('.progress-text');
         const statusText = modelItem.querySelector('.model-status');
+
+        console.log('UI elements:', { 
+            downloadButton: !!downloadButton, 
+            progressElement: !!progressElement, 
+            statusText: !!statusText 
+        });
 
         downloadButton.disabled = true;
         progressElement.style.display = 'block';
-        statusText.textContent = 'Installing...';
+        progressElement.value = 0; // Reset progress
+        statusText.textContent = 'Starting installation...';
 
-        modelItem.classList.add('installing');
+        // Wait for model installation
+        console.log('Invoking install-model');
+        await ipcRenderer.invoke('install-model', modelName);
+        console.log('Model installation complete');
 
-        // Simulate progress updates
-        let progress = 0;
-        const interval = setInterval(() => {
-            progress += Math.random() * 15;
-            if (progress > 100) progress = 100;
-            
-            progressFill.style.width = `${progress}%`;
-            progressText.textContent = `${Math.round(progress)}%`;
-            
-            if (progress === 100) {
-                clearInterval(interval);
-                modelItem.classList.remove('installing');
-                modelItem.classList.add('installed');
-                progressElement.style.display = 'none';
-                downloadButton.style.display = 'none';
-                removeButton.style.display = 'block';
-                store.set(`installedModels.${modelName}`, true);
+        // Check if this model should keep its parameters
+        const baseModelName = modelName.split(':')[0];
+        const shouldKeepParams = MODELS_WITH_PARAMS.includes(baseModelName);
+        const modelNameForConfig = shouldKeepParams ? modelName : baseModelName;
+
+        // Update the store with the new model
+        store.set('currentModel', modelNameForConfig);
+        store.set('settings.currentModel', modelNameForConfig);
+        store.set(`installedModels.${modelName}`, true);
+
+        // Notify the main process about model change
+        ipcRenderer.send('model-changed', modelNameForConfig);
+
+        // Update UI to show current model
+        document.querySelectorAll('.model-item').forEach(item => {
+            item.classList.remove('current-model');
+            const badge = item.querySelector('.current-model-badge');
+            if (badge) {
+                badge.remove();
             }
-        }, 500);
+            const btn = item.querySelector('.download-button');
+            btn.querySelector('span').textContent = 'Choose';
+        });
+
+        modelItem.classList.add('current-model');
+        const currentBadge = document.createElement('div');
+        currentBadge.className = 'current-model-badge';
+        currentBadge.innerHTML = '<i class="fas fa-check-circle"></i> Current Model';
+        modelItem.querySelector('.model-header').appendChild(currentBadge);
+        downloadButton.querySelector('span').textContent = 'Current Model';
+
+        progressElement.style.display = 'none';
+        downloadButton.disabled = false;
+
+        // Show restart dialog
+        const dialog = document.createElement('div');
+        dialog.className = 'modal-overlay';
+        dialog.innerHTML = `
+            <div class="modal-content">
+                <h2>Restart Required</h2>
+                <p>The application needs to restart to apply the new model changes.</p>
+                <div class="modal-buttons">
+                    <button class="modal-button modal-ok">OK</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(dialog);
+
+        // Add event listener for OK button
+        dialog.querySelector('.modal-ok').addEventListener('click', async () => {
+            await ipcRenderer.invoke('restart-app');
+        });
 
     } catch (error) {
         console.error('Error installing model:', error);
-        modelItem.classList.remove('installing');
-        statusText.textContent = 'Installation failed';
-        statusText.style.color = 'var(--error)';
+        const errorElement = modelItem.querySelector('.model-warning');
+        if (errorElement) {
+            errorElement.style.display = 'flex';
+            errorElement.querySelector('.warning-text').textContent = 'Error installing model. Please try again.';
+        }
+        progressElement.style.display = 'none';
+        downloadButton.disabled = false;
     }
 }
 
 // Remove model
 async function removeModel(modelName, modelItem) {
     try {
-        const downloadButton = modelItem.querySelector('.download-button');
+        console.log('Starting model removal:', modelName);
         const removeButton = modelItem.querySelector('.remove-button');
-        
         removeButton.disabled = true;
+
+        // Always use base model name for removal in Ollama
+        const baseModelName = modelName.split(':')[0];
+        console.log('Using base model name for removal:', baseModelName);
+        await ipcRenderer.invoke('remove-model', baseModelName);
+
+        // Update the store
+        store.delete(`installedModels.${modelName}`);
         
-        // Simulate removal
-        setTimeout(() => {
-            modelItem.classList.remove('installed');
-            downloadButton.style.display = 'block';
-            removeButton.style.display = 'none';
-            downloadButton.disabled = false;
-            removeButton.disabled = false;
-            store.delete(`installedModels.${modelName}`);
-        }, 1000);
+        // Update UI
+        const downloadButton = modelItem.querySelector('.download-button');
+        downloadButton.style.display = 'block';
+        downloadButton.disabled = false;
+        downloadButton.querySelector('span').textContent = 'Choose';
+        removeButton.style.display = 'none';
+        
+        // Remove current model badge if this was the current model
+        const currentBadge = modelItem.querySelector('.current-model-badge');
+        if (currentBadge) {
+            currentBadge.remove();
+        }
+        modelItem.classList.remove('current-model');
+
+        // If this was the current model, clear it from the store
+        const currentModel = store.get('currentModel');
+        const currentBaseModel = currentModel ? currentModel.split(':')[0] : null;
+        
+        if (currentBaseModel === baseModelName) {
+            store.delete('currentModel');
+            store.delete('settings.currentModel');
+            // Notify about model change
+            ipcRenderer.send('model-changed', null);
+        }
 
     } catch (error) {
         console.error('Error removing model:', error);
+        const removeButton = modelItem.querySelector('.remove-button');
         removeButton.disabled = false;
+        const errorElement = modelItem.querySelector('.model-warning');
+        if (errorElement) {
+            errorElement.style.display = 'flex';
+            errorElement.querySelector('.warning-text').textContent = 'Error removing model. Please try again.';
+        }
     }
 }
 
@@ -174,9 +302,9 @@ function loadModels() {
             const downloadButton = modelItem.querySelector('.download-button');
             const removeButton = modelItem.querySelector('.remove-button');
             
-            modelItem.classList.add('installed');
+            modelItem.setAttribute('data-installed', 'true');
             downloadButton.style.display = 'none';
-            removeButton.style.display = 'block';
+            removeButton.style.display = 'inline-flex';
         }
     });
 }

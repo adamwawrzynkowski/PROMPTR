@@ -631,3 +631,100 @@
     animation: spin 1s linear infinite;
     margin-left: 8px;
 }
+
+.model-install-section {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: var(--spacing-xl);
+    text-align: center;
+    height: 100%;
+}
+
+.model-install-content {
+    max-width: 400px;
+    background: var(--surface);
+    padding: var(--spacing-xl);
+    border-radius: var(--radius-lg);
+    box-shadow: var(--shadow-md);
+}
+
+.model-install-content h2 {
+    margin-bottom: var(--spacing-md);
+    color: var(--text);
+}
+
+.model-install-content p {
+    margin-bottom: var(--spacing-lg);
+    color: var(--text-secondary);
+}
+
+.model-install-progress {
+    margin: var(--spacing-lg) 0;
+}
+
+.progress-bar {
+    width: 100%;
+    height: 8px;
+    background: var(--surface-hover);
+    border-radius: var(--radius-full);
+    overflow: hidden;
+}
+
+.progress-fill {
+    width: 0%;
+    height: 100%;
+    background: var(--theme-color);
+    transition: width 0.3s ease;
+}
+
+.progress-text {
+    margin-top: var(--spacing-sm);
+    color: var(--text-secondary);
+    font-size: var(--text-sm);
+}
+
+/* Analysis Progress */
+.analyzing-spinner {
+    width: 40px;
+    height: 40px;
+    margin: 0 auto var(--spacing-lg);
+    border: 3px solid var(--surface-hover);
+    border-top: 3px solid var(--theme-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* Analysis Result */
+.result-content {
+    background: var(--surface);
+    padding: var(--spacing-lg);
+    border-radius: var(--radius-md);
+    margin: var(--spacing-lg) 0;
+    max-height: 300px;
+    overflow-y: auto;
+    white-space: pre-wrap;
+    font-family: var(--font-mono);
+    font-size: var(--text-sm);
+    line-height: 1.5;
+}
+
+.result-actions {
+    display: flex;
+    gap: var(--spacing-md);
+    margin-top: var(--spacing-lg);
+}
+
+.result-actions button {
+    flex: 1;
+}
+
+.result-actions button i {
+    margin-right: var(--spacing-sm);
+}

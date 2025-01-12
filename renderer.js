@@ -436,11 +436,15 @@ function setupStyleCardEventListeners(card, style) {
 
     // Only add event listeners if elements exist
     if (copyBtn) {
-        copyBtn.addEventListener('click', () => copyStylePrompt(style.id));
+        copyBtn.addEventListener('click', () => {
+            copyStylePrompt(style.id);
+        });
     }
     
     if (drawThingsBtn) {
-        drawThingsBtn.addEventListener('click', () => sendToDrawThings(style.id));
+        drawThingsBtn.addEventListener('click', () => {
+            sendToDrawThings(style.id);
+        });
     }
     
     if (toggleInput) {
@@ -801,6 +805,37 @@ function showToast(message) {
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('DOM Content Loaded - Initializing application...');
 
+    // Initialize history functionality
+    const historyBtn = document.getElementById('history-btn');
+    const historyPanel = document.querySelector('.history-panel');
+    const historyCloseBtn = document.querySelector('.history-close');
+    const historyClearBtn = document.querySelector('.history-clear-all');
+
+    console.log('History elements:', { 
+        historyBtn: !!historyBtn, 
+        historyPanel: !!historyPanel, 
+        historyCloseBtn: !!historyCloseBtn,
+        historyClearBtn: !!historyClearBtn 
+    });
+
+    if (historyBtn && historyPanel && historyCloseBtn && historyClearBtn) {
+        historyBtn.addEventListener('click', () => {
+            console.log('History button clicked');
+            historyPanel.classList.toggle('open');
+            updateHistoryPanelContent();
+        });
+
+        historyCloseBtn.addEventListener('click', () => {
+            console.log('History close button clicked');
+            historyPanel.classList.remove('open');
+        });
+
+        historyClearBtn.addEventListener('click', () => {
+            console.log('History clear button clicked');
+            clearAllHistory();
+        });
+    }
+
     // Inicjalizacja kontrolek okna
     initializeWindowControls();
     
@@ -852,6 +887,9 @@ function initializePromptInput() {
     promptInput.addEventListener('input', debounce(async (event) => {
         const text = event.target.value.trim();
         await generateTagsInBatches(text);
+        if (text) {
+            saveToHistory(text);
+        }
     }, 500));
 }
 
@@ -981,6 +1019,79 @@ function initializeButtons() {
     if (manageStylesBtn) {
         manageStylesBtn.addEventListener('click', () => {
             ipcRenderer.send('open-styles-window');
+        });
+    }
+
+    // Funkcja do kopiowania tekstu do schowka
+    function copyToClipboard(text) {
+        navigator.clipboard.writeText(text).then(() => {
+            showToast('Copied to clipboard!');
+        }).catch(err => {
+            console.error('Failed to copy text:', err);
+            showToast('Failed to copy to clipboard');
+        });
+    }
+
+    // Funkcja do czyszczenia pola promptu
+    function clearPromptInput() {
+        const promptInput = document.getElementById('promptInput');
+        if (promptInput) {
+            promptInput.value = '';
+            // Trigger the input event to update tags
+            promptInput.dispatchEvent(new Event('input'));
+        }
+    }
+
+    // Initialize copy and clear prompt buttons
+    const copyPromptBtn = document.getElementById('copyPromptBtn');
+    if (copyPromptBtn) {
+        copyPromptBtn.addEventListener('click', () => {
+            const promptInput = document.getElementById('promptInput');
+            if (promptInput && promptInput.value.trim()) {
+                copyToClipboard(promptInput.value);
+            } else {
+                showToast('Nothing to copy');
+            }
+        });
+    }
+
+    const clearPromptBtn = document.getElementById('clearPromptBtn');
+    if (clearPromptBtn) {
+        clearPromptBtn.addEventListener('click', () => {
+            clearPromptInput();
+            showToast('Prompt cleared');
+        });
+    }
+
+    // Initialize coffee button
+    const coffeeButton = document.querySelector('.coffee-button');
+    if (coffeeButton) {
+        coffeeButton.addEventListener('click', () => {
+            ipcRenderer.invoke('open-external', 'https://buymeacoffee.com/a_wawrzynkowski');
+        });
+    }
+
+    // Initialize info button
+    const infoButton = document.querySelector('.info-button');
+    if (infoButton) {
+        infoButton.addEventListener('click', () => {
+            ipcRenderer.send('open-credits');
+        });
+    }
+
+    // Initialize history button
+    const historyBtn = document.getElementById('history-btn');
+    const historyPanel = document.querySelector('.history-panel');
+    const historyCloseBtn = document.querySelector('.history-close');
+
+    if (historyBtn && historyPanel && historyCloseBtn) {
+        historyBtn.addEventListener('click', () => {
+            historyPanel.classList.toggle('open');
+            updateHistoryPanelContent();
+        });
+
+        historyCloseBtn.addEventListener('click', () => {
+            historyPanel.classList.remove('open');
         });
     }
 }
@@ -1339,7 +1450,16 @@ ipcRenderer.on('model-parameters-updated', (event, data) => {
 
 // Listen for model changes
 ipcRenderer.on('model-changed', (event, config) => {
+    console.log('Model changed:', config);
+    // Update model tags and refresh UI
     updateModelTags();
+    // Update any UI elements that depend on the current model
+    document.querySelectorAll('.style-card').forEach(card => {
+        const generateButton = card.querySelector('.generate-button');
+        if (generateButton) {
+            generateButton.disabled = false;
+        }
+    });
 });
 
 // Connection status handling
@@ -1356,6 +1476,109 @@ ipcRenderer.on('ollama-status', (event, isConnected) => {
         connectionStatus.classList.toggle('disconnected', !isConnected);
     }
 });
+
+// Funkcja do aktualizacji zawartości panelu historii
+function updateHistoryPanelContent() {
+    const historyContent = document.querySelector('.history-content');
+    if (!historyContent) return;
+
+    // Get history from localStorage
+    const history = JSON.parse(localStorage.getItem('promptHistory') || '[]');
+
+    if (history.length === 0) {
+        historyContent.innerHTML = '<div class="no-history">No prompts in history</div>';
+        return;
+    }
+
+    // Create HTML for history items
+    const historyHTML = history.map((item, index) => {
+        const date = new Date(item.timestamp);
+        const formattedDate = date.toLocaleString();
+        
+        return `
+            <div class="history-item" data-index="${index}">
+                <div class="history-item-content">
+                    <div class="history-item-text">${item.prompt}</div>
+                    <div class="history-item-date">${formattedDate}</div>
+                </div>
+                <div class="history-item-actions">
+                    <button class="history-item-copy" onclick="copyToClipboard('${item.prompt.replace(/'/g, "\\'")}')">
+                        <i class="fas fa-copy"></i>
+                    </button>
+                    <button class="history-item-delete" onclick="deleteHistoryItem(${index})">
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+    }).join('');
+
+    historyContent.innerHTML = historyHTML;
+}
+
+// Function to delete history item
+function deleteHistoryItem(index) {
+    // Get current history
+    const history = JSON.parse(localStorage.getItem('promptHistory') || '[]');
+    
+    // Remove item at index
+    history.splice(index, 1);
+    
+    // Save updated history
+    localStorage.setItem('promptHistory', JSON.stringify(history));
+    
+    // Show confirmation toast
+    showToast('Prompt deleted from history');
+    
+    // Update panel content
+    updateHistoryPanelContent();
+}
+
+// Helper function to copy text to clipboard
+async function copyToClipboard(text) {
+    try {
+        await navigator.clipboard.writeText(text);
+        showToast('Copied to clipboard!');
+    } catch (err) {
+        console.error('Failed to copy text: ', err);
+        showToast('Failed to copy text');
+    }
+}
+
+// Funkcja do zapisywania promptu w historii
+function saveToHistory(prompt) {
+    if (!prompt || prompt.trim() === '') return;
+
+    // Get existing history
+    const history = JSON.parse(localStorage.getItem('promptHistory') || '[]');
+
+    // Check if this prompt already exists
+    const exists = history.some(item => item.prompt === prompt);
+    if (exists) return;
+
+    // Add new prompt to the beginning
+    history.unshift({
+        prompt,
+        timestamp: new Date().toISOString()
+    });
+
+    // Keep only last 100 items
+    if (history.length > 100) {
+        history.pop();
+    }
+
+    // Save back to localStorage
+    localStorage.setItem('promptHistory', JSON.stringify(history));
+}
+
+// Function to clear all history
+function clearAllHistory() {
+    if (confirm('Are you sure you want to clear all history?')) {
+        localStorage.removeItem('promptHistory');
+        updateHistoryPanelContent();
+        showToast('History cleared');
+    }
+}
 
 // Performance monitoring
 function initializePerformanceMonitoring() {
@@ -1531,16 +1754,38 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeTheme();
 });
 
-// Funkcja pomocnicza do wyświetlania animacji ładowania
-function showLoadingAnimation(container, text) {
-    container.innerHTML = `
-        <div class="generating-text">
-            <i class="fas fa-sparkles generating-icon"></i>
-            ${Array.from(text).map(char => 
-                char === ' ' ? '<span>&nbsp;</span>' : `<span>${char}</span>`
-            ).join('')}
-        </div>`;
+// Funkcja do aktualizacji stanu połączenia
+function updateConnectionStatus(status) {
+    const statusElement = document.getElementById('connection-status');
+    if (statusElement) {
+        const ollamaStatus = status.ollama ? '🟢' : '🔴';
+        const drawThingsStatus = status.drawThings ? '🟢' : '🔴';
+        
+        statusElement.innerHTML = `
+            Ollama: ${ollamaStatus}
+            Draw Things: ${drawThingsStatus}
+        `;
+    }
 }
+
+// Funkcja do sprawdzania połączeń
+async function checkConnections() {
+    try {
+        const status = await ipcRenderer.invoke('check-connections');
+        updateConnectionStatus(status);
+    } catch (error) {
+        console.error('Error checking connections:', error);
+    }
+}
+
+// Dodaj sprawdzanie połączeń do inicjalizacji
+document.addEventListener('DOMContentLoaded', () => {
+    // Sprawdź połączenia na początku
+    checkConnections();
+    
+    // Sprawdzaj połączenia co 30 sekund
+    setInterval(checkConnections, 30000);
+});
 
 // Funkcja do ulepszania promptu
 async function refinePrompt(styleId) {
@@ -1919,160 +2164,28 @@ document.addEventListener('DOMContentLoaded', () => {
     updateUI();
 });
 
-// Funkcja do aktualizacji stanu przycisków
-function updateButtonStates() {
-    const promptText = document.querySelector('.prompt-text');
-    const magicRefinerBtn = document.querySelector('.magic-refiner');
-    const drawBtn = document.querySelector('.send-to-draw-things');
-    
-    if (promptText && magicRefinerBtn && drawBtn) {
-        const activeTab = document.querySelector('.tab.active');
-        if (!activeTab) {
-            drawBtn.disabled = true;
-            drawBtn.classList.add('disabled');
-            magicRefinerBtn.disabled = true;
-            magicRefinerBtn.classList.add('disabled');
-            return;
-        }
-
-        const tabId = activeTab.getAttribute('data-tab-id');
-        const tabContent = tabs[tabId];
-        
-        // Check if we have any prompt content
-        let hasPrompt = false;
-        
-        if (tabContent) {
-            if (tabContent.type === 'style') {
-                // For style tabs, check if there's a prompt in the content
-                hasPrompt = tabContent.prompt && tabContent.prompt.trim() !== '';
-            } else {
-                // For regular tabs, check the prompt-text content
-                hasPrompt = promptText.textContent.trim() !== 'Click Generate to create a prompt...' 
-                    && promptText.textContent.trim() !== '';
-            }
-        }
-            
-        // Update Magic Refiner button
-        magicRefinerBtn.disabled = !hasPrompt;
-        magicRefinerBtn.classList.toggle('disabled', !hasPrompt);
-        
-        // Update Draw Things button
-        drawBtn.disabled = !hasPrompt;
-        drawBtn.classList.toggle('disabled', !hasPrompt);
-    }
-}
-
-// Dodaj nasłuchiwacza do obserwatora
-const observer = new MutationObserver((mutations) => {
-    mutations.forEach((mutation) => {
-        if (mutation.target.classList.contains('prompt-text')) {
-            updateButtonStates();
-        }
-    });
-});
-
-// Dodaj nasłuchiwacza do zmiany zakładki
-function switchTab(tabElement) {
-    const prevActive = document.querySelector('.tab.active');
-    if (prevActive) {
-        prevActive.classList.remove('active');
+// Funkcja do wyświetlania animacji ładowania
+function showLoadingAnimation(container, text) {
+    // Remove any existing loading animations first
+    const existingAnimation = container.querySelector('.loading-animation');
+    if (existingAnimation) {
+        existingAnimation.remove();
     }
 
-    tabElement.classList.add('active');
-    const tabId = tabElement.getAttribute('data-tab-id');
-    
-    // Update content and button states
-    updateTabContent(tabId);
-    updateButtonStates();
+    // Create new loading animation
+    const loadingAnimation = document.createElement('div');
+    loadingAnimation.className = 'loading-animation';
+    loadingAnimation.innerHTML = `
+        <i class="fas fa-spinner fa-spin"></i>
+        <span>${text}</span>
+    `;
+    container.appendChild(loadingAnimation);
 }
 
-// Dodaj nasłuchiwacza do aktualizacji promptu
-function updatePrompt(tabId, newPrompt) {
-    if (!tabs[tabId]) {
-        tabs[tabId] = {};
-    }
-    tabs[tabId].prompt = newPrompt;
-    updateButtonStates();
-}
-
-// Update style tab content
-function updateStyleTabContent(tabId, content) {
-    if (!tabs[tabId]) {
-        tabs[tabId] = { type: 'style' };
-    }
-    tabs[tabId].prompt = content;
-    updateButtonStates();
-}
-
-// Handle style input changes
-function handleStyleInputChange(event) {
-    const activeTab = document.querySelector('.tab.active');
-    if (activeTab) {
-        const tabId = activeTab.getAttribute('data-tab-id');
-        updateStyleTabContent(tabId, event.target.value);
+// Funkcja do usuwania animacji ładowania
+function removeLoadingAnimation(container) {
+    const loadingAnimation = container.querySelector('.loading-animation');
+    if (loadingAnimation) {
+        loadingAnimation.remove();
     }
 }
-
-// Add to existing style tab creation
-function createStyleTab() {
-    const tabId = 'tab-' + Date.now();
-    
-    // Create tab
-    const tab = document.createElement('div');
-    tab.className = 'tab';
-    tab.setAttribute('data-tab-id', tabId);
-    
-    // Initialize tab data
-    tabs[tabId] = {
-        type: 'style',
-        prompt: ''
-    };
-    
-    // Create input for style tab
-    const input = document.createElement('textarea');
-    input.className = 'style-input';
-    input.addEventListener('input', handleStyleInputChange);
-    
-    // Add to tab content
-    const tabContent = document.createElement('div');
-    tabContent.className = 'tab-content style-tab-content';
-    tabContent.appendChild(input);
-    
-    // Update button states
-    updateButtonStates();
-    
-    return { tab, tabContent };
-}
-
-// Funkcja do aktualizacji stanu połączenia
-function updateConnectionStatus(status) {
-    const statusElement = document.getElementById('connection-status');
-    if (statusElement) {
-        const ollamaStatus = status.ollama ? '🟢' : '🔴';
-        const drawThingsStatus = status.drawThings ? '🟢' : '🔴';
-        
-        statusElement.innerHTML = `
-            Ollama: ${ollamaStatus}
-            Draw Things: ${drawThingsStatus}
-        `;
-    }
-}
-
-// Funkcja do sprawdzania połączeń
-async function checkConnections() {
-    try {
-        const status = await ipcRenderer.invoke('check-connections');
-        updateConnectionStatus(status);
-    } catch (error) {
-        console.error('Error checking connections:', error);
-    }
-}
-
-// Dodaj sprawdzanie połączeń do inicjalizacji
-document.addEventListener('DOMContentLoaded', () => {
-    // Sprawdź połączenia na początku
-    checkConnections();
-    
-    // Sprawdzaj połączenia co 30 sekund
-    setInterval(checkConnections, 30000);
-});

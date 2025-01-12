@@ -4,3 +4,4 @@ node_modules
 *.dmg
 dist/mac-arm64
 .DS_Store
+dist

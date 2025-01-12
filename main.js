@@ -1,6 +1,7 @@
 const electron = require('electron');
 const { BrowserWindow, ipcMain, dialog, shell } = electron;
 const app = electron.app;
+const creditsWindow = require('./credits-window');
 
 // Optimize GPU usage while keeping hardware acceleration
 app.commandLine.appendSwitch('ignore-gpu-blacklist');
@@ -35,7 +36,6 @@ const ort = require('onnxruntime-node');
 const { spawn } = require('child_process');
 const https = require('https');
 const dependenciesWindow = require('./dependencies-window');
-const creditsWindow = require('./credits-window');
 const fetch = require('node-fetch');
 const pidusage = require('pidusage');
 const os = require('os');
@@ -493,7 +493,7 @@ async function setupDefaultModels() {
 
         // Set the default model in OllamaManager
         if (currentModel) {
-            ollamaManager.setDefaultModel(currentModel);
+            ollamaManager.setModel(currentModel);
             console.log('Set OllamaManager default model to:', currentModel);
         } else {
             console.error('No suitable text model found');
@@ -669,21 +669,60 @@ function setupModelHandlers() {
     ipcMain.removeHandler('install-model');
     ipcMain.removeHandler('select-model');
     ipcMain.removeHandler('list-models');
+    ipcMain.removeHandler('remove-model');
+    ipcMain.removeHandler('check-model-availability');
     
     // Model installation and configuration
     ipcMain.handle('install-model', async (event, modelName) => {
         try {
+            console.log('Starting model installation in main process:', modelName);
+            // Pass progress callback to pullModel
             await ollamaManager.pullModel(modelName, (progress) => {
-                // Send progress updates to the renderer
+                console.log('Progress callback called:', progress);
                 event.sender.send('model-install-progress', {
                     progress: progress,
                     status: `Installing ${modelName}... ${Math.round(progress)}%`
                 });
             });
+            console.log('Model pull complete, setting as current model');
             await ollamaManager.setModel(modelName);
+            console.log('Installation complete');
             return { success: true };
         } catch (error) {
             console.error('Error installing model:', error);
+            throw error;
+        }
+    });
+
+    // Model availability check
+    ipcMain.handle('check-model-availability', async (event, modelName) => {
+        try {
+            return await ollamaManager.checkModelAvailability(modelName);
+        } catch (error) {
+            console.error('Error checking model availability:', error);
+            return false;
+        }
+    });
+
+    // Model removal
+    ipcMain.handle('remove-model', async (event, modelName) => {
+        try {
+            console.log('Attempting to remove model:', modelName);
+            
+            const response = await fetch(`http://localhost:11434/api/delete`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ name: modelName })
+            });
+            
+            if (!response.ok) {
+                const text = await response.text();
+                console.error('Delete response:', response.status, text);
+                throw new Error(`Failed to remove model: ${response.status} ${response.statusText} ${text ? `- ${text}` : ''}`);
+            }
+            return true;
+        } catch (error) {
+            console.error('Failed to remove model:', error);
             throw error;
         }
     });
@@ -711,6 +750,60 @@ function setupModelHandlers() {
     ipcMain.handle('list-models', async () => {
         return await ollamaManager.listModels();
     });
+
+    ipcMain.on('model-changed', (event, modelData) => {
+        try {
+            let modelName;
+            let config;
+            
+            // Handle both formats: string and object
+            if (typeof modelData === 'string') {
+                modelName = modelData;
+                config = {
+                    currentModel: modelName,
+                    settings: { currentModel: modelName }
+                };
+            } else {
+                modelName = modelData.currentModel;
+                config = modelData;
+            }
+
+            console.log('Model changed event received:', modelName);
+            
+            // Update config
+            const configManagerModule = require('./config-manager');
+            const configData = configManagerModule.getConfig();
+            configData.currentModel = modelName;
+            configData.settings.currentModel = modelName;
+            configManagerModule.saveConfig(configData);
+            
+            // List of models that should keep their parameters
+            const MODELS_WITH_PARAMS = [
+                'qwen2.5',
+                'mistral',
+                'gemma',
+                'dolphin-llama3',
+                'llama3.2'
+            ];
+
+            // Check if this model should keep its parameters
+            const baseModelName = modelName.split(':')[0];
+            const shouldKeepParams = MODELS_WITH_PARAMS.includes(baseModelName);
+            const modelNameForOllama = shouldKeepParams ? modelName : baseModelName;
+            
+            // Update Ollama manager
+            ollamaManager.setModel(modelNameForOllama);
+            
+            console.log('Updated model in managers:', modelNameForOllama);
+            
+            // Notify all windows about the change
+            BrowserWindow.getAllWindows().forEach(window => {
+                window.webContents.send('model-changed', config);
+            });
+        } catch (error) {
+            console.error('Error updating model:', error);
+        }
+    });
 }
 
 // Ollama IPC handlers
@@ -726,13 +819,12 @@ ipcMain.handle('check-ollama-connection', async () => {
 
 ipcMain.handle('remove-model', async (event, modelName) => {
     try {
-        const formattedName = formatModelName(modelName);
-        console.log('Removing model:', formattedName);
+        console.log('Removing model:', modelName);
         
         const response = await fetch(`http://localhost:11434/api/delete`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ name: formattedName })
+            body: JSON.stringify({ name: modelName })
         });
         
         if (!response.ok) {
@@ -1028,24 +1120,21 @@ ipcMain.handle('set-setting', async (event, key, value) => {
 
 // Window control handlers
 ipcMain.on('minimize-window', () => {
-    const win = BrowserWindow.getFocusedWindow();
-    if (win) win.minimize();
+    if (mainWindow) mainWindow.minimize();
 });
 
 ipcMain.on('maximize-window', () => {
-    const win = BrowserWindow.getFocusedWindow();
-    if (win) {
-        if (win.isMaximized()) {
-            win.unmaximize();
+    if (mainWindow) {
+        if (mainWindow.isMaximized()) {
+            mainWindow.unmaximize();
         } else {
-            win.maximize();
+            mainWindow.maximize();
         }
     }
 });
 
 ipcMain.on('close-window', () => {
-    const win = BrowserWindow.getFocusedWindow();
-    if (win) win.close();
+    app.quit(); // This will quit the entire application
 });
 
 // Window opening handlers
@@ -1906,4 +1995,20 @@ ipcMain.on('show-startup-window', (event, options = {}) => {
             });
         });
     }
+});
+
+// Add restart handler
+ipcMain.handle('restart-app', () => {
+    app.relaunch();
+    app.exit();
+});
+
+// Credits window handler
+ipcMain.on('open-credits', () => {
+    creditsWindow.create();
+});
+
+// Handle external links
+ipcMain.handle('open-external', async (event, url) => {
+    await shell.openExternal(url);
 });

@@ -304,35 +304,15 @@ class OllamaManager {
             const response = await this.makeRequest(`${this.getBaseUrl()}/api/tags`);
             
             if (!response.ok) {
-                console.error('Failed to get installed models, response not OK');
-                return [];
+                throw new Error(`Failed to list models: ${response.status}`);
             }
 
             const data = await response.json();
-            console.log('Raw response from /api/tags:', data);
-
-            if (!data.models || !Array.isArray(data.models)) {
-                console.warn('No models array in response:', data);
-                return [];
-            }
-
-            // Lista modeli do pominięcia
-            const excludedModels = ['codellama'];
-
-            // Przetwórz wszystkie modele
-            const modelNames = data.models
-                .map(model => model.name)
-                .filter(name => {
-                    const baseName = name.split(':')[0].toLowerCase();
-                    return !excludedModels.includes(baseName);
-                })
-                .filter((name, index, self) => self.indexOf(name) === index);
-
-            console.log('Processed installed models:', modelNames);
-            return modelNames;
+            console.log('List models response:', data);
+            return data.models || [];
         } catch (error) {
-            console.error('Error getting installed models:', error);
-            return [];
+            console.error('Error listing models:', error);
+            throw error;
         }
     }
 
@@ -631,17 +611,47 @@ Keep it brief and concise. Do not describe the content or subjects in the image.
 
     async deleteModel(modelName) {
         try {
-            const response = await this.makeRequest(`${this.getBaseUrl()}/api/delete`, {
+            // First, list all models to see what's actually installed
+            const models = await this.listModels();
+            console.log('Currently installed models:', models);
+
+            // Find the exact model name that matches our base name
+            const baseModelName = modelName.split(':')[0];
+            console.log('Looking for model with base name:', baseModelName);
+            
+            const matchingModel = models.find(model => 
+                model.name.startsWith(baseModelName + ':') || model.name === baseModelName
+            );
+
+            if (!matchingModel) {
+                console.error('Model not found in installed models:', baseModelName);
+                throw new Error(`Model ${baseModelName} not found`);
+            }
+
+            console.log('Found matching model:', matchingModel);
+            
+            // According to Ollama API docs, the request should be in this format
+            const deleteRequest = {
+                name: matchingModel.name
+            };
+            console.log('Delete request:', deleteRequest);
+
+            const response = await fetch(`${this.getBaseUrl()}/api/delete`, {
                 method: 'DELETE',
                 headers: {
-                    'Content-Type': 'application/json',
+                    'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ name: modelName })
+                body: JSON.stringify(deleteRequest)
             });
 
             if (!response.ok) {
-                throw new Error(`Failed to delete model: ${response.status}`);
+                const errorText = await response.text();
+                console.error('Delete response:', response.status, errorText);
+                throw new Error(`Failed to delete model: ${response.status} - ${errorText}`);
             }
+
+            const responseData = await response.json().catch(() => null);
+            console.log('Delete response data:', responseData);
 
             return true;
         } catch (error) {
@@ -851,78 +861,80 @@ Keep it brief and concise. Do not describe the content or subjects in the image.
     }
 
     async pullModel(modelName, progressCallback) {
-        return new Promise((resolve, reject) => {
-            const postData = JSON.stringify({
-                name: modelName,
-                stream: true
-            });
-
-            const options = {
-                hostname: this.endpoint.host,
-                port: this.endpoint.port,
-                path: '/api/pull',
+        try {
+            console.log('Starting model pull:', modelName);
+            const response = await this.makeRequest(`${this.getBaseUrl()}/api/pull`, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
-                    'Content-Length': Buffer.byteLength(postData)
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    name: modelName,
+                    stream: true
+                })
+            });
+
+            console.log('Pull request response:', response.status);
+            if (!response.ok) {
+                throw new Error(`Failed to pull model: ${response.status}`);
+            }
+
+            const reader = response.body.getReader();
+            let buffer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) {
+                    console.log('Stream complete');
+                    break;
                 }
-            };
 
-            const req = http.request(options, (res) => {
-                if (res.statusCode !== 200) {
-                    reject(new Error(`Failed to pull model: ${res.statusCode}`));
-                    return;
-                }
+                const text = new TextDecoder().decode(value);
+                console.log('Received chunk:', text);
+                buffer += text;
+                const lines = buffer.split('\n');
+                buffer = lines.pop(); // Keep the last incomplete line
 
-                let buffer = '';
-
-                res.on('data', (chunk) => {
-                    buffer += chunk.toString();
-                    const lines = buffer.split('\n');
-                    buffer = lines.pop(); // Keep the last incomplete line
-
-                    lines.forEach(line => {
-                        if (line.trim()) {
-                            try {
-                                const data = JSON.parse(line);
-                                if (data.total && data.completed) {
-                                    const progress = (data.completed / data.total) * 100;
-                                    if (progressCallback) {
-                                        progressCallback(progress);
-                                    }
-                                }
-                            } catch (e) {
-                                console.warn('Error parsing JSON:', e);
-                            }
-                        }
-                    });
-                });
-
-                res.on('end', () => {
-                    // Process any remaining data in buffer
-                    if (buffer.trim()) {
+                for (const line of lines) {
+                    if (line.trim()) {
                         try {
-                            const data = JSON.parse(buffer);
-                            if (data.total && data.completed && progressCallback) {
+                            const data = JSON.parse(line);
+                            console.log('Parsed data:', data);
+                            if (data.total && data.completed) {
                                 const progress = (data.completed / data.total) * 100;
-                                progressCallback(progress);
+                                console.log('Progress:', progress);
+                                if (progressCallback) {
+                                    progressCallback(progress);
+                                }
                             }
                         } catch (e) {
-                            console.warn('Error parsing JSON:', e);
+                            console.warn('Error parsing JSON:', e, 'Line:', line);
                         }
                     }
-                    resolve(true);
-                });
-            });
+                }
+            }
 
-            req.on('error', (error) => {
-                console.error('Error pulling model:', error);
-                reject(error);
-            });
+            // Process any remaining data in buffer
+            if (buffer.trim()) {
+                try {
+                    const data = JSON.parse(buffer);
+                    console.log('Final data:', data);
+                    if (data.total && data.completed && progressCallback) {
+                        const progress = (data.completed / data.total) * 100;
+                        console.log('Final progress:', progress);
+                        progressCallback(progress);
+                    }
+                } catch (e) {
+                    console.warn('Error parsing final JSON:', e, 'Buffer:', buffer);
+                }
+            }
 
-            req.write(postData);
-            req.end();
-        });
+            console.log('Pull complete');
+            return true;
+        } catch (error) {
+            console.error('Error pulling model:', error);
+            throw error;
+        }
     }
 
     async generateTags(text, batchSize = 6, totalBatches = 5) {
@@ -1508,7 +1520,7 @@ except Exception as e:
                         if (line.trim()) {
                             try {
                                 const data = JSON.parse(line);
-                                if (data.total && data.completed) {
+                                if (data.total) {
                                     const progress = (data.completed / data.total) * 100;
                                     if (progressCallback) {
                                         progressCallback(progress);

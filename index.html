@@ -19,9 +19,9 @@
 
                 <div class="prompt-input-wrapper-tools">
                     <div class="input-buttons">
-                        <button id="visionBtn" class="tool-button" title="Add Image">
+                        <button id="visionBtn" class="tool-button" title="Add Image" disabled>
                             <i class="fas fa-image"></i>
-                            <span>Vision</span>
+                            <span>Vision (Soon)</span>
                         </button>
                         <button id="copyPromptBtn" class="tool-button" title="Copy Prompt">
                             <i class="fas fa-copy"></i>
@@ -99,7 +99,7 @@
                 <button class="coffee-button" title="Buy me a coffee">
                     <i class="fas fa-coffee"></i>
                 </button>
-                <button class="title-bar-button" id="open-settings-button">
+                <button class="info-button" title="About">
                     <i class="fas fa-info-circle"></i>
                 </button>
                 <div class="theme-selector">
@@ -124,20 +124,12 @@
                         <i class="fas fa-microchip"></i>
                         <span id="cpu-usage">0%</span>
                     </div>
-                    <div class="performance-indicator">
-                        <i class="fas fa-desktop"></i>
-                        <span id="gpu-usage">0%</span>
-                    </div>
-                    <div class="performance-indicator">
-                        <i class="fas fa-memory"></i>
-                        <span id="ram-usage">0MB</span>
-                    </div>
                 </div>
                 <button class="title-bar-button model-config-button" id="open-ollama-button">
                     <i class="fas fa-microchip"></i>
                     <span>Model Configuration</span>
                 </button>
-                <button class="title-bar-item" id="history-btn" title="History">
+                <button class="title-bar-button" id="history-btn" title="History">
                     <i class="fas fa-history"></i>
                 </button>
             </div>
@@ -145,7 +137,12 @@
     </div>
     <div class="history-panel">
         <div class="history-header">
-            <h2>Prompt History</h2>
+            <div class="history-header-left">
+                <h2>Prompt History</h2>
+                <button class="history-clear-all" title="Clear all history">
+                    <i class="fas fa-trash-alt"></i>
+                </button>
+            </div>
             <button class="history-close">
                 <i class="fas fa-times"></i>
             </button>
