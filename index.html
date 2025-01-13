@@ -92,8 +92,8 @@
         </div>
         <div class="title-bar-left">
             <div class="title-bar-logo">
-                PROMPTR
-                <span class="titlebar-version">v1.0</span>
+                <span class="titlebar-title">PROMPTR</span>
+                <span class="titlebar-version" id="titlebar-version"></span>
             </div>
             <div class="title-bar-support">
                 <button class="coffee-button" title="Buy me a coffee">
@@ -165,7 +165,7 @@
         </div>
     </div>
     <div class="version-info">
-        <span id="version">v1.0</span>
+        <span id="version"></span>
     </div>
     <div id="model-progress-overlay" class="model-progress-overlay" style="display: none;">
         <div class="model-progress-content">
@@ -183,6 +183,13 @@
                 </div>
             </div>
             <div class="model-status-message"></div>
+        </div>
+    </div>
+    <div id="update-banner" class="update-banner" style="display: none;">
+        <div class="update-content">
+            <span class="update-message">New version available!</span>
+            <a id="update-link" href="#" class="update-link">Download</a>
+            <button id="close-update-banner" class="close-update-banner" title="Dismiss">×</button>
         </div>
     </div>
     <script src="renderer.js"></script>

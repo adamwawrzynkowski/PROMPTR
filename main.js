@@ -2,6 +2,7 @@ const electron = require('electron');
 const { BrowserWindow, ipcMain, dialog, shell, protocol } = electron;
 const app = electron.app;
 const creditsWindow = require('./credits-window');
+const versionManager = require('./version-manager');
 
 // Optimize GPU usage while keeping hardware acceleration
 app.commandLine.appendSwitch('ignore-gpu-blacklist');
@@ -42,7 +43,7 @@ let onboardingWindow = null;
 let visionWindow = null;
 
 // Constants
-const APP_VERSION = 'v1.0';
+const APP_VERSION = versionManager.getVersion();
 const DRAW_THINGS_PATH = '/Applications/Draw Things.app';
 const DRAW_THINGS_PORT = 3333;
 let SAFETENSORS_MODELS_PATH;
@@ -444,7 +445,24 @@ async function createWindow() {
         store.set('settings.windowSize', { width, height });
     });
 
+    sendVersionToWindow(mainWindow);
+
+    // Check for updates after a short delay
+    setTimeout(checkForUpdates, 3000);
+
     return mainWindow;
+}
+
+// Send version to renderer when requested
+ipcMain.handle('get-version', () => {
+    return APP_VERSION;
+});
+
+// Send version to window when it's created
+function sendVersionToWindow(window) {
+    if (window && !window.isDestroyed()) {
+        window.webContents.send('app-version', APP_VERSION);
+    }
 }
 
 // Create startup window
@@ -2053,3 +2071,15 @@ app.whenReady().then(() => {
         }
     });
 });
+
+// Check for updates
+async function checkForUpdates() {
+    try {
+        const updateInfo = await versionManager.checkForUpdates();
+        if (updateInfo.hasUpdate && mainWindow && !mainWindow.isDestroyed()) {
+            mainWindow.webContents.send('update-available', updateInfo);
+        }
+    } catch (error) {
+        console.error('Error checking for updates:', error);
+    }
+}

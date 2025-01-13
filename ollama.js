@@ -389,7 +389,8 @@ class OllamaManager {
                 options: {
                     temperature: style?.modelParams?.temperature || 0.7,
                     top_k: style?.modelParams?.topK || 40,
-                    top_p: style?.modelParams?.topP || 0.9
+                    top_p: style?.modelParams?.topP || 0.9,
+                    max_tokens: 2048  // Set a higher token limit to ensure complete responses
                 }
             };
 
@@ -414,7 +415,7 @@ class OllamaManager {
             // Remove any remaining instruction-like text
             const instructionPhrases = [
                 'Create a humorous and playful description of:',
-                'Focus on exaggerated, quirky features',
+                'Focus ONLY on the artistic style of this image. Describe:',
                 'Create a detailed description',
                 'Generate a description',
                 'Provide a description',

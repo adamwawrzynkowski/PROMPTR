@@ -1,4 +1,4 @@
-const { ipcRenderer } = require('electron');
+const { ipcRenderer, shell } = require('electron');
 const tagGenerator = require('./tag-generator');
 
 // Dodaj na początku pliku
@@ -2195,3 +2195,55 @@ function removeLoadingAnimation(container) {
         loadingAnimation.remove();
     }
 }
+
+// Update version displays when received
+ipcRenderer.on('app-version', (event, version) => {
+    const versionElements = [
+        document.getElementById('version'),
+        document.getElementById('titlebar-version')
+    ];
+    
+    versionElements.forEach(element => {
+        if (element) {
+            element.textContent = version;
+        }
+    });
+});
+
+// Request version on load
+document.addEventListener('DOMContentLoaded', async () => {
+    const version = await ipcRenderer.invoke('get-version');
+    const versionElements = [
+        document.getElementById('version'),
+        document.getElementById('titlebar-version')
+    ];
+    
+    versionElements.forEach(element => {
+        if (element) {
+            element.textContent = version;
+        }
+    });
+});
+
+// Handle update notifications
+ipcRenderer.on('update-available', (event, updateInfo) => {
+    const updateBanner = document.getElementById('update-banner');
+    const updateMessage = updateBanner.querySelector('.update-message');
+    const updateLink = document.getElementById('update-link');
+    const closeButton = document.getElementById('close-update-banner');
+
+    updateMessage.textContent = `New version ${updateInfo.remoteVersion} is available!`;
+    updateLink.href = updateInfo.releasesUrl;
+    updateBanner.style.display = 'flex';
+
+    // Handle download link click
+    updateLink.onclick = (e) => {
+        e.preventDefault();
+        shell.openExternal(updateInfo.releasesUrl);
+    };
+
+    // Handle close button
+    closeButton.onclick = () => {
+        updateBanner.style.display = 'none';
+    };
+});
