@@ -5,11 +5,27 @@
     <link rel="stylesheet" href="styles/reset.css">
     <link rel="stylesheet" href="styles/startup-screen.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script>
+        // Set image path when DOM is loaded
+        document.addEventListener('DOMContentLoaded', () => {
+            const logoImg = document.querySelector('.startup-logo');
+            if (logoImg) {
+                try {
+                    const isDev = process.env.NODE_ENV === 'development';
+                    const basePath = isDev ? '.' : process.resourcesPath;
+                    const imgPath = isDev ? 'assets/icon_x768.png' : 'icon_x768.png';
+                    logoImg.src = require('path').join(basePath, imgPath);
+                } catch (error) {
+                    console.error('Error setting image path:', error);
+                }
+            }
+        });
+    </script>
 </head>
 <body>
     <div class="startup-screen">
         <div class="startup-content">
-            <img src="assets/icon_x768.png" alt="PROMPTR Logo" class="startup-logo">
+            <img src="" alt="PROMPTR Logo" class="startup-logo">
             <h1 class="startup-title">PROMPTR</h1>
             <p class="startup-subtitle">Your AI-Powered Prompt Engineering Assistant</p>
             

@@ -1,5 +1,5 @@
 const electron = require('electron');
-const { BrowserWindow, ipcMain, dialog, shell } = electron;
+const { BrowserWindow, ipcMain, dialog, shell, protocol } = electron;
 const app = electron.app;
 const creditsWindow = require('./credits-window');
 
@@ -58,6 +58,14 @@ function initializePaths() {
     SAFETENSORS_MODELS_PATH = path.join(app.getPath('userData'), 'models');
     CUSTOM_MODELS_PATH = path.join(app.getPath('userData'), 'custom-models');
 }
+
+const isDev = process.env.NODE_ENV === 'development';
+const getAssetPath = (fileName) => {
+    if (isDev) {
+        return path.join(__dirname, 'assets', fileName);
+    }
+    return path.join(process.resourcesPath, fileName);
+};
 
 class AppStartupManager {
     constructor() {
@@ -400,12 +408,14 @@ async function createWindow() {
             backgroundThrottling: true,
             enablePreferredSizeMode: false,
             spellcheck: false,
-            v8CacheOptions: 'code'
+            v8CacheOptions: 'code',
+            enableRemoteModule: true
         },
         backgroundColor: '#1e1e1e',
         show: false,
         titleBarStyle: 'hiddenInset',
-        trafficLightPosition: { x: -100, y: -100 }
+        trafficLightPosition: { x: -100, y: -100 },
+        icon: getAssetPath('icon.png')
     });
 
     // Optimize window performance
@@ -442,16 +452,17 @@ function createStartupWindow() {
     const startup = new BrowserWindow({
         width: 500,
         height: 700,
+        webPreferences: {
+            nodeIntegration: true,
+            contextIsolation: false,
+            enableRemoteModule: true
+        },
         frame: false,
         resizable: false,
         show: false,
-        center: true,
         useContentSize: true,
-        webPreferences: {
-            nodeIntegration: true,
-            contextIsolation: false
-        },
-        backgroundColor: '#1e1b2e'
+        backgroundColor: '#1e1b2e',
+        icon: getAssetPath('icon.png')
     });
 
     startup.loadFile('startup.html');
@@ -474,12 +485,14 @@ function createOllamaConfigWindow() {
         height: 600,
         webPreferences: {
             nodeIntegration: true,
-            contextIsolation: false
+            contextIsolation: false,
+            enableRemoteModule: true
         },
         frame: false,
         parent: mainWindow,
         modal: true,
-        show: false
+        show: false,
+        icon: getAssetPath('icon.png')
     });
 
     ollamaConfigWindow.loadFile('config.html');
@@ -1128,8 +1141,10 @@ ipcMain.on('open-model-tuning', (event, styleData) => {
         title: `${styleData.styleName} - Model Fine-tuning`,
         webPreferences: {
             nodeIntegration: true,
-            contextIsolation: false
-        }
+            contextIsolation: false,
+            enableRemoteModule: true
+        },
+        icon: getAssetPath('icon.png')
     });
 
     modelTuningWindow.loadFile('model-tuning.html');
@@ -1318,8 +1333,10 @@ function createVisionWindow() {
         trafficLightPosition: { x: -100, y: -100 },
         webPreferences: {
             nodeIntegration: true,
-            contextIsolation: false
-        }
+            contextIsolation: false,
+            enableRemoteModule: true
+        },
+        icon: getAssetPath('icon.png')
     });
 
     visionWindow.loadFile('vision.html');
@@ -1588,8 +1605,11 @@ function createOnboardingWindow() {
         resizable: true,
         webPreferences: {
             nodeIntegration: true,
-            contextIsolation: false
-        }
+            contextIsolation: false,
+            enableRemoteModule: true,
+            webSecurity: false
+        },
+        icon: getAssetPath('icon.png')
     });
     
     onboardingWindow.loadFile('onboarding.html');
@@ -1694,11 +1714,13 @@ ipcMain.handle('request-sudo-password', async (event) => {
             height: 150,
             webPreferences: {
                 nodeIntegration: true,
-                contextIsolation: false
+                contextIsolation: false,
+                enableRemoteModule: true
             },
             frame: false,
             resizable: false,
-            alwaysOnTop: true
+            alwaysOnTop: true,
+            icon: getAssetPath('icon.png')
         });
 
         promptWindow.loadURL(`data:text/html,
@@ -2022,4 +2044,15 @@ const store = new Store({
             }
         }
     }
+});
+
+app.whenReady().then(() => {
+    protocol.registerFileProtocol('app', (request, callback) => {
+        const url = request.url.replace('app://', '');
+        try {
+            return callback(path.join(process.resourcesPath, url));
+        } catch (error) {
+            console.error('Failed to register protocol', error);
+        }
+    });
 });

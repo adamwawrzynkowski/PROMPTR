@@ -8,7 +8,7 @@
   "main": "main.js",
   "scripts": {
     "start": "electron .",
-    "dev": "electron .",
+    "dev": "NODE_ENV=development electron .",
     "build": "electron-builder -m --x64 --arm64",
     "build:intel": "electron-builder -m --x64",
     "build:silicon": "electron-builder -m --arm64",
@@ -31,12 +31,11 @@
       {
         "from": "assets",
         "to": ".",
-        "filter": ["**/*"]
+        "filter": ["*.{png,icns}"]
       }
     ],
     "files": [
       "**/*",
-      "assets/**/*",
       "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
       "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}",
       "!**/node_modules/*.d.ts",
