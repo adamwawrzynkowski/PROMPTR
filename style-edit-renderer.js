@@ -2,7 +2,86 @@ const { ipcRenderer } = require('electron');
 const Store = require('electron-store');
 const store = new Store();
 
+let currentStyleId = null;
+let selectedIcon = 'paint-brush';
+let nameInput, descriptionInput, prefixInput, suffixInput, systemInstructionsInput, tagsInput;
+let temperatureInput, topKInput, topPInput, temperatureValue, topKValue, topPValue;
+let pendingStyleData = null;
+
+// Function to populate form with style data
+function populateFormWithStyle(style) {
+    console.log('Populating form with style:', style);
+    if (style && style.id) {
+        currentStyleId = style.id;
+        document.getElementById('window-title').textContent = 'Edit Style';
+        
+        if (nameInput) nameInput.value = style.name || '';
+        if (descriptionInput) descriptionInput.value = style.description || '';
+        if (prefixInput) prefixInput.value = style.prefix || '';
+        if (suffixInput) suffixInput.value = style.suffix || '';
+        if (systemInstructionsInput) systemInstructionsInput.value = style.systemInstructions || '';
+        if (tagsInput) tagsInput.value = (style.fixedTags || []).join(', ');
+        selectedIcon = style.icon || 'paint-brush';
+        
+        // Check both modelParams and modelParameters for compatibility
+        const params = style.modelParams || style.modelParameters || {};
+        if (temperatureInput) {
+            temperatureInput.value = params.temperature || 0.7;
+            updateParamValue(temperatureInput, temperatureValue);
+        }
+        if (topKInput) {
+            topKInput.value = params.top_k || params.topK || 40;
+            updateParamValue(topKInput, topKValue);
+        }
+        if (topPInput) {
+            topPInput.value = params.top_p || params.topP || 0.9;
+            updateParamValue(topPInput, topPValue);
+        }
+        
+        if (typeof renderIconsGrid === 'function') {
+            renderIconsGrid();
+        }
+    }
+}
+
+// Handle receiving style data
+ipcRenderer.on('style-data', (event, style) => {
+    console.log('Received style data in renderer:', style);
+    if (document.readyState === 'complete') {
+        console.log('Document ready, populating form');
+        populateFormWithStyle(style);
+    } else {
+        console.log('Document not ready, storing style data');
+        pendingStyleData = style;
+    }
+});
+
+// Also listen for the old event for backward compatibility
+ipcRenderer.on('edit-style', async (event, styleId) => {
+    console.log('Received edit-style event with ID:', styleId);
+    try {
+        // Request the style data from the main process
+        const style = await ipcRenderer.invoke('get-style', styleId);
+        console.log('Retrieved style data:', style);
+        if (document.readyState === 'complete') {
+            populateFormWithStyle(style);
+        } else {
+            pendingStyleData = style;
+        }
+    } catch (error) {
+        console.error('Error getting style data:', error);
+    }
+});
+
+// Update parameter value displays
+function updateParamValue(input, display) {
+    if (input && display) {
+        display.textContent = input.value;
+    }
+}
+
 document.addEventListener('DOMContentLoaded', async () => {
+    console.log('DOM Content Loaded');
     // Initialize theme
     const theme = store.get('settings.theme', 'purple');
     document.body.className = `theme-${theme}`;
@@ -10,25 +89,28 @@ document.addEventListener('DOMContentLoaded', async () => {
     // Initialize UI elements
     const closeBtn = document.getElementById('close-btn');
     const saveBtn = document.getElementById('save-btn');
-    const nameInput = document.getElementById('style-name');
-    const descriptionInput = document.getElementById('style-description');
-    const prefixInput = document.getElementById('style-prefix');
-    const suffixInput = document.getElementById('style-suffix');
-    const systemInstructionsInput = document.getElementById('system-instructions');
-    const tagsInput = document.getElementById('style-tags');
+    nameInput = document.getElementById('style-name');
+    descriptionInput = document.getElementById('style-description');
+    prefixInput = document.getElementById('style-prefix');
+    suffixInput = document.getElementById('style-suffix');
+    systemInstructionsInput = document.getElementById('system-instructions');
+    tagsInput = document.getElementById('style-tags');
     const iconsGrid = document.getElementById('icons-grid');
     const generateInstructionsBtn = document.getElementById('generate-instructions-btn');
     
     // Model parameters elements
-    const temperatureInput = document.getElementById('temperature');
-    const topKInput = document.getElementById('top-k');
-    const topPInput = document.getElementById('top-p');
-    const temperatureValue = document.getElementById('temperature-value');
-    const topKValue = document.getElementById('top-k-value');
-    const topPValue = document.getElementById('top-p-value');
+    temperatureInput = document.getElementById('temperature');
+    topKInput = document.getElementById('top-k');
+    topPInput = document.getElementById('top-p');
+    temperatureValue = document.getElementById('temperature-value');
+    topKValue = document.getElementById('top-k-value');
+    topPValue = document.getElementById('top-p-value');
 
-    let currentStyleId = null;
-    let selectedIcon = 'paint-brush';
+    // If we received style data before DOM was ready, populate it now
+    if (pendingStyleData) {
+        populateFormWithStyle(pendingStyleData);
+        pendingStyleData = null;
+    }
 
     // Lista dostępnych ikon
     const availableIcons = [
@@ -63,30 +145,31 @@ document.addEventListener('DOMContentLoaded', async () => {
         });
     }
 
-    // Update parameter value displays
-    function updateParamValue(input, display) {
-        display.textContent = input.value;
-    }
-
     temperatureInput.addEventListener('input', () => updateParamValue(temperatureInput, temperatureValue));
     topKInput.addEventListener('input', () => updateParamValue(topKInput, topKValue));
     topPInput.addEventListener('input', () => updateParamValue(topPInput, topPValue));
 
-    // Generate system instructions from description
+    // Handle generating instructions
     generateInstructionsBtn.addEventListener('click', async () => {
-        const description = descriptionInput.value.trim();
-        if (!description) {
-            await ipcRenderer.invoke('show-message', {
-                type: 'error',
-                message: 'Error',
-                detail: 'Please enter a description first.'
-            });
-            return;
-        }
-
         try {
+            const description = descriptionInput.value.trim();
+            if (!description) {
+                await ipcRenderer.invoke('show-message', {
+                    type: 'error',
+                    message: 'Error',
+                    detail: 'Please enter a description first.'
+                });
+                return;
+            }
+
+            // Update loading state
+            generateInstructionsBtn.disabled = true;
+            document.getElementById('generate-loading').classList.add('active');
+
             const instructions = await ipcRenderer.invoke('generate-system-instructions', description);
-            systemInstructionsInput.value = instructions;
+            if (instructions) {
+                systemInstructionsInput.value = instructions;
+            }
         } catch (error) {
             console.error('Error generating instructions:', error);
             await ipcRenderer.invoke('show-message', {
@@ -94,6 +177,10 @@ document.addEventListener('DOMContentLoaded', async () => {
                 message: 'Error',
                 detail: 'Failed to generate instructions. Please try again.'
             });
+        } finally {
+            // Reset loading state
+            generateInstructionsBtn.disabled = false;
+            document.getElementById('generate-loading').classList.remove('active');
         }
     });
 
@@ -161,45 +248,6 @@ document.addEventListener('DOMContentLoaded', async () => {
                 message: 'Error',
                 detail: 'Failed to save style. Please try again.'
             });
-        }
-    });
-
-    // Handle editing existing style
-    ipcRenderer.on('edit-style', async (event, styleId) => {
-        currentStyleId = styleId;
-        document.getElementById('window-title').textContent = 'Edit Style';
-        
-        try {
-            const style = await ipcRenderer.invoke('get-style', styleId);
-            if (style) {
-                nameInput.value = style.name || '';
-                descriptionInput.value = style.description || '';
-                prefixInput.value = style.prefix || '';
-                suffixInput.value = style.suffix || '';
-                systemInstructionsInput.value = style.systemInstructions || '';
-                tagsInput.value = (style.fixedTags || []).join(', ');
-                selectedIcon = style.icon || 'paint-brush';
-                
-                if (style.modelParams) {
-                    temperatureInput.value = style.modelParams.temperature || 0.7;
-                    topKInput.value = style.modelParams.topK || 40;
-                    topPInput.value = style.modelParams.topP || 0.9;
-                    
-                    updateParamValue(temperatureInput, temperatureValue);
-                    updateParamValue(topKInput, topKValue);
-                    updateParamValue(topPInput, topPValue);
-                }
-                
-                renderIconsGrid();
-            }
-        } catch (error) {
-            console.error('Error loading style:', error);
-            await ipcRenderer.invoke('show-message', {
-                type: 'error',
-                message: 'Error',
-                detail: 'Failed to load style. Please try again.'
-            });
-            window.close();
         }
     });
 

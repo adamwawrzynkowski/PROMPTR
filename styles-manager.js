@@ -211,7 +211,12 @@ class StylesManager {
     }
 
     async saveStyles() {
-        await fs.writeFile(this.stylesPath, JSON.stringify(this.styles, null, 2));
+        try {
+            await fs.writeFile(this.stylesPath, JSON.stringify(this.styles, null, 2));
+        } catch (error) {
+            console.error('Error saving styles:', error);
+            throw error;
+        }
     }
 
     async getAllStyles() {
@@ -282,6 +287,39 @@ class StylesManager {
         style.active = true;
         await this.saveStyles();
         return style;
+    }
+
+    async exportStyle(styleId) {
+        const style = this.styles.find(s => s.id === styleId);
+        if (!style) {
+            throw new Error('Style not found');
+        }
+        return style;
+    }
+
+    async importStyle(styleData) {
+        try {
+            // Validate style data
+            if (!styleData.name || !styleData.description) {
+                throw new Error('Invalid style data: missing required fields');
+            }
+
+            // Generate unique ID
+            const id = `custom_${Date.now()}`;
+            const newStyle = {
+                ...styleData,
+                id,
+                custom: true,
+                active: true
+            };
+
+            this.styles.push(newStyle);
+            await this.saveStyles();
+            return newStyle;
+        } catch (error) {
+            console.error('Error importing style:', error);
+            throw error;
+        }
     }
 }
 

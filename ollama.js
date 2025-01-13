@@ -184,20 +184,15 @@ class OllamaManager {
 
     async makeRequest(url, options = {}) {
         try {
-            console.log('Making request with options:', {
-                url,
-                method: options.method || 'GET',
-                headers: options.headers,
-                body: options.body
-            });
+            console.log(`Making request to: ${url}`);
+            console.log('With options:', options);
 
             const response = await fetch(url, {
-                method: options.method || 'GET',
+                ...options,
                 headers: {
                     'Content-Type': 'application/json',
-                    ...options.headers
-                },
-                body: options.body ? JSON.stringify(options.body) : undefined
+                    ...(options.headers || {})
+                }
             });
 
             return response;
@@ -564,7 +559,7 @@ Keep it brief and concise. Do not describe the content or subjects in the image.
             const response = await this.makeRequest(`${this.getBaseUrl()}/api/pull`, {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json',
+                    'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({ name: modelName })
             });
@@ -857,6 +852,70 @@ Keep it brief and concise. Do not describe the content or subjects in the image.
         } catch (error) {
             console.error('Error getting installed models:', error);
             return [];
+        }
+    }
+
+    async generateSystemInstructions(description) {
+        try {
+            await this.ensureTextModelSelected();
+            const currentModel = await this.getCurrentModel();
+            
+            const prompt = `Based on the following style description, generate clear and concise system instructions that would help an AI model understand and follow this style consistently:
+
+Description: ${description}
+
+Generate instructions that:
+1. Define the tone and voice
+2. Specify any formatting preferences
+3. Highlight key characteristics
+4. Include any specific constraints or requirements
+
+Keep the instructions clear, specific, and actionable.`;
+
+            const requestBody = {
+                model: currentModel,
+                prompt: prompt,
+                stream: false,
+                options: {
+                    temperature: 0.7,
+                    top_k: 40,
+                    top_p: 0.9
+                }
+            };
+
+            console.log('Making generate request with body:', requestBody);
+            const response = await this.makeRequest(`${this.getBaseUrl()}/api/generate`, {
+                method: 'POST',
+                body: JSON.stringify(requestBody)
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Failed to generate system instructions: ${errorText}`);
+            }
+
+            let fullResponse = '';
+            try {
+                const data = await response.json();
+                fullResponse = data.response;
+            } catch (error) {
+                console.error('Error parsing JSON response:', error);
+                // If JSON parsing fails, try to get the raw text
+                const text = await response.text();
+                console.log('Raw response text:', text);
+                // Try to extract the response from the raw text
+                const match = text.match(/"response":"([^"]+)"/);
+                if (match) {
+                    fullResponse = match[1];
+                } else {
+                    throw new Error('Failed to parse response from Ollama');
+                }
+            }
+
+            return fullResponse.trim();
+        } catch (error) {
+            console.error('Error generating system instructions:', error);
+            throw error;
         }
     }
 

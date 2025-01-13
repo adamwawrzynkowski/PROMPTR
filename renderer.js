@@ -1462,6 +1462,12 @@ ipcRenderer.on('model-changed', (event, config) => {
     });
 });
 
+// Listen for style changes
+ipcRenderer.on('styles-changed', async () => {
+    console.log('Styles changed, refreshing...');
+    await loadStyles();
+});
+
 // Connection status handling
 const connectionStatus = document.querySelector('.connection-status');
 if (connectionStatus) {

@@ -42,32 +42,18 @@
             <div class="form-group">
                 <div class="system-instructions-header">
                     <label for="system-instructions">System Instructions</label>
-                    <button class="generate-instructions-btn" id="generate-instructions-btn" title="Generate instructions from description">
-                        <i class="fas fa-magic"></i>
-                        Generate from Description
-                    </button>
+                    <div class="generate-controls">
+                        <button class="generate-instructions-btn" id="generate-instructions-btn" title="Generate instructions from description">
+                            <i class="fas fa-magic"></i>
+                            <span>Generate from Description</span>
+                        </button>
+                        <div class="loading-circle" id="generate-loading">
+                            <div class="loading-spinner"></div>
+                            <span>Generating...</span>
+                        </div>
+                    </div>
                 </div>
                 <textarea id="system-instructions" placeholder="Enter system instructions"></textarea>
-            </div>
-            <div class="form-group model-params">
-                <label>Model Parameters</label>
-                <div class="params-grid">
-                    <div class="param-item">
-                        <label for="temperature">Temperature</label>
-                        <input type="range" id="temperature" min="0" max="2" step="0.1" value="0.7">
-                        <span class="param-value" id="temperature-value">0.7</span>
-                    </div>
-                    <div class="param-item">
-                        <label for="top-k">Top K</label>
-                        <input type="range" id="top-k" min="0" max="100" step="1" value="40">
-                        <span class="param-value" id="top-k-value">40</span>
-                    </div>
-                    <div class="param-item">
-                        <label for="top-p">Top P</label>
-                        <input type="range" id="top-p" min="0" max="1" step="0.05" value="0.9">
-                        <span class="param-value" id="top-p-value">0.9</span>
-                    </div>
-                </div>
             </div>
             <div class="form-group">
                 <label for="style-tags">Fixed Tags (separated by commas)</label>

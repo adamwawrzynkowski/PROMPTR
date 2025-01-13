@@ -23,158 +23,17 @@ const themeManager = require('./theme-manager');
 const styleSettingsWindow = require('./style-settings-window');
 const { exec } = require('child_process');
 const net = require('net');
-const modelInstallWindow = require('./model-install-window');
 const startupWindow = require('./startup-window');
 const configManager = require('./config-manager');
 const styleEditWindow = require('./style-edit-window');
 const fsSync = require('fs');
-const modelImportWindow = require('./model-import-window');
 const styleSelectionWindow = require('./style-selection-window');
 const sharp = require('sharp');
-const { PythonShell } = require('python-shell');
-const ort = require('onnxruntime-node');
 const { spawn } = require('child_process');
 const https = require('https');
-const dependenciesWindow = require('./dependencies-window');
 const fetch = require('node-fetch');
 const pidusage = require('pidusage');
 const os = require('os');
-const grpc = require('@grpc/grpc-js');
-const protoLoader = require('@grpc/proto-loader');
-
-// Load Draw Things proto file
-const PROTO_PATH = path.join(__dirname, 'proto', 'draw_things.proto');
-const packageDefinition = protoLoader.loadSync(PROTO_PATH, {
-    keepCase: true,
-    longs: String,
-    enums: String,
-    defaults: true,
-    oneofs: true
-});
-
-const drawThingsProto = grpc.loadPackageDefinition(packageDefinition).drawthings;
-
-// Create Draw Things client
-let drawThingsClient = null;
-
-function createDrawThingsClient() {
-    if (!drawThingsClient) {
-        console.log('Creating new Draw Things gRPC client...');
-        const Pipeline = drawThingsProto.Pipeline;
-        drawThingsClient = new Pipeline(
-            '127.0.0.1:3333',
-            grpc.credentials.createInsecure()
-        );
-        console.log('Available methods:', Object.keys(Pipeline.prototype));
-    }
-    return drawThingsClient;
-}
-
-// Check Draw Things connection
-async function checkDrawThingsConnection() {
-    return new Promise((resolve) => {
-        try {
-            console.log('Checking Draw Things connection...');
-            const client = createDrawThingsClient();
-            const deadline = new Date();
-            deadline.setSeconds(deadline.getSeconds() + 2);
-            
-            client.waitForReady(deadline, (error) => {
-                if (error) {
-                    console.log('Draw Things connection check failed:', error.message);
-                    drawThingsClient = null;
-                    resolve(false);
-                } else {
-                    console.log('Draw Things connection successful!');
-                    resolve(true);
-                }
-            });
-        } catch (error) {
-            console.log('Error creating Draw Things client:', error.message);
-            drawThingsClient = null;
-            resolve(false);
-        }
-    });
-}
-
-// Handle Draw Things requests
-ipcMain.handle('send-to-draw-things', async (event, prompt) => {
-    try {
-        console.log('Attempting to send prompt to Draw Things:', prompt);
-        const client = createDrawThingsClient();
-
-        return new Promise((resolve, reject) => {
-            const request = {
-                prompt: prompt
-            };
-            console.log('Sending request:', request);
-            
-            client.run(request, (error, response) => {
-                if (error) {
-                    console.error('Draw Things API error:', {
-                        code: error.code,
-                        details: error.details,
-                        message: error.message
-                    });
-                    drawThingsClient = null;
-                    reject(new Error('Failed to connect to Draw Things. Please check if the app is running and API Server is enabled.'));
-                    return;
-                }
-                
-                console.log('Received response:', response);
-                resolve({ success: true });
-            });
-        });
-    } catch (error) {
-        console.error('Error in send-to-draw-things:', error);
-        throw error;
-    }
-});
-
-// Add Draw Things connection check handler
-ipcMain.handle('check-draw-things-connection', async () => {
-    return checkDrawThingsConnection();
-});
-
-// Add general connection check handler (only for Draw Things)
-ipcMain.handle('check-connections', async () => {
-    const drawThingsStatus = await checkDrawThingsConnection();
-    return {
-        drawThings: drawThingsStatus
-    };
-});
-
-// Initialize electron store with schema
-const store = new Store({
-    schema: {
-        settings: {
-            type: 'object',
-            properties: {
-                theme: {
-                    type: 'string',
-                    default: 'purple'
-                },
-                firstLaunch: {
-                    type: 'boolean',
-                    default: true
-                },
-                windowSize: {
-                    type: 'object',
-                    properties: {
-                        width: {
-                            type: 'number',
-                            default: 1200
-                        },
-                        height: {
-                            type: 'number',
-                            default: 800
-                        }
-                    }
-                }
-            }
-        }
-    }
-});
 
 // Global variables
 let mainWindow = null;
@@ -794,7 +653,7 @@ function setupModelHandlers() {
             // Update Ollama manager
             ollamaManager.setModel(modelNameForOllama);
             
-            console.log('Updated model in managers:', modelNameForOllama);
+            console.log('Updated model in both managers:', modelNameForOllama);
             
             // Notify all windows about the change
             BrowserWindow.getAllWindows().forEach(window => {
@@ -1203,7 +1062,10 @@ ipcMain.handle('get-styles', async () => {
 
 ipcMain.handle('get-style', async (event, styleId) => {
     try {
-        return await stylesManager.getStyle(styleId);
+        console.log('Getting style data for ID:', styleId);
+        const style = await stylesManager.getStyle(styleId);
+        console.log('Retrieved style data:', style);
+        return style;
     } catch (error) {
         console.error('Error getting style:', error);
         throw error;
@@ -1217,7 +1079,8 @@ ipcMain.handle('save-style', async (event, style) => {
         } else {
             await stylesManager.createStyle(style);
         }
-        return { success: true };
+        notifyStylesChanged();
+        return true;
     } catch (error) {
         console.error('Error saving style:', error);
         throw error;
@@ -1235,22 +1098,6 @@ ipcMain.handle('get-settings', async () => {
 
 ipcMain.handle('save-settings', async (event, settings) => {
     return settingsManager.saveSettings(settings);
-});
-
-// Draw Things connection handler
-ipcMain.handle('check-draw-things', async () => {
-    return new Promise((resolve) => {
-        const client = new net.Socket();
-        
-        client.on('error', () => {
-            resolve(false);
-        });
-
-        client.connect(DRAW_THINGS_PORT, '127.0.0.1', () => {
-            client.end();
-            resolve(true);
-        });
-    });
 });
 
 // Handle model tuning window
@@ -1756,28 +1603,8 @@ function createOnboardingWindow() {
 
 ipcMain.handle('generate-system-instructions', async (event, description) => {
     try {
-        const prompt = `Based on the following style description, generate clear and concise system instructions that would help an AI model understand and follow this style consistently:
-
-Description: ${description}
-
-Generate instructions that:
-1. Define the tone and voice
-2. Specify any formatting preferences
-3. Highlight key characteristics
-4. Include any specific constraints or requirements
-
-Keep the instructions clear, specific, and actionable.`;
-
-        // Use the default model to generate instructions
-        const response = await ollamaManager.generate({
-            prompt: prompt,
-            model: config.get('defaultModel'),
-            temperature: 0.7,
-            top_k: 40,
-            top_p: 0.9
-        });
-
-        return response.response;
+        const instructions = await ollamaManager.generateSystemInstructions(description);
+        return instructions;
     } catch (error) {
         console.error('Error generating system instructions:', error);
         throw error;
@@ -1804,43 +1631,18 @@ ipcMain.handle('show-message', async (event, options) => {
 ipcMain.handle('open-style-edit-window', async (event, styleId) => {
     try {
         console.log('Opening style edit window for style:', styleId);
+        const window = styleEditWindow.create(styleId);
         
-        // Get the style data if editing existing style
-        let style = {};
         if (styleId) {
-            style = await stylesManager.getStyle(styleId);
-            if (!style) {
-                throw new Error('Style not found');
-            }
+            const style = await stylesManager.getStyle(styleId);
             console.log('Retrieved style data:', style);
+            
+            window.webContents.on('did-finish-load', () => {
+                console.log('Window loaded, sending style data');
+                window.webContents.send('style-data', style);
+            });
         }
-
-        // Create the edit window
-        let editWindow = new BrowserWindow({
-            width: 800,
-            height: 800,
-            webPreferences: {
-                nodeIntegration: true,
-                contextIsolation: false
-            },
-            parent: BrowserWindow.getFocusedWindow() || mainWindow,
-            modal: true
-        });
-
-        // Load the edit window HTML
-        await editWindow.loadFile('style-edit-window.html');
-
-        // Send the style data to the edit window
-        editWindow.webContents.on('did-finish-load', () => {
-            console.log('Sending style data to edit window');
-            editWindow.webContents.send('style-data', style);
-        });
-
-        // Handle window closed
-        editWindow.on('closed', () => {
-            editWindow = null;
-        });
-
+        
         return true;
     } catch (error) {
         console.error('Error opening style edit window:', error);
@@ -1875,6 +1677,7 @@ ipcMain.handle('delete-style', async (event, styleId) => {
 
         if (response === 0) { // Użytkownik kliknął Delete
             await stylesManager.deleteStyle(styleId);
+            notifyStylesChanged();
             return true;
         }
         return false;
@@ -2011,4 +1814,212 @@ ipcMain.on('open-credits', () => {
 // Handle external links
 ipcMain.handle('open-external', async (event, url) => {
     await shell.openExternal(url);
+});
+
+// Handle style import/export
+ipcMain.handle('import-style', async () => {
+    try {
+        const { filePaths } = await dialog.showOpenDialog({
+            properties: ['openFile'],
+            filters: [
+                { name: 'JSON Files', extensions: ['json'] }
+            ]
+        });
+
+        if (filePaths.length === 0) {
+            return null;
+        }
+
+        const fileContent = await fs.readFile(filePaths[0], 'utf8');
+        const styleData = JSON.parse(fileContent);
+        const newStyle = await stylesManager.importStyle(styleData);
+        notifyStylesChanged();
+        return newStyle;
+    } catch (error) {
+        console.error('Error importing style:', error);
+        throw error;
+    }
+});
+
+ipcMain.handle('export-style', async (event, styleId) => {
+    try {
+        const style = await stylesManager.exportStyle(styleId);
+        const { filePath } = await dialog.showSaveDialog({
+            defaultPath: `${style.name.toLowerCase().replace(/\s+/g, '-')}.json`,
+            filters: [
+                { name: 'JSON Files', extensions: ['json'] }
+            ]
+        });
+
+        if (!filePath) {
+            return false;
+        }
+
+        await fs.writeFile(filePath, JSON.stringify(style, null, 2));
+        return true;
+    } catch (error) {
+        console.error('Error exporting style:', error);
+        throw error;
+    }
+});
+
+// Helper function to notify main window about style changes
+function notifyStylesChanged() {
+    BrowserWindow.getAllWindows().forEach(window => {
+        window.webContents.send('styles-changed');
+    });
+}
+
+let drawThingsClient = null;
+
+// Check Draw Things connection
+async function checkDrawThingsConnection() {
+    const endpoints = [
+        'http://127.0.0.1:3333/health',
+        'http://127.0.0.1:3333/api/health',
+        'http://127.0.0.1:3333/api/v1/health',
+        'http://127.0.0.1:3333/',
+        'http://localhost:3333/health'
+    ];
+
+    console.log('Checking Draw Things connection...');
+    
+    for (const endpoint of endpoints) {
+        try {
+            console.log(`Trying endpoint: ${endpoint}`);
+            const response = await fetch(endpoint);
+            console.log(`Response status for ${endpoint}:`, response.status);
+            
+            if (response.ok) {
+                console.log('Successfully connected to Draw Things at:', endpoint);
+                return true;
+            }
+            
+            const text = await response.text();
+            console.log(`Response text for ${endpoint}:`, text);
+        } catch (error) {
+            console.log(`Error trying ${endpoint}:`, error.message);
+        }
+    }
+
+    console.log('All connection attempts failed');
+    return false;
+}
+
+// Handle Draw Things requests
+ipcMain.handle('send-to-draw-things', async (event, prompt) => {
+    try {
+        console.log('Attempting to send prompt to Draw Things:', prompt);
+        
+        // First check if Draw Things is connected
+        const isConnected = await checkDrawThingsConnection();
+        if (!isConnected) {
+            throw new Error('Draw Things is not connected. Please check if the app is running and API Server is enabled.');
+        }
+
+        // Try to discover API endpoints
+        try {
+            const rootResponse = await fetch('http://127.0.0.1:3333/');
+            console.log('Root endpoint status:', rootResponse.status);
+            const rootText = await rootResponse.text();
+            console.log('Root endpoint response:', rootText);
+        } catch (error) {
+            console.log('Error fetching root endpoint:', error.message);
+        }
+
+        // Try different endpoint patterns
+        const endpoints = [
+            'http://127.0.0.1:3333/api/generate',
+            'http://127.0.0.1:3333/generate',
+            'http://127.0.0.1:3333/txt2img',
+            'http://127.0.0.1:3333/api/txt2img',
+            'http://127.0.0.1:3333/sdapi/v1/txt2img',
+            'http://127.0.0.1:3333/run'
+        ];
+
+        const requestBody = {
+            prompt: prompt,
+            steps: 20,
+            width: 512,
+            height: 512
+        };
+
+        console.log('Trying request body:', JSON.stringify(requestBody, null, 2));
+
+        for (const endpoint of endpoints) {
+            try {
+                console.log('Trying endpoint:', endpoint);
+                
+                const response = await fetch(endpoint, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Accept': 'application/json'
+                    },
+                    body: JSON.stringify(requestBody)
+                });
+
+                console.log(`Response status for ${endpoint}:`, response.status);
+                const responseText = await response.text();
+                console.log(`Response text for ${endpoint}:`, responseText);
+
+                if (response.ok) {
+                    console.log('Successfully sent prompt to Draw Things');
+                    return { success: true };
+                }
+            } catch (error) {
+                console.log(`Error with endpoint ${endpoint}:`, error.message);
+            }
+        }
+
+        throw new Error('Failed to process the prompt in Draw Things. Please try again.');
+    } catch (error) {
+        console.error('Error in send-to-draw-things:', error);
+        throw error;
+    }
+});
+
+// Add Draw Things connection check handler
+ipcMain.handle('check-draw-things-connection', async () => {
+    return checkDrawThingsConnection();
+});
+
+// Add general connection check handler (only for Draw Things)
+ipcMain.handle('check-connections', async () => {
+    const drawThingsStatus = await checkDrawThingsConnection();
+    return {
+        drawThings: drawThingsStatus
+    };
+});
+
+// Initialize electron store with schema
+const store = new Store({
+    schema: {
+        settings: {
+            type: 'object',
+            properties: {
+                theme: {
+                    type: 'string',
+                    default: 'purple'
+                },
+                firstLaunch: {
+                    type: 'boolean',
+                    default: true
+                },
+                windowSize: {
+                    type: 'object',
+                    properties: {
+                        width: {
+                            type: 'number',
+                            default: 1200
+                        },
+                        height: {
+                            type: 'number',
+                            default: 800
+                        }
+                    }
+                }
+            }
+        }
+    }
 });

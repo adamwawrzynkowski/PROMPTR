@@ -9,24 +9,34 @@
   "scripts": {
     "start": "electron .",
     "dev": "electron .",
-    "build": "electron-builder",
+    "build": "electron-builder -m --x64 --arm64",
+    "build:intel": "electron-builder -m --x64",
+    "build:silicon": "electron-builder -m --arm64",
+    "build:unsigned": "CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder -m --x64 --arm64",
     "pack": "electron-builder --dir",
-    "dist": "electron-builder"
+    "dist": "electron-builder",
+    "postinstall": "electron-builder install-app-deps"
   },
   "build": {
     "appId": "com.promptr.app",
     "productName": "PROMPTR",
-    "mac": {
-      "category": "public.app-category.graphics-design",
-      "icon": "assets/icon.icns",
-      "target": [
-        "dmg",
-        "zip"
-      ],
-      "darkModeSupport": true
-    },
+    "asar": true,
+    "asarUnpack": [
+      "node_modules/sharp/**/*",
+      "node_modules/@google-cloud/**/*",
+      "node_modules/electron-store/**/*",
+      "node_modules/pidusage/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "assets",
+        "to": ".",
+        "filter": ["**/*"]
+      }
+    ],
     "files": [
       "**/*",
+      "assets/**/*",
       "!**/node_modules/*/{CHANGELOG.md,README.md,README,readme.md,readme}",
       "!**/node_modules/*/{test,__tests__,tests,powered-test,example,examples}",
       "!**/node_modules/*.d.ts",
@@ -39,8 +49,38 @@
       "!**/{appveyor.yml,.travis.yml,circle.yml}",
       "!**/{npm-debug.log,yarn.lock,.yarn-integrity,.yarn-metadata.json}"
     ],
+    "mac": {
+      "category": "public.app-category.graphics-design",
+      "icon": "assets/icon.icns",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["x64", "arm64"]
+        },
+        {
+          "target": "zip",
+          "arch": ["x64", "arm64"]
+        }
+      ],
+      "darkModeSupport": true,
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "signIgnore": [
+        "node_modules/sharp/vendor/**/*"
+      ]
+    },
+    "dmg": {
+      "sign": false
+    },
     "directories": {
-      "buildResources": "assets"
+      "buildResources": "assets",
+      "output": "dist"
+    },
+    "protocols": {
+      "name": "promptr-protocol",
+      "schemes": ["promptr"]
     }
   },
   "dependencies": {
@@ -48,17 +88,10 @@
     "@emotion/styled": "^11.11.0",
     "@fortawesome/fontawesome-free": "^6.7.2",
     "@google-cloud/translate": "^8.5.0",
-    "@grpc/grpc-js": "^1.12.5",
-    "@grpc/proto-loader": "^0.7.13",
-    "@heroicons/react": "^2.1.5",
     "electron-store": "^8.1.0",
     "framer-motion": "^10.12.16",
     "node-fetch": "^2.6.1",
-    "onnxruntime-node": "^1.16.0",
     "pidusage": "^3.0.2",
-    "python-shell": "^5.0.0",
-    "react": "^18.2.0",
-    "react-dom": "^18.2.0",
     "sharp": "^0.32.1"
   },
   "devDependencies": {
@@ -68,7 +101,7 @@
     "concurrently": "^8.0.1",
     "css-loader": "^6.8.1",
     "electron": "^28.1.0",
-    "electron-builder": "^24.4.0",
+    "electron-builder": "^24.9.1",
     "electron-reload": "^2.0.0-alpha.1",
     "style-loader": "^3.3.3",
     "webpack": "^5.85.0",

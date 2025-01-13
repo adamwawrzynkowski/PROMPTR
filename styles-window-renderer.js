@@ -30,6 +30,9 @@ document.addEventListener('DOMContentLoaded', async () => {
                     <button class="style-btn edit-btn" title="Edit Style">
                         <i class="fas fa-edit"></i>
                     </button>
+                    <button class="style-btn export-btn" title="Export Style">
+                        <i class="fas fa-file-export"></i>
+                    </button>
                     <button class="style-btn delete-btn" title="Delete Style">
                         <i class="fas fa-trash"></i>
                     </button>
@@ -43,6 +46,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (style.custom === true) {
             const editBtn = item.querySelector('.edit-btn');
             const deleteBtn = item.querySelector('.delete-btn');
+            const exportBtn = item.querySelector('.export-btn');
 
             editBtn.addEventListener('click', async (e) => {
                 e.stopPropagation();
@@ -50,6 +54,15 @@ document.addEventListener('DOMContentLoaded', async () => {
                     await ipcRenderer.invoke('open-style-edit-window', style.id);
                 } catch (error) {
                     console.error('Error opening style edit window:', error);
+                }
+            });
+
+            exportBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                try {
+                    await ipcRenderer.invoke('export-style', style.id);
+                } catch (error) {
+                    console.error('Error exporting style:', error);
                 }
             });
 
@@ -129,10 +142,9 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (importBtn) {
         importBtn.addEventListener('click', async () => {
             try {
-                const result = await ipcRenderer.invoke('import-style');
-                if (result.success) {
-                    loadStyles();
-                }
+                await ipcRenderer.invoke('import-style');
+                // Reload styles after import
+                await loadStyles();
             } catch (error) {
                 console.error('Error importing style:', error);
             }

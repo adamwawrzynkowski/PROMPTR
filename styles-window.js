@@ -1,8 +1,15 @@
 const { BrowserWindow } = require('electron');
 const path = require('path');
 
+let window = null;
+
 function create() {
-    const window = new BrowserWindow({
+    if (window) {
+        window.focus();
+        return window;
+    }
+
+    window = new BrowserWindow({
         width: 500,
         height: 600,
         webPreferences: {
@@ -19,9 +26,17 @@ function create() {
     });
 
     window.loadFile(path.join(__dirname, 'styles-window.html'));
+
+    window.on('closed', () => {
+        window = null;
+    });
+
     return window;
 }
 
 module.exports = {
-    create
-}; 
+    create,
+    get window() {
+        return window;
+    }
+};

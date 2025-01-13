@@ -19,13 +19,6 @@ function create(styleId = null) {
     });
 
     window.loadFile(path.join(__dirname, 'style-edit-window.html'));
-
-    if (styleId) {
-        window.webContents.on('did-finish-load', () => {
-            window.webContents.send('edit-style', styleId);
-        });
-    }
-
     return window;
 }
 

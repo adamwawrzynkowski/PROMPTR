@@ -142,30 +142,77 @@ textarea {
 /* System instructions section */
 .system-instructions-header {
     display: flex;
-    align-items: center;
     justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.generate-controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.loading-circle {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    color: var(--text-secondary);
+    font-size: 12px;
+}
+
+.loading-circle.active {
+    display: flex;
+}
+
+.loading-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--text-secondary);
+    border-top: 2px solid var(--theme-color);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
 }
 
 .generate-instructions-btn {
     background: var(--button-background);
     border: none;
-    padding: 6px 12px;
-    border-radius: 6px;
+    border-radius: 4px;
     color: var(--text);
     cursor: pointer;
+    padding: 6px 12px;
+    font-size: 12px;
+    transition: background 0.2s;
     display: flex;
     align-items: center;
-    gap: 8px;
-    font-size: 12px;
-    transition: all 0.2s ease;
+    gap: 6px;
 }
 
 .generate-instructions-btn:hover {
-    background: var(--theme-color);
+    background: var(--generate-button-hover);
+}
+
+.generate-instructions-btn:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
 }
 
 .generate-instructions-btn i {
     font-size: 12px;
+}
+
+.generate-instructions-btn .fa-spinner {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
 }
 
 /* Model parameters */
