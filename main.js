@@ -1960,10 +1960,7 @@ ipcMain.handle('send-to-draw-things', async (event, prompt) => {
         ];
 
         const requestBody = {
-            prompt: prompt,
-            steps: 20,
-            width: 512,
-            height: 512
+            prompt: prompt
         };
 
         console.log('Trying request body:', JSON.stringify(requestBody, null, 2));
