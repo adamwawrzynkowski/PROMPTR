@@ -45,83 +45,105 @@
 
             <!-- Vision Content Section -->
             <div id="vision-main-content" class="vision-container" style="display: none;">
-                <!-- Left side - Drop zone -->
-                <div class="vision-left">
-                    <div class="drop-zone" id="vision-drop-zone">
-                        <div class="drop-zone-content">
-                            <div class="drop-zone-icon">
-                                <i class="fas fa-cloud-upload-alt"></i>
-                            </div>
-                            <div class="drop-zone-text">
-                                <p>Drop your image here</p>
-                                <span>or use the button below</span>
-                            </div>
-                            <button class="btn primary select-btn" id="select-button">
-                                <i class="fas fa-folder-open"></i>
-                                Choose File
-                            </button>
-                        </div>
-                        <input type="file" id="file-input" accept="image/*" hidden>
-                        <img id="preview-image" class="preview-image" hidden>
+                <div class="vision-header">
+                    <h2>Image Analysis</h2>
+                    <p class="vision-description">Upload an image and specify what aspects you want to analyze. PROMPTR will generate detailed insights based on your requirements.</p>
+                    
+                    <!-- Prompt Input -->
+                    <div class="prompt-input-container">
+                        <label for="vision-prompt">Analysis Focus:</label>
+                        <input type="text" id="vision-prompt" class="vision-prompt-input" 
+                               value="Analyze this image and describe what you see, focusing on the main objects, their arrangement, and any notable details."
+                               placeholder="e.g., 'Describe the main objects', 'Analyze the composition', 'Identify the art style'">
                     </div>
                 </div>
 
-                <!-- Right side - Info & Actions -->
-                <div class="vision-right">
-                    <!-- Analysis Info -->
-                    <div id="analysis-info" class="vision-info">
-                        <h2>Image Analysis</h2>
-                        <p>Upload an image for analysis. PROMPTR will generate a description and a prompt based on it, which you can use within the app.</p>
-                        
+                <!-- Main Content Area -->
+                <div class="vision-main-area">
+                    <!-- Left side - Drop zone -->
+                    <div class="vision-left">
+                        <div class="drop-zone" id="vision-drop-zone">
+                            <div class="drop-zone-content">
+                                <div class="drop-zone-icon">
+                                    <i class="fas fa-cloud-upload-alt"></i>
+                                </div>
+                                <div class="drop-zone-text">
+                                    <p>Drag and drop your image here</p>
+                                    <span>or</span>
+                                    <button class="btn primary select-btn" id="select-button">
+                                        <i class="fas fa-folder-open"></i>
+                                        Choose File
+                                    </button>
+                                </div>
+                            </div>
+                            <input type="file" id="file-input" accept="image/*" hidden>
+                            <img id="preview-image" class="preview-image" hidden>
+                        </div>
+                    </div>
+
+                    <!-- Right side - Features & Actions -->
+                    <div class="vision-right">
                         <div class="vision-features">
-                            <div class="vision-feature">
-                                <i class="fas fa-eye"></i>
-                                <span>Detailed scene analysis</span>
-                            </div>
-                            <div class="vision-feature">
-                                <i class="fas fa-tags"></i>
-                                <span>Object detection</span>
-                            </div>
-                            <div class="vision-feature">
-                                <i class="fas fa-palette"></i>
-                                <span>Style recognition</span>
+                            <h3>Available Analysis Features:</h3>
+                            <div class="feature-list">
+                                <div class="vision-feature">
+                                    <i class="fas fa-eye"></i>
+                                    <div class="feature-info">
+                                        <span class="feature-title">Scene Analysis</span>
+                                        <span class="feature-desc">Detailed description of the image content</span>
+                                    </div>
+                                </div>
+                                <div class="vision-feature">
+                                    <i class="fas fa-tags"></i>
+                                    <div class="feature-info">
+                                        <span class="feature-title">Object Detection</span>
+                                        <span class="feature-desc">Identifies key objects and elements</span>
+                                    </div>
+                                </div>
+                                <div class="vision-feature">
+                                    <i class="fas fa-palette"></i>
+                                    <div class="feature-info">
+                                        <span class="feature-title">Style Recognition</span>
+                                        <span class="feature-desc">Analyzes artistic and visual style</span>
+                                    </div>
+                                </div>
                             </div>
                         </div>
 
                         <div class="vision-actions">
                             <button id="vision-button" class="btn primary" disabled>
                                 <i class="fas fa-wand-magic-sparkles"></i>
-                                Analyze Image
+                                Start Analysis
                             </button>
                         </div>
                     </div>
+                </div>
+            </div>
 
-                    <!-- Analysis Progress -->
-                    <div id="analysis-progress" class="vision-info" style="display: none;">
-                        <div class="analyzing-spinner"></div>
-                        <h2>Analyzing Image...</h2>
-                        <p>Please wait while we analyze your image. This may take a moment.</p>
-                    </div>
+            <!-- Analysis Progress -->
+            <div id="analysis-progress" class="vision-info" style="display: none;">
+                <div class="analyzing-spinner"></div>
+                <h2>Analyzing Image...</h2>
+                <p>Please wait while we analyze your image. This may take a moment.</p>
+            </div>
 
-                    <!-- Analysis Result -->
-                    <div id="analysis-result" class="vision-info" style="display: none;">
-                        <h2>Analysis Result</h2>
-                        <div class="result-content" id="result-content"></div>
-                        <div class="result-actions">
-                            <button id="copy-to-prompt-btn" class="btn primary">
-                                <i class="fas fa-file-import"></i>
-                                Copy to Prompt
-                            </button>
-                            <button id="copy-to-clipboard-btn" class="btn secondary">
-                                <i class="fas fa-copy"></i>
-                                Copy
-                            </button>
-                            <button id="cancel-btn" class="btn">
-                                <i class="fas fa-arrow-left"></i>
-                                Back
-                            </button>
-                        </div>
-                    </div>
+            <!-- Analysis Result -->
+            <div id="analysis-result" class="vision-info" style="display: none;">
+                <h2>Analysis Result</h2>
+                <div class="result-content" id="result-content"></div>
+                <div class="result-actions">
+                    <button id="copy-to-prompt-btn" class="btn primary">
+                        <i class="fas fa-file-import"></i>
+                        Copy to Prompt
+                    </button>
+                    <button id="copy-to-clipboard-btn" class="btn secondary">
+                        <i class="fas fa-copy"></i>
+                        Copy
+                    </button>
+                    <button id="cancel-btn" class="btn">
+                        <i class="fas fa-arrow-left"></i>
+                        Back
+                    </button>
                 </div>
             </div>
         </div>
@@ -183,6 +205,7 @@
             const fileInput = document.getElementById('file-input');
             const previewImage = document.getElementById('preview-image');
             const visionButton = document.getElementById('vision-button');
+            const visionPrompt = document.getElementById('vision-prompt');
             let selectedImage = null;
 
             dragArea.addEventListener('click', () => {
@@ -236,7 +259,8 @@
                     analysisResult.style.display = 'none';
 
                     try {
-                        const result = await ipcRenderer.invoke('analyze-image', selectedImage);
+                        const prompt = visionPrompt.value;
+                        const result = await ipcRenderer.invoke('analyze-image', selectedImage, prompt);
                         resultContent.textContent = result;
                         analysisProgress.style.display = 'none';
                         analysisResult.style.display = 'block';
