@@ -1284,16 +1284,79 @@ ipcMain.on('minimize-vision-window', () => {
     }
 });
 
-ipcMain.handle('analyze-image', async (event, base64Image) => {
+ipcMain.removeHandler('analyze-image');
+ipcMain.handle('analyze-image', async (event, payload) => {
     try {
-        // Here you would implement the actual image analysis
-        // For now, we'll just return a mock result
-        return {
-            description: "A sample image analysis result"
-        };
+        // Handle both old and new formats
+        let image, instructions, feature;
+        
+        if (typeof payload === 'string') {
+            // Old format: just base64 image
+            image = payload;
+            instructions = "Analyze this image and provide a detailed description.";
+            feature = "description";
+        } else {
+            // New format: { image, instructions, feature }
+            ({ image, instructions, feature } = payload);
+        }
+
+        // Convert base64 image to buffer
+        const base64Data = image.replace(/^data:image\/\w+;base64,/, '');
+        const imageBuffer = Buffer.from(base64Data, 'base64');
+
+        // Create a temporary file for the image
+        const tempImagePath = path.join(app.getPath('temp'), 'temp_vision_image.jpg');
+        await fs.writeFile(tempImagePath, imageBuffer);
+
+        // Prepare the prompt based on the feature
+        let prompt = instructions;
+        switch (feature) {
+            case 'description':
+                // Use the provided instructions directly
+                break;
+            case 'interpreter':
+                prompt = 'Analyze this image using the following style: ' + instructions;
+                break;
+            case 'object-detection':
+                prompt = 'List and describe all objects you can identify in this image, including their locations and relationships to each other.';
+                break;
+            case 'style-detection':
+                prompt = 'Analyze and describe the artistic and visual style of this image, including techniques, composition, and aesthetic elements.';
+                break;
+            case 'style-maker':
+                prompt = 'Create a detailed style description based on this image that could be used to generate similar images. Include artistic techniques, composition, lighting, and mood.';
+                break;
+            case 'object-coordinates':
+                prompt = 'Provide coordinates and dimensions for all major objects in this image, using a normalized coordinate system (0-1 for both x and y axes).';
+                break;
+            default:
+                prompt = instructions;
+        }
+
+        // Read the image file
+        const imageContent = await fs.readFile(tempImagePath, { encoding: 'base64' });
+
+        // Prepare the request to Ollama
+        const response = await fetch('http://127.0.0.1:11434/api/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                model: 'llama3.2-vision:11b',
+                prompt: prompt,
+                images: [imageContent],
+                stream: false
+            })
+        });
+
+        const result = await response.json();
+        
+        // Clean up the temporary file
+        await fs.unlink(tempImagePath);
+
+        return result.response;
     } catch (error) {
         console.error('Error analyzing image:', error);
-        throw error;
+        throw new Error('Failed to analyze image: ' + error.message);
     }
 });
 
@@ -2055,4 +2118,126 @@ app.whenReady().then(() => {
             console.error('Failed to register protocol', error);
         }
     });
+});
+
+// Vision model handlers
+ipcMain.handle('check-vision-model', async () => {
+    try {
+        const response = await fetch('http://127.0.0.1:11434/api/tags');
+        const data = await response.json();
+        return data.models.some(model => model.name.includes('llama3.2-vision'));
+    } catch (error) {
+        console.error('Error checking vision model:', error);
+        return false;
+    }
+});
+
+ipcMain.handle('install-vision-model', async (event) => {
+    try {
+        const modelName = 'llama3.2-vision:11b';
+        console.log('Installing vision model:', modelName);
+        
+        const response = await fetch('http://127.0.0.1:11434/api/pull', {
+            method: 'POST',
+            body: JSON.stringify({ name: modelName }),
+            headers: { 'Content-Type': 'application/json' }
+        });
+
+        const reader = response.body.getReader();
+        let downloadProgress = 0;
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            const chunk = new TextDecoder().decode(value);
+            const lines = chunk.split('\n').filter(Boolean);
+
+            for (const line of lines) {
+                const data = JSON.parse(line);
+                if (data.status === 'downloading' && data.completed && data.total) {
+                    downloadProgress = (data.completed / data.total) * 100;
+                    event.sender.send('model-download-progress', downloadProgress);
+                }
+            }
+        }
+
+        console.log('Vision model installation complete');
+        return true;
+    } catch (error) {
+        console.error('Error installing vision model:', error);
+        throw error;
+    }
+});
+
+// Style selector window
+let styleSelectorWindow = null;
+
+function createStyleSelectorWindow(parentWindow) {
+    if (styleSelectorWindow) {
+        styleSelectorWindow.focus();
+        return styleSelectorWindow;
+    }
+
+    styleSelectorWindow = new BrowserWindow({
+        width: 600,
+        height: 400,
+        parent: parentWindow,
+        modal: true,
+        frame: false,
+        webPreferences: {
+            nodeIntegration: true,
+            contextIsolation: false
+        }
+    });
+
+    styleSelectorWindow.loadFile('style-selector.html');
+
+    styleSelectorWindow.on('closed', () => {
+        styleSelectorWindow = null;
+    });
+
+    return styleSelectorWindow;
+}
+
+// Handle opening style selector window
+ipcMain.on('open-style-selector', (event) => {
+    console.log('Opening style selector window');
+    const parentWindow = BrowserWindow.fromWebContents(event.sender);
+    const selectorWindow = createStyleSelectorWindow(parentWindow);
+    
+    // Store the parent window's webContents to send the selected style back
+    selectorWindow.parentWebContents = event.sender;
+});
+
+// Handle style selection
+ipcMain.on('style-selected', (event, style) => {
+    console.log('Style selected:', style);
+    // Get the parent window's webContents that we stored earlier
+    const parentWebContents = styleSelectorWindow.parentWebContents;
+    if (parentWebContents) {
+        // Send the selected style back to the vision window
+        parentWebContents.send('style-selected-for-interpreter', style);
+    }
+});
+
+// Handle getting styles
+ipcMain.on('get-styles', async (event) => {
+    try {
+        let styles = [];
+        if (stylesManager) {
+            styles = await stylesManager.getAllStyles();
+        }
+        event.sender.send('load-styles', styles);
+    } catch (error) {
+        console.error('Error loading styles:', error);
+        event.sender.send('load-styles', []);
+    }
+});
+
+// Handle closing style selector
+ipcMain.on('close-style-selector', () => {
+    if (styleSelectorWindow) {
+        styleSelectorWindow.close();
+    }
 });

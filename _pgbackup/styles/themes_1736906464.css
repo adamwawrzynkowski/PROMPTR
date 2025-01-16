@@ -1,0 +1,318 @@
+/* Theme color variables */
+.theme-purple {
+    --theme-color: #9333EA;
+    --theme-color-back: #4a4a48;
+    --theme-color-darker: #2e2d2b;
+    --theme-color-hover: rgba(147, 51, 234, 0.3);
+    --theme-color-transparent: rgba(147, 51, 234, 0.2);
+    --hover-action: #9333EA;
+    --accent-primary: #9333EA;
+    --accent-secondary: #c084fc;
+    --button-hover: #9333EA;
+    --switch-active: #9333EA;
+    --input-focus-border: #9333EA;
+    --generate-button-bg: #9333EA;
+    --generate-button-hover: #7928d1;
+    --switch-glow: rgba(147, 51, 234, 0.3);
+    --gradient-background: linear-gradient(
+        110deg,
+        rgb(58, 37, 89) 20%,
+        rgb(67, 43, 102) 30%,
+        rgb(139, 92, 246, 0.3) 40%,
+        rgb(67, 43, 102) 50%,
+        rgb(58, 37, 89) 60%
+    );
+}
+
+.theme-red {
+    --theme-color: #dc2626;
+    --theme-color-back: #4a4a48;
+    --theme-color-darker: #2e2d2b;
+    --theme-color-hover: rgba(220, 38, 38, 0.3);
+    --theme-color-transparent: rgba(220, 38, 38, 0.2);
+    --hover-action: #dc2626;
+    --accent-primary: #dc2626;
+    --accent-secondary: #ef4444;
+    --button-hover: #dc2626;
+    --switch-active: #dc2626;
+    --input-focus-border: #dc2626;
+    --generate-button-bg: #dc2626;
+    --generate-button-hover: #b91c1c;
+    --switch-glow: rgba(220, 38, 38, 0.3);
+    --gradient-background: linear-gradient(
+        110deg,
+        rgb(138, 27, 27) 20%,
+        rgb(172, 20, 20) 30%,
+        rgba(183, 37, 37, 0.3) 40%,
+        rgb(172, 20, 20) 50%,
+        rgb(138, 27, 27) 60%
+    );
+}
+
+.theme-blue {
+    --theme-color: #3b82f6;
+    --theme-color-back: #4a4a48;
+    --theme-color-darker: #2e2d2b;
+    --theme-color-hover: rgba(59, 130, 246, 0.3);
+    --theme-color-transparent: rgba(59, 130, 246, 0.2);
+    --hover-action: #3b82f6;
+    --accent-primary: #3b82f6;
+    --accent-secondary: #60a5fa;
+    --button-hover: #3b82f6;
+    --switch-active: #3b82f6;
+    --input-focus-border: #3b82f6;
+    --generate-button-bg: #3b82f6;
+    --generate-button-hover: #2563eb;
+    --switch-glow: rgba(59, 130, 246, 0.3);
+    --gradient-background: linear-gradient(
+        110deg,
+        rgb(27, 71, 138) 20%,
+        rgb(20, 71, 172) 30%,
+        rgba(37, 105, 183, 0.3) 40%,
+        rgb(20, 71, 172) 50%,
+        rgb(27, 71, 138) 60%
+    );
+}
+
+.theme-green {
+    --theme-color: #22c55e;
+    --theme-color-back: #4a4a48;
+    --theme-color-darker: #2e2d2b;
+    --theme-color-hover: rgba(34, 197, 94, 0.3);
+    --theme-color-transparent: rgba(34, 197, 94, 0.2);
+    --hover-action: #22c55e;
+    --accent-primary: #22c55e;
+    --accent-secondary: #4ade80;
+    --button-hover: #22c55e;
+    --switch-active: #22c55e;
+    --input-focus-border: #22c55e;
+    --generate-button-bg: #22c55e;
+    --generate-button-hover: #16a34a;
+    --switch-glow: rgba(34, 197, 94, 0.3);
+    --gradient-background: linear-gradient(
+        110deg,
+        rgb(27, 138, 49) 20%,
+        rgb(20, 172, 55) 30%,
+        rgba(37, 183, 44, 0.3) 40%,
+        rgb(20, 172, 55) 50%,
+        rgb(27, 138, 49) 60%
+    );
+}
+
+.theme-yellow {
+    --theme-color: #eab308;
+    --theme-color-back: #4a4a48;
+    --theme-color-darker: #2e2d2b;
+    --theme-color-hover: rgba(234, 179, 8, 0.3);
+    --theme-color-transparent: rgba(234, 179, 8, 0.2);
+    --hover-action: #eab308;
+    --accent-primary: #eab308;
+    --accent-secondary: #facc15;
+    --button-hover: #eab308;
+    --switch-active: #eab308;
+    --input-focus-border: #eab308;
+    --generate-button-bg: #eab308;
+    --generate-button-hover: #ca8a04;
+    --switch-glow: rgba(234, 179, 8, 0.3);
+    --gradient-background: linear-gradient(
+        110deg,
+        rgb(138, 134, 27) 20%,
+        rgb(172, 170, 20) 30%,
+        rgba(195, 189, 23, 0.3) 40%,
+        rgb(172, 170, 20) 50%,
+        rgb(138, 134, 27) 60%
+    );
+}
+
+.theme-orange {
+    --theme-color: #f97316;
+    --theme-color-back: #4a4a48;
+    --theme-color-darker: #2e2d2b;
+    --theme-color-hover: rgba(249, 115, 22, 0.3);
+    --theme-color-transparent: rgba(249, 115, 22, 0.2);
+    --hover-action: #f97316;
+    --accent-primary: #f97316;
+    --accent-secondary: #fb923c;
+    --button-hover: #f97316;
+    --switch-active: #f97316;
+    --input-focus-border: #f97316;
+    --generate-button-bg: #f97316;
+    --generate-button-hover: #ea580c;
+    --switch-glow: rgba(249, 115, 22, 0.3);
+    --gradient-background: linear-gradient(
+        110deg,
+        rgb(138, 75, 27) 20%,
+        rgb(172, 106, 20) 30%,
+        rgba(195, 103, 23, 0.3) 40%,
+        rgb(172, 106, 20) 50%,
+        rgb(138, 75, 27) 60%
+    );
+}
+
+.theme-pink {
+    --theme-color: #ec4899;
+    --theme-color-back: #4a4a48;
+    --theme-color-darker: #2e2d2b;
+    --theme-color-hover: rgba(236, 72, 153, 0.3);
+    --theme-color-transparent: rgba(236, 72, 153, 0.2);
+    --hover-action: #ec4899;
+    --accent-primary: #ec4899;
+    --accent-secondary: #f472b6;
+    --button-hover: #ec4899;
+    --switch-active: #ec4899;
+    --input-focus-border: #ec4899;
+    --generate-button-bg: #ec4899;
+    --generate-button-hover: #db2777;
+    --switch-glow: rgba(236, 72, 153, 0.3);
+    --gradient-background: linear-gradient(
+        110deg,
+        rgb(202, 31, 199) 20%,
+        rgb(172, 20, 142) 30%,
+        rgba(178, 23, 195, 0.3) 40%,
+        rgb(172, 20, 142) 50%,
+        rgb(202, 31, 199) 60%
+    );
+}
+
+.theme-gray {
+    --theme-color: #7a7a7a;
+    --theme-color-back: #4a4a48;
+    --theme-color-darker: #2e2d2b;
+    --theme-color-hover: rgb(255, 255, 255);
+    --theme-color-transparent: rgba(255, 255, 255, 0.2);
+    --hover-action: #b0b0b0;
+    --accent-primary: #7a7a7a;
+    --accent-secondary: #4a4a48;
+    --button-hover: rgb(136, 136, 136);
+    --switch-active: #6f6f6f;
+    --input-focus-border: #7a7a7a;
+    --generate-button-bg: #7a7a7a;
+    --generate-button-hover: #7a7a7a;
+    --switch-glow: rgba(196, 196, 196, 0.3);
+    --gradient-background: linear-gradient(
+        110deg,
+        rgb(166, 166, 166) 20%,
+        rgb(119, 119, 119) 30%,
+        rgba(82, 79, 88, 0.3) 40%,
+        rgb(119, 119, 119) 50%,
+        rgb(166, 166, 166) 60%
+    );
+}
+
+.theme-rainbow {
+    --theme-color: #70ff83;
+    --theme-color-back: #4a4a48;
+    --theme-color-darker: #2e2d2b;
+    --theme-color-hover: rgba(132, 30, 227, 0.3);
+    --theme-color-transparent: rgba(147, 51, 234, 0.2);
+    --hover-action: #ea33d5;
+    --accent-primary: #33e1ea;
+    --accent-secondary: #fcc284;
+    --button-hover: #33eacf;
+    --switch-active: #ea3333;
+    --input-focus-border: #33adea;
+    --generate-button-bg: #ea33b3;
+    --generate-button-hover: #7928d1;
+    --switch-glow: rgba(51, 234, 51, 0.3);
+    --gradient-background: linear-gradient(
+        110deg,
+        rgb(64, 175, 73) 20%,
+        rgb(186, 54, 158) 30%,
+        rgba(92, 246, 238, 0.3) 40%,
+        rgb(186, 54, 158) 50%,
+        rgb(64, 175, 73) 60%
+    );
+}
+
+/* Theme selector styles */
+.title-bar-items .theme-selector {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    margin: 0 4px;
+}
+
+.title-bar-items .theme-selector select {
+    appearance: none;
+    background-color: transparent;
+    border: none;
+    color: var(--text);
+    padding: 4px 24px 4px 8px;
+    border-radius: var(--radius-sm);
+    cursor: pointer;
+    font-size: var(--text-sm);
+    height: 28px;
+    transition: var(--transition-fast);
+}
+
+.title-bar-items .theme-selector select:hover {
+    background-color: var(--background-tertiary);
+}
+
+.title-bar-items .theme-selector select:focus {
+    outline: none;
+    background-color: var(--background-tertiary);
+}
+
+.title-bar-items .theme-selector::after {
+    content: '\f107';
+    font-family: 'Font Awesome 6 Free';
+    font-weight: 900;
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    color: var(--text-secondary);
+    pointer-events: none;
+    font-size: 12px;
+}
+
+/* Apply theme colors to buttons and switches */
+.switch-btn.active {
+    background-color: var(--switch-active);
+    color: white;
+    box-shadow: 0 0 15px var(--switch-glow);
+}
+
+.style-card-button:hover,
+.tool-button:hover,
+.title-bar-item:hover {
+    background-color: var(--button-hover);
+    color: white;
+}
+
+/* Style the Generate Prompts button */
+#generatePrompts {
+    background-color: var(--generate-button-bg);
+    color: white;
+    transition: background-color 0.2s ease;
+}
+
+#generatePrompts:hover {
+    background-color: var(--generate-button-hover);
+}
+
+#generatePrompts i {
+    color: white;
+}
+
+/* Style the prompt input */
+.prompt-textarea-container textarea:focus {
+    border-color: var(--input-focus-border);
+    box-shadow: 0 0 0 2px var(--switch-glow);
+}
+
+/* Ensure proper color inheritance for icons */
+.switch-btn.active i,
+.style-card-button:hover i,
+.tool-button:hover i,
+.title-bar-item:hover i {
+    color: white;
+}
+
+/* Adjust styles nav right to accommodate theme selector */
+.styles-nav-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}

@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Vision</title>
+    <link rel="stylesheet" href="styles/main.css">
+    <link rel="stylesheet" href="styles/vision.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+<body class="theme-purple">
+    <div class="window vision-window">
+        <!-- Title bar -->
+        <div class="title-bar">
+            <div class="window-controls">
+                <button class="window-control close" id="close-button">
+                    <i class="fas fa-times"></i>
+                </button>
+                <button class="window-control minimize" id="minimize-button">
+                    <i class="fas fa-minus"></i>
+                </button>
+            </div>
+            <div class="title-bar-left">
+                <div class="title-bar-logo">Vision</div>
+            </div>
+        </div>
+
+        <!-- Content -->
+        <div class="vision-content">
+            <!-- Model Installation Section -->
+            <div id="model-install-section" class="model-install-section" style="display: none;">
+                <div class="model-install-content">
+                    <h2>Vision Model Required</h2>
+                    <p>The llama3.2-vision:11b model is required for image analysis. Would you like to install it now?</p>
+                    <div class="model-install-progress" style="display: none;">
+                        <div class="progress-bar">
+                            <div class="progress-fill"></div>
+                        </div>
+                        <div class="progress-text">0%</div>
+                    </div>
+                    <button id="install-model-btn" class="btn primary">
+                        <i class="fas fa-download"></i>
+                        Install Model
+                    </button>
+                </div>
+            </div>
+
+            <!-- Vision Content Section -->
+            <div id="vision-main-content" class="vision-container">
+                <div class="vision-header">
+                    <h1>Vision</h1>
+                    <p class="vision-description">
+                        Unleash the power of AI vision analysis. Upload images and explore various analysis features including image description, object detection, style analysis, and more.
+                    </p>
+                </div>
+
+                <!-- Image Upload Area -->
+                <div class="vision-upload-area">
+                    <div class="drop-zone" id="vision-drop-zone">
+                        <div class="drop-zone-content">
+                            <div class="drop-zone-icon">
+                                <i class="fas fa-cloud-upload-alt"></i>
+                            </div>
+                            <div class="drop-zone-text">
+                                <p>Drag and drop your image here</p>
+                                <span>or</span>
+                                <button class="btn primary select-btn" id="select-button">
+                                    <i class="fas fa-folder-open"></i>
+                                    Choose File
+                                </button>
+                            </div>
+                        </div>
+                        <input type="file" id="file-input" accept="image/*" hidden>
+                        <img id="preview-image" class="preview-image" hidden>
+                    </div>
+                </div>
+
+                <!-- Model Instructions -->
+                <div class="model-instructions">
+                    <label for="vision-prompt">Model Instructions:</label>
+                    <textarea id="vision-prompt" class="vision-prompt-input" rows="3">You are an expert in analyzing images. Please describe this image in detail, focusing on:
+1. Main subjects and their characteristics
+2. Important visual elements and their arrangement
+3. Notable details, patterns, or unique features
+4. Overall mood, style, or atmosphere of the image</textarea>
+                    <div class="instruction-hint">These instructions guide how the model analyzes your image. Feel free to modify them based on your needs.</div>
+                </div>
+
+                <!-- Analysis Result Area -->
+                <div id="analysis-result" class="vision-info" style="display: none;">
+                    <h2>Analysis Result</h2>
+                    <div class="result-content" id="result-content"></div>
+                    <div class="result-actions">
+                        <button id="copy-to-prompt-btn" class="btn primary">
+                            <i class="fas fa-copy"></i>
+                            Copy to Prompt
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Features Grid -->
+                <div class="vision-features-grid">
+                    <!-- Image Description -->
+                    <div class="vision-feature-tile">
+                        <div class="feature-icon">
+                            <i class="fas fa-image"></i>
+                        </div>
+                        <h3>Image Description</h3>
+                        <p>Get detailed descriptions of your images with natural language understanding</p>
+                        <button class="btn primary run-btn" data-feature="description">
+                            <i class="fas fa-play"></i> Run
+                        </button>
+                    </div>
+
+                    <!-- Interpreter -->
+                    <div class="vision-feature-tile">
+                        <div class="feature-icon">
+                            <i class="fas fa-magic"></i>
+                        </div>
+                        <h3>Interpreter</h3>
+                        <p>Analyze images using custom built-in styles and interpretations</p>
+                        <button class="btn primary run-btn" data-feature="interpreter">
+                            <i class="fas fa-play"></i> Run
+                        </button>
+                    </div>
+
+                    <!-- Object Detection -->
+                    <div class="vision-feature-tile">
+                        <div class="feature-icon">
+                            <i class="fas fa-object-group"></i>
+                        </div>
+                        <h3>Object Detection</h3>
+                        <p>Identify and locate objects within your images</p>
+                        <button class="btn primary run-btn" data-feature="object-detection">
+                            <i class="fas fa-play"></i> Run
+                        </button>
+                    </div>
+
+                    <!-- Style Detection -->
+                    <div class="vision-feature-tile">
+                        <div class="feature-icon">
+                            <i class="fas fa-paint-brush"></i>
+                        </div>
+                        <h3>Style Detection</h3>
+                        <p>Analyze artistic and visual styles present in images</p>
+                        <button class="btn primary run-btn" data-feature="style-detection">
+                            <i class="fas fa-play"></i> Run
+                        </button>
+                    </div>
+
+                    <!-- Style Maker -->
+                    <div class="vision-feature-tile">
+                        <div class="feature-icon">
+                            <i class="fas fa-palette"></i>
+                        </div>
+                        <h3>Style Maker</h3>
+                        <p>Create custom styles based on image analysis</p>
+                        <button class="btn primary run-btn" data-feature="style-maker">
+                            <i class="fas fa-play"></i> Run
+                        </button>
+                    </div>
+
+                    <!-- Object Coordinates -->
+                    <div class="vision-feature-tile">
+                        <div class="feature-icon">
+                            <i class="fas fa-crosshairs"></i>
+                        </div>
+                        <h3>Object Coordinates</h3>
+                        <p>Get precise coordinates of objects within images</p>
+                        <button class="btn primary run-btn" data-feature="object-coordinates">
+                            <i class="fas fa-play"></i> Run
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', async function() {
+            const { ipcRenderer } = require('electron');
+            
+            // Check for the vision model on load
+            const modelName = 'llama3.2-vision:11b';
+            const modelAvailable = await ipcRenderer.invoke('check-model-availability', modelName);
+            
+            const modelInstallSection = document.getElementById('model-install-section');
+            const visionMainContent = document.getElementById('vision-main-content');
+            const installButton = document.getElementById('install-model-btn');
+            const progressBar = document.querySelector('.model-install-progress');
+            const progressFill = document.querySelector('.progress-fill');
+            const progressText = document.querySelector('.progress-text');
+
+            if (!modelAvailable) {
+                modelInstallSection.style.display = 'flex';
+                visionMainContent.style.display = 'none';
+
+                installButton.addEventListener('click', async () => {
+                    installButton.disabled = true;
+                    progressBar.style.display = 'block';
+
+                    try {
+                        await ipcRenderer.invoke('install-model', modelName);
+                        modelInstallSection.style.display = 'none';
+                        visionMainContent.style.display = 'flex';
+                    } catch (error) {
+                        console.error('Error installing model:', error);
+                        alert('Failed to install model. Please try again.');
+                        installButton.disabled = false;
+                    }
+                });
+
+                // Listen for progress updates
+                ipcRenderer.on('model-install-progress', (event, data) => {
+                    const progress = typeof data === 'number' ? data : data.progress;
+                    progressFill.style.width = `${progress}%`;
+                    progressText.textContent = `${Math.round(progress)}%`;
+                });
+            } else {
+                modelInstallSection.style.display = 'none';
+                visionMainContent.style.display = 'flex';
+            }
+
+            // Vision window functionality
+            const dragArea = document.getElementById('vision-drop-zone');
+            const fileInput = document.getElementById('file-input');
+            const previewImage = document.getElementById('preview-image');
+            const runButtons = document.querySelectorAll('.run-btn');
+
+            dragArea.addEventListener('click', () => {
+                fileInput.click();
+            });
+
+            fileInput.addEventListener('change', function() {
+                const file = this.files[0];
+                handleFile(file);
+            });
+
+            dragArea.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                dragArea.classList.add('dragover');
+            });
+
+            dragArea.addEventListener('dragleave', () => {
+                dragArea.classList.remove('dragover');
+            });
+
+            dragArea.addEventListener('drop', (e) => {
+                e.preventDefault();
+                dragArea.classList.remove('dragover');
+                const file = e.dataTransfer.files[0];
+                handleFile(file);
+            });
+
+            function handleFile(file) {
+                if (file && file.type.startsWith('image/')) {
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        const selectedImage = e.target.result;
+                        previewImage.src = selectedImage;
+                        previewImage.hidden = false;
+                        
+                        // Reset UI state
+                        const analysisResult = document.getElementById('analysis-result');
+                        analysisResult.style.display = 'none';
+                    };
+                    reader.readAsDataURL(file);
+                }
+            }
+
+            runButtons.forEach((button) => {
+                button.addEventListener('click', async () => {
+                    const feature = button.getAttribute('data-feature');
+                    const analysisResult = document.getElementById('analysis-result');
+                    analysisResult.style.display = 'block';
+
+                    try {
+                        const result = await ipcRenderer.invoke('analyze-image', previewImage.src, feature);
+                        const resultContent = document.getElementById('result-content');
+                        resultContent.textContent = result;
+                    } catch (error) {
+                        console.error('Error analyzing image:', error);
+                        alert('Failed to analyze image. Please try again.');
+                    }
+                });
+            });
+
+            // Result action buttons
+            document.getElementById('copy-to-prompt-btn').addEventListener('click', () => {
+                const resultContent = document.getElementById('result-content');
+                ipcRenderer.send('set-prompt', resultContent.textContent);
+            });
+
+            // Window controls
+            document.getElementById('close-button').addEventListener('click', () => {
+                ipcRenderer.send('close-vision-window');
+            });
+
+            document.getElementById('minimize-button').addEventListener('click', () => {
+                ipcRenderer.send('minimize-vision-window');
+            });
+        });
+    </script>
+</body>
+</html>

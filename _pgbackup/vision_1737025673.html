@@ -146,75 +146,75 @@
         document.addEventListener('DOMContentLoaded', async function() {
             const { ipcRenderer } = require('electron');
             
-            // Model installation elements
+            // Check for the vision model on load
+            const modelName = 'llama3.2-vision:11b';
+            const modelAvailable = await ipcRenderer.invoke('check-model-availability', modelName);
+            
             const modelInstallSection = document.getElementById('model-install-section');
             const visionMainContent = document.getElementById('vision-main-content');
             const installButton = document.getElementById('install-model-btn');
+            const progressBar = document.querySelector('.model-install-progress');
             const progressFill = document.querySelector('.progress-fill');
             const progressText = document.querySelector('.progress-text');
 
-            // Check if model is available
-            const modelAvailable = await ipcRenderer.invoke('check-vision-model');
             if (!modelAvailable) {
                 modelInstallSection.style.display = 'flex';
                 visionMainContent.style.display = 'none';
-            }
 
-            // Handle model installation
-            installButton.addEventListener('click', async () => {
-                const progress = document.querySelector('.model-install-progress');
-                progress.style.display = 'block';
-                installButton.disabled = true;
+                installButton.addEventListener('click', async () => {
+                    installButton.disabled = true;
+                    progressBar.style.display = 'block';
 
-                ipcRenderer.on('model-download-progress', (event, percentage) => {
-                    progressFill.style.width = `${percentage}%`;
-                    progressText.textContent = `${Math.round(percentage)}%`;
+                    try {
+                        await ipcRenderer.invoke('install-model', modelName);
+                        modelInstallSection.style.display = 'none';
+                        visionMainContent.style.display = 'flex';
+                    } catch (error) {
+                        console.error('Error installing model:', error);
+                        alert('Failed to install model. Please try again.');
+                        installButton.disabled = false;
+                    }
                 });
 
-                try {
-                    await ipcRenderer.invoke('install-vision-model');
-                    modelInstallSection.style.display = 'none';
-                    visionMainContent.style.display = 'block';
-                } catch (error) {
-                    console.error('Failed to install model:', error);
-                    alert('Failed to install model. Please try again.');
-                    installButton.disabled = false;
-                }
-            });
+                // Listen for progress updates
+                ipcRenderer.on('model-install-progress', (event, data) => {
+                    const progress = typeof data === 'number' ? data : data.progress;
+                    progressFill.style.width = `${progress}%`;
+                    progressText.textContent = `${Math.round(progress)}%`;
+                });
+            } else {
+                modelInstallSection.style.display = 'none';
+                visionMainContent.style.display = 'flex';
+            }
 
-            // File handling elements
+            // Vision window functionality
             const dragArea = document.getElementById('vision-drop-zone');
             const fileInput = document.getElementById('file-input');
             const previewImage = document.getElementById('preview-image');
             const runButtons = document.querySelectorAll('.run-btn');
-            const analysisResult = document.getElementById('analysis-result');
-            const resultContent = document.getElementById('result-content');
-            const promptInput = document.getElementById('vision-prompt');
-            let selectedImage = null;
 
-            // File selection handling
             dragArea.addEventListener('click', () => {
                 fileInput.click();
             });
 
+            fileInput.addEventListener('change', function() {
+                const file = this.files[0];
+                handleFile(file);
+            });
+
             dragArea.addEventListener('dragover', (e) => {
                 e.preventDefault();
-                dragArea.classList.add('drag-over');
+                dragArea.classList.add('dragover');
             });
 
             dragArea.addEventListener('dragleave', () => {
-                dragArea.classList.remove('drag-over');
+                dragArea.classList.remove('dragover');
             });
 
             dragArea.addEventListener('drop', (e) => {
                 e.preventDefault();
-                dragArea.classList.remove('drag-over');
+                dragArea.classList.remove('dragover');
                 const file = e.dataTransfer.files[0];
-                handleFile(file);
-            });
-
-            fileInput.addEventListener('change', (e) => {
-                const file = e.target.files[0];
                 handleFile(file);
             });
 
@@ -222,70 +222,38 @@
                 if (file && file.type.startsWith('image/')) {
                     const reader = new FileReader();
                     reader.onload = (e) => {
-                        selectedImage = e.target.result;
+                        const selectedImage = e.target.result;
                         previewImage.src = selectedImage;
                         previewImage.hidden = false;
-                        runButtons.forEach(btn => btn.disabled = false);
                         
                         // Reset UI state
+                        const analysisResult = document.getElementById('analysis-result');
                         analysisResult.style.display = 'none';
                     };
                     reader.readAsDataURL(file);
                 }
             }
 
-            // Enable/disable run buttons based on image selection
-            runButtons.forEach(button => {
-                button.disabled = true; // Initially disable all run buttons
-            });
-
-            // Handle feature buttons clicks
-            runButtons.forEach(button => {
+            runButtons.forEach((button) => {
                 button.addEventListener('click', async () => {
                     const feature = button.getAttribute('data-feature');
-                    if (!selectedImage) {
-                        alert('Please select an image first');
-                        return;
-                    }
-
-                    // Disable all run buttons during analysis
-                    runButtons.forEach(btn => btn.disabled = true);
-                    button.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Processing...';
+                    const analysisResult = document.getElementById('analysis-result');
+                    analysisResult.style.display = 'block';
 
                     try {
-                        let result;
-                        const instructions = promptInput.value;
-
-                        switch (feature) {
-                            case 'description':
-                                result = await ipcRenderer.invoke('analyze-image', {
-                                    image: selectedImage,
-                                    instructions: instructions,
-                                    feature: 'description'
-                                });
-                                break;
-                            // Other cases will be added later for different features
-                        }
-
-                        // Show results
+                        const result = await ipcRenderer.invoke('analyze-image', previewImage.src, feature);
+                        const resultContent = document.getElementById('result-content');
                         resultContent.textContent = result;
-                        analysisResult.style.display = 'block';
-
-                        // Scroll to results
-                        analysisResult.scrollIntoView({ behavior: 'smooth' });
                     } catch (error) {
                         console.error('Error analyzing image:', error);
                         alert('Failed to analyze image. Please try again.');
-                    } finally {
-                        // Re-enable run buttons and restore button text
-                        runButtons.forEach(btn => btn.disabled = false);
-                        button.innerHTML = '<i class="fas fa-play"></i> Run';
                     }
                 });
             });
 
-            // Copy result to prompt
+            // Result action buttons
             document.getElementById('copy-to-prompt-btn').addEventListener('click', () => {
+                const resultContent = document.getElementById('result-content');
                 ipcRenderer.send('set-prompt', resultContent.textContent);
             });
 

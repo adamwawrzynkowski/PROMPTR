@@ -41,7 +41,8 @@
     animation: borderMove 2s linear infinite;
     z-index: -1;
     border-radius: 10px;
-    -webkit-mask: linear-gradient(#fff 0 0) content-box,
+    -webkit-mask: 
+        linear-gradient(#fff 0 0) content-box,
         linear-gradient(#fff 0 0);
     -webkit-mask-composite: xor;
     mask-composite: exclude;
@@ -107,7 +108,6 @@
     padding: 12px;
     border-left: 1px solid transparent;
     background: var(--card-background);
-    outline: 1px solid var(--theme-color);
 }
 
 .input-buttons:hover {
@@ -207,9 +207,6 @@
 }
 
 /* Elements that shouldn't respond to window dragging */
-input,
-button,
-textarea,
-[role="button"] {
+input, button, textarea, [role="button"] {
     -webkit-app-region: no-drag;
 }

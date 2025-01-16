@@ -1,0 +1,389 @@
+@import 'variables.css';
+
+/* Card styles */
+.option-card {
+    background: var(--card-background);
+    border-radius: 10px;
+    padding: 15px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    position: relative;
+    overflow: hidden;
+    min-height: 300px;
+    height: auto;
+    border: 1px solid transparent;
+    transition: transform 0.2s ease, border-color 0.2s ease;
+    will-change: transform, border-color;
+    transform: translateZ(0);
+    backface-visibility: hidden;
+    contain: layout style paint;
+}
+
+.option-card:hover {
+    transform: translateY(-2px);
+    border-color: var(--theme-color);
+}
+
+.option-card.active {
+    border-color: var(--theme-color);
+    background: linear-gradient(
+        to bottom right,
+        rgba(var(--accent-color-rgb), 0.1),
+        transparent
+    );
+}
+
+.option-card h2 {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 20px;
+    font-weight: 600;
+    color: var(--text);
+    contain: content;
+}
+
+.option-card h2 i {
+    font-size: 20px;
+    opacity: 0.8;
+}
+
+.option-card p {
+    font-size: 14px;
+    color: var(--text-secondary);
+    margin-bottom: 10px;
+    overflow-y: auto;
+    max-height: 80px;
+    line-height: 1.4;
+    flex-shrink: 0;
+    padding-right: 8px;
+    -webkit-overflow-scrolling: touch;
+    contain: content;
+}
+
+.option-card p::-webkit-scrollbar {
+    width: 4px;
+}
+
+.option-card p::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.option-card p::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 2px;
+}
+
+.option-card.generating {
+    position: relative;
+}
+
+.option-card.generating::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    background: linear-gradient(90deg, 
+        var(--accent-color-1, #ff0000), 
+        var(--accent-color-2, #00ff00), 
+        var(--accent-color-1, #ff0000)
+    );
+    background-size: 200% 100%;
+    animation: borderMove 2s linear infinite;
+    z-index: -1;
+    border-radius: 10px;
+    -webkit-mask: 
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+}
+
+/* Card hover effect */
+.option-card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(
+        600px circle at var(--mouse-x, 0) var(--mouse-y, 0),
+        rgba(255, 255, 255, 0.06),
+        transparent 40%
+    );
+    opacity: 0;
+    transition: opacity 0.3s;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.option-card:hover::after {
+    opacity: 1;
+}
+
+/* Options grid */
+.options-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 25px;
+    padding: 5px;
+    margin: 0 auto;
+    width: 100%;
+    max-width: 1400px;
+}
+
+.options-grid::-webkit-scrollbar {
+    width: 8px;
+}
+
+.options-grid::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 4px;
+    border: none;
+}
+
+.options-grid::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
+    border: none;
+}
+
+.options-grid::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.3);
+}
+
+/* Style cards */
+.style-card {
+    background: var(--card-background);
+    border: 1px solid transparent;
+    border-radius: 10px;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 15px;
+    position: relative;
+    overflow: hidden;
+    min-height: 400px;
+}
+
+.style-card input[type="checkbox"] {
+    appearance: none;
+    width: 40px;
+    height: 24px;
+    background: var(--theme-color-back);
+    border: none;
+    border-radius: 12px;
+    position: relative;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    top: 2px;
+    left: 2px;
+}
+
+.style-card input[type="checkbox"]::after {
+    content: '';
+    position: absolute;
+    width: 18px;
+    height: 18px;
+    background: white;
+    border-radius: 50%;
+    border: none;
+    top: 2px;
+    left: 2px;
+    transition: all 0.3s ease;
+}
+
+.style-card input[type="checkbox"]:checked {
+    background: var(--theme-color);
+    border: 1px solid var(--theme-color);
+    top: 2px;
+    left: 2px;
+}
+
+.style-card input[type="checkbox"]:checked::after {
+    transform: translateX(16px);
+    top: 2px;
+    left: 2px;
+}
+
+.style-card.generating {
+    position: relative;
+}
+
+.style-card.generating::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    background: linear-gradient(90deg, 
+        var(--accent-color-1, #ff0000), 
+        var(--accent-color-2, #00ff00), 
+        var(--accent-color-1, #ff0000)
+    );
+    background-size: 200% 100%;
+    animation: borderMove 2s linear infinite;
+    z-index: -1;
+    border-radius: 10px;
+    border: none;
+    -webkit-mask: 
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+}
+
+.style-card .description {
+    font-size: 14px;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    margin: 0;
+}
+
+.style-card .prompt-text {
+    font-size: 14px;
+    color: var(--text);
+    line-height: 1.6;
+    margin: 0;
+}
+
+.style-card .button-group {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    padding: 0 10px;
+    margin-top: auto;
+}
+
+.style-card .action-btn {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: transparent;
+    border: none;
+    border-radius: 8px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 14px;
+}
+
+.draw-things-btn {
+    background: rgba(147, 51, 234, 0.2) !important;
+    color: rgb(216, 180, 254) !important;
+}
+
+.draw-things-btn:hover {
+    background: rgba(147, 51, 234, 0.3) !important;
+}
+
+.draw-things-btn span {
+    background: linear-gradient(90deg, #f0abfc, #c084fc);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.style-card.generating::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg,
+        transparent,
+        rgba(255, 255, 255, 0.1),
+        transparent
+    );
+    transform: translateX(-100%);
+    animation: shimmer 2s infinite;
+}
+
+.style-card-title-container {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.favorite-btn {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+    border-radius: 4px;
+}
+
+.favorite-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.favorite-btn.active {
+    color: #ffd700;
+}
+
+.favorite-btn.active:hover {
+    color: #ffc800;
+}
+
+/* Prompt container styles */
+.prompt-container {
+    position: relative;
+    flex: 1;
+    min-height: 100px;
+    max-height: 400px;
+    overflow: hidden;
+    margin: 10px 0;
+}
+
+.prompt-text {
+    font-family: var(--font-mono);
+    font-size: 14px;
+    line-height: 1;
+    color: var(--text);
+    background: var(--card-background-secondary);
+    border-radius: 8px;
+    overflow-y: auto;
+    height: 100%;
+    min-height: 100px;
+    max-height: 400px;
+    white-space: normal;
+    word-break: break-word;
+    mask-image: linear-gradient(to bottom, 
+        black calc(100% - 40px),
+        transparent 100%
+    );
+    -webkit-mask-image: linear-gradient(to bottom, 
+        black calc(100% - 40px),
+        transparent 100%
+    );
+}
+
+.prompt-text::-webkit-scrollbar {
+    width: 6px;
+}
+
+.prompt-text::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.prompt-text::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 3px;
+}
+
+.prompt-text::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.2);
+}
+
+.prompt-text.error {
+    color: var(--error);
+    background: var(--error-background);
+}
+
+/* Responsiveness */
+@media (max-width: 768px) {
+    .options-grid {
+        grid-template-columns: 1fr;
+        padding: 5px 20px;
+    }
+}
