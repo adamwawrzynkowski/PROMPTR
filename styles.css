@@ -1,3 +1,5 @@
+/* ... previous styles ... */
+
 .prompt-options-dropdown {
     display: none;
     position: absolute;
@@ -113,6 +115,34 @@
     margin-bottom: 12px;
     padding-bottom: 8px;
     border-bottom: 1px solid var(--theme-border);
+}
+
+.marked-words-panel .panel-header-buttons {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.marked-words-panel .clear-all-btn {
+    background: none;
+    border: none;
+    padding: 4px 8px;
+    color: var(--theme-text);
+    font-size: 13px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    opacity: 0.6;
+    transition: opacity 0.2s;
+}
+
+.marked-words-panel .clear-all-btn:hover {
+    opacity: 1;
+}
+
+.marked-words-panel .clear-all-btn i {
+    font-size: 12px;
 }
 
 .marked-words-panel .panel-header strong {

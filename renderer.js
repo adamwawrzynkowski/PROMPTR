@@ -2413,6 +2413,24 @@ function initializeWordMarking() {
     const contextMenu = document.getElementById('wordContextMenu');
     const markedWordsPanel = document.getElementById('markedWordsPanel');
     const closeMarkedWords = document.getElementById('closeMarkedWords');
+    
+    // Add Clear All button next to close button in panel header
+    // Add Clear All button functionality
+    const headerButtons = document.createElement('div');
+    headerButtons.className = 'panel-header-buttons';
+    const clearAllBtn = document.createElement('button');
+    clearAllBtn.className = 'clear-all-btn';
+    clearAllBtn.innerHTML = '<i class="fas fa-eraser"></i> Clear All';
+    clearAllBtn.onclick = () => {
+        markedWords.positive.clear();
+        markedWords.negative.clear();
+        updateMarkedWordsList();
+        updatePromptHighlighting();
+        showToast('All marked words cleared');
+    };
+    headerButtons.appendChild(clearAllBtn);
+    headerButtons.appendChild(closeMarkedWords);
+    markedWordsPanel.querySelector('.panel-header').appendChild(headerButtons);
     let selectedText = '';
     let selectedRange = null;
 
