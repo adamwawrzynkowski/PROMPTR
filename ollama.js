@@ -155,7 +155,7 @@ class OllamaManager {
                 const checkConnection = async () => {
                     try {
                         console.log('Checking if server is up (attempt', 6 - retries, 'of 5)...');
-                        const response = await this.makeRequest(`${this.getBaseUrl()}/api/tags`);
+                        const response = await this.makeRequest('/api/tags');
                         if (response.ok) {
                             console.log('Ollama server started successfully');
                             this.startingServer = false;
@@ -184,10 +184,10 @@ class OllamaManager {
 
     async makeRequest(url, options = {}) {
         try {
-            console.log(`Making request to: ${url}`);
+            console.log(`Making request to: ${this.getBaseUrl()}${url}`);
             console.log('With options:', options);
 
-            const response = await fetch(url, {
+            const response = await fetch(`${this.getBaseUrl()}${url}`, {
                 ...options,
                 headers: {
                     'Content-Type': 'application/json',
@@ -195,342 +195,318 @@ class OllamaManager {
                 }
             });
 
-            return response;
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+            }
+
+            const data = await response.json();
+            console.log('Response data:', data);
+            return data;
         } catch (error) {
             console.error('Request failed:', error);
             throw error;
         }
     }
 
-    async checkConnection() {
-        console.log('Checking Ollama connection...');
-        try {
-            console.log('Trying connection to:', this.getBaseUrl());
-            const response = await fetch(this.getBaseUrl() + '/api/tags', {
-                headers: {
-                    'Content-Type': 'application/json'
-                }
-            });
-
-            if (response.ok) {
-                this.isConnected = true;
-                this.lastError = null;
-                console.log('Successfully connected to Ollama');
-                
-                // Update available models
-                const data = await response.json();
-                this.availableModels = data.models || [];
-                
-                return true;
-            }
-
-            this.isConnected = false;
-            this.lastError = 'Failed to connect to Ollama';
-            return false;
-        } catch (error) {
-            console.error('Ollama connection error:', error);
-            this.isConnected = false;
-            this.lastError = error.message;
-            return false;
-        }
-    }
-
-    async getStatus() {
-        try {
-            await this.checkConnection();
-            const status = {
-                isConnected: this.isConnected,
-                currentModel: this.currentModel,
-                visionModel: this.visionModel,
-                lastError: this.lastError,
-                availableModels: this.availableModels
-            };
-            console.log('Current Ollama status:', status);
-            return status;
-        } catch (error) {
-            console.error('Error getting status:', error);
-            return {
-                isConnected: false,
-                lastError: error.message,
-                currentModel: null,
-                visionModel: null,
-                availableModels: []
-            };
-        }
-    }
-
-    async initialize(progressCallback) {
-        try {
-            progressCallback?.(0, 'startup', 'Checking Ollama connection...');
-            let isConnected = await this.checkConnection();
-            
-            if (!isConnected) {
-                progressCallback?.(20, 'startup', 'Starting Ollama server...');
-                const serverStarted = await this.startServer();
-                if (!serverStarted) {
-                    return false;
-                }
-                isConnected = await this.checkConnection();
-            }
-            
-            if (isConnected) {
-                progressCallback?.(40, 'startup', 'Loading available models...');
-                await this.listModels();
-                
-                progressCallback?.(60, 'startup', 'Checking model configuration...');
-                const config = configManager.getConfig();
-                this.currentModel = config.currentModel;
-                this.visionModel = config.visionModel;
-                
-                progressCallback?.(100, 'startup', 'Ollama initialized successfully');
-                return true;
-            }
-            
-            return false;
-        } catch (error) {
-            console.error('Error initializing Ollama:', error);
-            this.lastError = error.message;
-            return false;
-        }
-    }
-
-    async listModels() {
-        try {
-            const response = await this.makeRequest(`${this.getBaseUrl()}/api/tags`);
-            
-            if (!response.ok) {
-                throw new Error(`Failed to list models: ${response.status}`);
-            }
-
-            const data = await response.json();
-            console.log('List models response:', data);
-            return data.models || [];
-        } catch (error) {
-            console.error('Error listing models:', error);
-            throw error;
-        }
-    }
-
-    async setModel(modelName) {
-        console.log('Setting model to:', modelName);
-        if (modelName) {
-            const isAvailable = await this.checkModelAvailability(modelName);
-            if (!isAvailable) {
-                throw new Error(`Model ${modelName} is not available`);
-            }
-            this.currentModel = modelName;
-            
-            // Save to config and update our instance
-            const currentConfig = configManager.getConfig();
-            const newConfig = {
-                ...currentConfig,
-                currentModel: modelName
-            };
-            await configManager.saveConfig(newConfig);
-            console.log('Saved model to config:', newConfig);
-            
-            // Notify all windows about the model change
-            BrowserWindow.getAllWindows().forEach(window => {
-                window.webContents.send('model-changed', newConfig);
-            });
-        }
-    }
-
-    async getCurrentModel() {
-        // If we don't have a current model in memory, try to get it from config
-        if (!this.currentModel) {
-            const config = configManager.getConfig();
-            this.currentModel = config.currentModel;
-            console.log('Got current model from config:', this.currentModel);
-        }
-        return this.currentModel;
-    }
-
-    async ensureTextModelSelected() {
-        const model = await this.getCurrentModel();
-        if (!model) {
-            throw new Error('No text model selected. Please select a model in settings.');
-        }
-        return model;
-    }
-
-    async generatePrompt(basePrompt, styleId, style, promptType = 'standard') {
+    async generateText(systemPrompt, userPrompt, config = { maxTokens: 1024 }) {
         try {
             const model = await this.ensureTextModelSelected();
-            console.log('Generating prompt with model:', model);
-
-            if (!style) {
-                throw new Error('Style is required for prompt generation');
-            }
-
-            const systemInstructions = style.systemInstructions || '';
-            const styleName = style.name || 'default';
-            const styleKeywords = style.keywords || [];
-
-            // Define prompt length and complexity based on type
-            const promptConfig = {
-                simple: {
-                    maxLength: 300,
-                    maxTokens: 512,
-                    instruction: function() { 
-                        return `Create a natural, descriptive prompt that feels like a human description. Focus on the main subject and mood. Fit in: ${this.maxLength} words and make sure prompt will not be too long.`
-                    },
-                    example: 'Beautiful cyberpunk cityscape bathed in warm neon lights, with sleek flying vehicles gliding through the air, creating a cozy yet futuristic atmosphere, volumetric fog adds depth, cinematic mood lighting enhances the scene'
-                },
-                standard: {
-                    maxLength: 900,
-                    maxTokens: 1024,
-                    instruction: function() {
-                        return `Create a detailed, natural description that flows like human speech while maintaining artistic precision. Include subject, mood, environment and technical aspects. Fit in: ${this.maxLength} words.`
-                    },
-                    example: 'Stunning cyberpunk cityscape with elegant crystalline megastructures reaching into the cloudy sky, graceful streams of hovering vehicles weaving between the buildings, massive holographic advertisements casting colorful reflections on the rain-soaked streets below, soft volumetric fog diffusing the vibrant neon lights, creating an atmospheric scene with perfect cinematic composition, high attention to detail, masterful lighting design brings the scene to life'
-                },
-                detailed: {
-                    maxLength: 2000,
-                    maxTokens: 2048,
-                    instruction: function() {
-                        return `Create an extensive, natural description that reads like a professional artist explaining their vision. Include rich details about subject, environment, lighting, mood, composition, and technical aspects. Fit in: ${this.maxLength} words and make prompt rich, long and detailed.`
-                    },
-                    example: 'Breathtaking cyberpunk cityscape where majestic crystal megastructures pierce through layers of neon-illuminated clouds, elegant streams of antigravity vehicles gracefully weave through towering canyons of steel and glass, massive holographic advertisements cast mesmerizing prismatic reflections across rain-slicked graphene streets, delicate volumetric fog diffuses the warm glow of bioluminescent signage, advanced energy conduits pulse rhythmically with flowing plasma, ray-traced global illumination bathes the scene in realistic light, cinematic ultra-wide composition captures the epic scale, hyperrealistic details bring every surface to life, masterful octane render with perfect exposure and color grading, professional photography quality'
-                }
-            };
-
-            const config = promptConfig[promptType] || promptConfig.standard;
-
-            // Create the system message with instructions
-            const systemMessage = `You are a specialized AI trained to generate high-quality image prompts. Your task is to take an existing prompt and make it more detailed and specific, while maintaining its original intent and style.
-
-Follow these guidelines:
-1. Analyze the original prompt carefully
-2. Add more specific visual details and descriptive elements
-3. Enhance atmosphere and mood descriptions
-4. Include additional relevant artistic elements
-5. Maintain the original style and theme
-6. Keep the language natural and flowing
-7. DO NOT add any style tags, quality terms, or technical specifications at the end
-8. DO NOT drastically change the original concept
-9. ONLY return the enhanced prompt text, nothing else
-10. DO NOT include any explanations or comments about the changes made
-11. DO NOT include phrases like "Original prompt:" or "Enhanced prompt:"
-12. ${config.instruction()}
-
-Example input: "A castle in the mountains"
-Example output: "A majestic medieval castle perched atop craggy mountain peaks, its ancient stone towers reaching into misty clouds, while snow-capped peaks stretch endlessly into the distance, the fortress walls weathered by centuries of alpine winds"`;
+            console.log('Generating text with model:', model);
+            console.log('Using config:', config);
 
             const requestBody = {
                 model: model,
-                prompt: `${systemMessage}\n\nEnhance this prompt: ${basePrompt}`,
+                prompt: `${systemPrompt}\n\nUser: ${userPrompt}\nAssistant: IMPORTANT: Provide a detailed, descriptive response between ${config.minLength} and ${config.maxLength} words. Start directly with the descriptive text, no prefixes or explanations needed.\n\nExample of good response format:\nMajestic mountain landscape at sunset, golden light illuminating snow-capped peaks, dense pine forest in the valley below\n\nYour response:`,
                 stream: false,
                 options: {
-                    temperature: style?.modelParams?.temperature || 0.75,
-                    top_k: style?.modelParams?.topK || 40,
-                    top_p: style?.modelParams?.topP || 0.9,
-                    max_tokens: config.maxTokens
+                    temperature: 0.7,
+                    top_k: 40,
+                    top_p: 0.9,
+                    num_predict: config.maxTokens || 1024,
+                    stop: ["\n", "User:", "Assistant:", "System:"]
                 }
             };
 
             console.log('Making generate request with body:', requestBody);
             
-            const response = await fetch(`${this.getBaseUrl()}/api/generate`, {
+            const response = await this.makeRequest('/api/generate', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
                 body: JSON.stringify(requestBody)
             });
 
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`Failed to generate prompt: ${errorText}`);
+            if (!response || !response.response) {
+                console.error('Invalid response format:', response);
+                throw new Error('Empty or invalid response from model');
             }
 
-            let fullResponse = '';
-            try {
-                const data = await response.json();
-                fullResponse = data.response;
-            } catch (error) {
-                console.error('Error parsing JSON response:', error);
-                const text = await response.text();
-                console.log('Raw response text:', text);
-                const match = text.match(/"response":"([^"]+)"/);
-                if (match) {
-                    fullResponse = match[1];
-                } else {
-                    throw new Error('Failed to parse response from Ollama');
-                }
-            }
-
-            // Remove any markdown, titles, or sections
-            let generatedText = fullResponse
-                .replace(/^(Style|Keywords|Description|Prompt|Output):.+$/gim, '')
-                .replace(/^[\*\#\-\_\`]+/gm, '')
-                .replace(/[\*\#\-\_\`]+$/gm, '')
-                .replace(/\n+/g, ' ')
+            let responseText = response.response.trim();
+            
+            // Basic cleanup of obvious prefixes and quotes
+            responseText = responseText
+                .replace(/^["'\s]*(Here is|This is|I have created|Let me|The following|As requested).*?:/is, '')
+                .replace(/["']/g, '')
                 .trim();
 
-            // Clean up common instruction phrases
-            const cleanupPhrases = [
-                'Create a', 'Generate a', 'Provide a', 'Here\'s a', 'I will create', 'Let me create',
-                'The scene shows', 'The image should', 'The image features', 'The prompt is',
-                'Focus on', 'Make sure to', 'Remember to', 'Include', 'Emphasize', 'Consider',
-                'Prompt:', 'Output:', 'Description:', 'Here is', 'This prompt', 'I suggest',
-                'You requested', 'As requested', 'The style is', 'The scene is', 'Picture this',
-                'Imagine', 'Visualize', 'In this scene', 'The composition shows', 'We see',
-                'This image depicts', 'The artwork shows', 'The design features'
-            ];
-
-            for (const phrase of cleanupPhrases) {
-                if (generatedText.toLowerCase().startsWith(phrase.toLowerCase())) {
-                    generatedText = generatedText.substring(phrase.length).trim();
-                }
+            // Clean up any potential JSON formatting issues
+            if (responseText.startsWith('"') && responseText.endsWith('"')) {
+                responseText = responseText.slice(1, -1);
             }
-
-            // Remove quotes and normalize spacing
-            generatedText = generatedText
-                .replace(/["'`]/g, '') // Remove all types of quotes
-                .replace(/\s+/g, ' ')  // Normalize spaces
-                .replace(/^\s+|\s+$/g, '') // Trim ends
-                .replace(/\s*,\s*/g, ', ') // Normalize comma spacing
-                .replace(/\s*\.\s*/g, '. ') // Normalize period spacing
-                .replace(/\s+([,\.])/g, '$1') // Remove spaces before punctuation
-                .replace(/([,\.])\s+/g, '$1 '); // Ensure single space after punctuation
-
-            // Add descriptive adjectives at the start if missing
-            const descriptiveStarters = ['Beautiful', 'Stunning', 'Magnificent', 'Breathtaking', 'Majestic', 'Elegant', 'Impressive', 'Enchanting'];
-            const startsWithAdjective = descriptiveStarters.some(adj => 
-                generatedText.toLowerCase().startsWith(adj.toLowerCase())
-            );
             
-            if (!startsWithAdjective) {
-                const randomStarter = descriptiveStarters[Math.floor(Math.random() * descriptiveStarters.length)];
-                generatedText = randomStarter + ' ' + generatedText.charAt(0).toLowerCase() + generatedText.slice(1);
+            // Unescape any escaped characters
+            responseText = responseText.replace(/\\n/g, '\n')
+                                    .replace(/\\"/g, '"')
+                                    .replace(/\\'/g, "'")
+                                    .replace(/\\\\/g, '\\');
+
+            if (!responseText) {
+                throw new Error('Empty response text from model');
             }
 
-            // Ensure first letter is capitalized
-            generatedText = generatedText.charAt(0).toUpperCase() + generatedText.slice(1);
+            console.log('Generated response:', responseText);
+            return responseText;
 
-            // Verify if style name is included, if not - add it naturally
-            if (!generatedText.toLowerCase().includes(styleName.toLowerCase())) {
+        } catch (error) {
+            console.error('Error generating text:', error);
+            throw error;
+        }
+    }
+
+    cleanupGeneratedText(text) {
+        if (!text) return '';
+        
+        let cleanedText = text.trim();
+
+        // Remove only the most common prefixes if they appear at the start
+        const startPrefixes = [
+            'Here is', 'This is', 'Create a', 'Generate a',
+            'I have created', 'Let me', 'The following'
+        ];
+
+        for (const prefix of startPrefixes) {
+            if (cleanedText.toLowerCase().startsWith(prefix.toLowerCase())) {
+                cleanedText = cleanedText.substring(prefix.length).trim();
+                break; // Only remove one prefix
+            }
+        }
+
+        // Remove any remaining quotes and normalize spacing
+        cleanedText = cleanedText
+            .replace(/["'`]/g, '') // Remove quotes
+            .replace(/\s+/g, ' ')  // Normalize spaces
+            .replace(/^\s+|\s+$/g, '') // Trim ends
+            .replace(/\s*,\s*/g, ', ') // Fix comma spacing
+            .replace(/\s*\.\s*/g, '. ') // Fix period spacing
+            .replace(/\s+([,\.])/g, '$1') // Remove spaces before punctuation
+            .replace(/([,\.])\s+/g, '$1 '); // Single space after punctuation
+
+        // Remove dialogue markers if they appear at the start
+        cleanedText = cleanedText
+            .replace(/^Assistant:?\s*/i, '')
+            .replace(/^User:?\s*/i, '')
+            .replace(/^System:?\s*/i, '');
+
+        // Ensure first letter is capitalized and text ends with punctuation
+        cleanedText = cleanedText.charAt(0).toUpperCase() + cleanedText.slice(1);
+        if (!cleanedText.match(/[.!?]$/)) {
+            cleanedText += '.';
+        }
+
+        return cleanedText;
+    }
+
+    async getSystemPrompt(style, promptType = 'standard') {
+        console.log('Getting system prompt for type:', promptType);
+        
+        // Define length limits based on prompt type
+        const config = {
+            simple: { minLength: 20, maxLength: 300, maxTokens: 512 },
+            standard: { minLength: 100, maxLength: 900, maxTokens: 1024 },
+            detailed: { minLength: 300, maxLength: 2000, maxTokens: 2048 }
+        };
+
+        // Get the configuration for the requested prompt type
+        const promptConfig = config[promptType] || config.standard;
+        console.log('Using prompt config:', promptConfig);
+
+        // Base system prompt
+        let systemPrompt = `You are an AI prompt engineer specializing in creating high-quality, creative prompts. 
+Your task is to enhance the given prompt while following these strict rules:
+
+1. Response length: Keep the response between ${promptConfig.minLength} and ${promptConfig.maxLength} words.
+2. Marked words:
+   - REQUIRED WORDS: When specified, you MUST include ALL required words at least once.
+   - FORBIDDEN WORDS: When specified, you ABSOLUTELY MUST NOT use ANY forbidden words or their variations.
+   This is the most important rule - NEVER use forbidden words under any circumstances.
+3. Style: Maintain the specified style's characteristics while enhancing the prompt.
+
+Format your response as a single, well-structured paragraph.`;
+
+        if (style?.systemPrompt) {
+            systemPrompt += `\n\nStyle-specific instructions: ${style.systemPrompt}`;
+        }
+
+        return { prompt: systemPrompt, config: promptConfig };
+    }
+
+    async generatePrompt({ basePrompt, styleId, style, promptType = 'standard', markedWords = { positive: [], negative: [] } }) {
+        try {
+            await this.ensureTextModelSelected();
+
+            // Get system prompt based on style
+            const { prompt: systemPrompt, config } = await this.getSystemPrompt(style, promptType);
+
+            // Function to replace negative words with neutral alternatives
+            const replaceNegativeWords = (text) => {
+                let modifiedText = text;
+                const replacements = {
+                    'dark': 'bright',
+                    'darkness': 'light',
+                    'black': 'colorful',
+                    'evil': 'peaceful',
+                    'death': 'life',
+                    'dead': 'alive',
+                    'kill': 'nurture',
+                    'horror': 'wonder',
+                    'scary': 'pleasant',
+                    'fear': 'joy',
+                    'sad': 'happy',
+                    'gloomy': 'cheerful',
+                    'nightmare': 'dream',
+                    'pain': 'comfort',
+                    'suffer': 'thrive',
+                    'terrible': 'wonderful',
+                    'ugly': 'beautiful',
+                    'hate': 'love'
+                };
+
+                markedWords.negative.forEach(word => {
+                    const replacement = replacements[word.toLowerCase()] || 'pleasant';
+                    const regex = new RegExp(`\\b${word}\\b`, 'gi');
+                    modifiedText = modifiedText.replace(regex, replacement);
+                });
+
+                return modifiedText;
+            };
+
+            // First replace any negative words in the base prompt with positive alternatives
+            let enhancedBasePrompt = replaceNegativeWords(basePrompt);
+
+            // Ensure positive words are included in base prompt
+            if (markedWords.positive.length > 0) {
+                const positivePrefix = markedWords.positive.join(', ') + ' in a scene showing ';
+                enhancedBasePrompt = positivePrefix + enhancedBasePrompt.charAt(0).toLowerCase() + enhancedBasePrompt.slice(1);
+            }
+
+            // Prepare user prompt with marked words - no mention of negative words
+            let userPrompt = `Enhance this prompt: "${enhancedBasePrompt}". 
+Your response MUST be between ${config.minLength} and ${config.maxLength} words.`;
+            
+            if (markedWords.positive.length > 0) {
+                userPrompt += `\n\n[REQUIRED WORDS]
+You MUST include ALL of these EXACT words (at least once each): ${markedWords.positive.join(', ')}
+Start your response with these words.`;
+            }
+
+            userPrompt += `\n\nBefore providing your response, verify that:
+1. It contains ALL required words
+2. Length is between ${config.minLength} and ${config.maxLength} words
+3. The description is positive and uplifting`;
+
+            // Function to validate and fix text
+            const validateAndFix = (text) => {
+                let fixedText = text;
+                let needsRegeneration = false;
+
+                // First check for negative words
+                if (markedWords.negative.length > 0) {
+                    const foundNegativeWords = markedWords.negative.filter(word => {
+                        const regex = new RegExp(`\\b${word}\\b`, 'i');
+                        return regex.test(fixedText);
+                    });
+
+                    if (foundNegativeWords.length > 0) {
+                        console.warn('Found negative words:', foundNegativeWords);
+                        needsRegeneration = true;
+                        // Replace negative words with positive alternatives
+                        fixedText = replaceNegativeWords(fixedText);
+                    }
+                }
+
+                // Then ensure all positive words are present
+                if (markedWords.positive.length > 0) {
+                    const missingWords = markedWords.positive.filter(word => 
+                        !fixedText.toLowerCase().includes(word.toLowerCase())
+                    );
+                    if (missingWords.length > 0) {
+                        needsRegeneration = true;
+                        // Add missing words at the start
+                        const prefix = missingWords.join(', ') + ' in a scene with ';
+                        fixedText = prefix + fixedText.charAt(0).toLowerCase() + fixedText.slice(1);
+                    }
+                }
+
+                return { text: fixedText, needsRegeneration };
+            };
+
+            // Generate text with config
+            let generatedText = await this.generateText(systemPrompt, userPrompt, config);
+            let wordCount;
+            let attempts = 0;
+            const maxAttempts = 3;
+
+            do {
+                // Post-process and validate the generated text
+                generatedText = this.cleanupGeneratedText(generatedText);
+                const { text: fixedText, needsRegeneration } = validateAndFix(generatedText);
+                generatedText = fixedText;
+
+                wordCount = generatedText.split(/\s+/).length;
+                console.log(`Attempt ${attempts + 1} - Word count: ${wordCount}, Needs regeneration: ${needsRegeneration}`);
+
+                if (needsRegeneration && attempts < maxAttempts) {
+                    console.log('Regenerating due to validation issues...');
+                    generatedText = await this.generateText(systemPrompt, userPrompt, config);
+                } else if (wordCount < config.minLength && attempts < maxAttempts) {
+                    console.log(`Prompt too short (${wordCount} words), regenerating...`);
+                    userPrompt = `${userPrompt}\nYour previous response was too short. Please provide a more detailed description with EXACTLY ${config.minLength + Math.floor((config.maxLength - config.minLength) / 2)} words.`;
+                    generatedText = await this.generateText(systemPrompt, userPrompt, config);
+                } else if (wordCount > config.maxLength) {
+                    console.log(`Prompt too long (${wordCount} words), truncating...`);
+                    const words = generatedText.split(/\s+/);
+                    generatedText = words.slice(0, config.maxLength).join(' ');
+                    generatedText = generatedText.replace(/[,\s]+$/, '') + '.';
+                    const { text: fixedAfterTruncate } = validateAndFix(generatedText);
+                    generatedText = fixedAfterTruncate;
+                    break;
+                } else {
+                    break;
+                }
+
+                attempts++;
+            } while (attempts < maxAttempts);
+
+            // Add style name if not present and style exists
+            if (style?.name && !generatedText.toLowerCase().includes(style.name.toLowerCase())) {
                 if (generatedText.includes(',')) {
                     const firstComma = generatedText.indexOf(',');
-                    generatedText = generatedText.slice(0, firstComma) + ` in ${styleName} style` + generatedText.slice(firstComma);
+                    generatedText = generatedText.slice(0, firstComma) + ` in ${style.name} style` + generatedText.slice(firstComma);
                 } else {
-                    generatedText = `${styleName}-style ` + generatedText;
+                    generatedText = `${style.name}-style ` + generatedText;
                 }
             }
 
-            // Ensure the text doesn't exceed the maximum length
-            if (generatedText.length > config.maxLength) {
-                generatedText = generatedText.substring(0, config.maxLength).replace(/[,.]\s*[^,.]*$/, '');
-                generatedText += '.';
-            }
+            // Final validation
+            const { text: finalText } = validateAndFix(generatedText);
+            generatedText = finalText;
 
-            console.log('Generated description:', generatedText);
+            console.log('Original prompt:', basePrompt);
+            console.log('Enhanced prompt:', enhancedBasePrompt);
+            console.log('Generated prompt:', generatedText);
+            console.log('Final word count:', generatedText.split(/\s+/).length);
+            console.log('Length limits:', { min: config.minLength, max: config.maxLength });
 
-            return {
-                prompt: generatedText,
-                parameters: requestBody.options
-            };
+            return { prompt: generatedText };
         } catch (error) {
             console.error('Error generating prompt:', error);
             throw error;
@@ -587,7 +563,7 @@ Keep it brief and concise. Do not describe the content or subjects in the image.
                     prompt = "Briefly describe what you see in this image. Focus on the main elements and overall composition.";
                 }
 
-                const response = await this.makeRequest(`${this.getBaseUrl()}/api/generate`, {
+                const response = await this.makeRequest('/api/generate', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -623,7 +599,7 @@ Keep it brief and concise. Do not describe the content or subjects in the image.
 
     async installModel(modelName, progressCallback) {
         try {
-            const response = await this.makeRequest(`${this.getBaseUrl()}/api/pull`, {
+            const response = await this.makeRequest('/api/pull', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -887,7 +863,7 @@ Keep it brief and concise. Do not describe the content or subjects in the image.
     async getInstalledModels() {
         try {
             console.log('Fetching installed models...');
-            const response = await this.makeRequest(`${this.getBaseUrl()}/api/tags`);
+            const response = await this.makeRequest('/api/tags');
             
             if (!response.ok) {
                 console.error('Failed to get installed models, response not OK');
@@ -920,6 +896,49 @@ Keep it brief and concise. Do not describe the content or subjects in the image.
             console.error('Error getting installed models:', error);
             return [];
         }
+    }
+
+    async setModel(modelName) {
+        console.log('Setting model to:', modelName);
+        if (modelName) {
+            const isAvailable = await this.checkModelAvailability(modelName);
+            if (!isAvailable) {
+                throw new Error(`Model ${modelName} is not available`);
+            }
+            this.currentModel = modelName;
+            
+            // Save to config and update our instance
+            const currentConfig = configManager.getConfig();
+            const newConfig = {
+                ...currentConfig,
+                currentModel: modelName
+            };
+            await configManager.saveConfig(newConfig);
+            console.log('Saved model to config:', newConfig);
+            
+            // Notify all windows about the model change
+            BrowserWindow.getAllWindows().forEach(window => {
+                window.webContents.send('model-changed', newConfig);
+            });
+        }
+    }
+
+    async getCurrentModel() {
+        // If we don't have a current model in memory, try to get it from config
+        if (!this.currentModel) {
+            const config = configManager.getConfig();
+            this.currentModel = config.currentModel;
+            console.log('Got current model from config:', this.currentModel);
+        }
+        return this.currentModel;
+    }
+
+    async ensureTextModelSelected() {
+        const model = await this.getCurrentModel();
+        if (!model) {
+            throw new Error('No text model selected. Please select a model in settings.');
+        }
+        return model;
     }
 
     async generateSystemInstructions(description) {
@@ -959,7 +978,7 @@ Do not include any meta-instructions about prompt formatting.`;
             };
 
             console.log('Making generate request with body:', requestBody);
-            const response = await this.makeRequest(`${this.getBaseUrl()}/api/generate`, {
+            const response = await this.makeRequest('/api/generate', {
                 method: 'POST',
                 body: JSON.stringify(requestBody)
             });
@@ -1165,7 +1184,7 @@ except Exception as e:
         if (this.currentGeneration) {
             try {
                 // Anuluj bieżące żądanie
-                await this.makeRequest(`${this.getBaseUrl()}/api/generate`, {
+                await this.makeRequest('/api/generate', {
                     method: 'DELETE'
                 });
                 this.currentGeneration = null;
@@ -1423,7 +1442,7 @@ except Exception as e:
         if (this.currentGeneration) {
             try {
                 // Anuluj bieżące żądanie
-                await this.makeRequest(`${this.getBaseUrl()}/api/generate`, {
+                await this.makeRequest('/api/generate', {
                     method: 'DELETE'
                 });
                 this.currentGeneration = null;
@@ -1565,17 +1584,15 @@ except Exception as e:
             const systemInstruction = `You are a specialized AI trained to enhance and refine prompts for image generation. Your task is to take an existing prompt and make it more detailed and specific, while maintaining its original intent and style.
 
 Follow these guidelines:
-1. Analyze the original prompt carefully
-2. Add more specific visual details and descriptive elements
-3. Enhance atmosphere and mood descriptions
-4. Include additional relevant artistic elements
-5. Maintain the original style and theme
-6. Keep the language natural and flowing
-7. DO NOT add any style tags, quality terms, or technical specifications at the end
-8. DO NOT drastically change the original concept
-9. ONLY return the enhanced prompt text, nothing else
-10. DO NOT include any explanations or comments about the changes made
-11. DO NOT include phrases like "Original prompt:" or "Enhanced prompt:"
+1. Keep the prompt concise and natural - avoid technical jargon
+2. Focus on the main subject and mood
+3. Add only the most relevant details
+4. Maintain the original style and theme
+5. Keep the language flowing naturally
+6. DO NOT add technical terms or quality tags
+7. DO NOT change the original concept
+8. Return ONLY the enhanced prompt text, nothing else
+9. ${style?.modelParameters?.maxLength} words maximum.
 
 Example input: "A castle in the mountains"
 Example output: "A majestic medieval castle perched atop craggy mountain peaks, its ancient stone towers reaching into misty clouds, while snow-capped peaks stretch endlessly into the distance, the fortress walls weathered by centuries of alpine winds"`;
@@ -1612,6 +1629,63 @@ Example output: "A majestic medieval castle perched atop craggy mountain peaks, 
         } catch (error) {
             console.error('Error in refinePrompt:', error);
             throw error;
+        }
+    }
+
+    async getStatus() {
+        try {
+            await this.checkConnection();
+            const status = {
+                isConnected: this.isConnected,
+                currentModel: this.currentModel,
+                visionModel: this.visionModel,
+                lastError: this.lastError,
+                availableModels: this.availableModels
+            };
+            console.log('Current Ollama status:', status);
+            return status;
+        } catch (error) {
+            console.error('Error getting status:', error);
+            return {
+                isConnected: false,
+                lastError: error.message,
+                currentModel: null,
+                visionModel: null,
+                availableModels: []
+            };
+        }
+    }
+
+    async checkConnection() {
+        console.log('Checking Ollama connection...');
+        try {
+            console.log('Trying connection to:', this.getBaseUrl());
+            const response = await fetch(this.getBaseUrl() + '/api/tags', {
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (response.ok) {
+                this.isConnected = true;
+                this.lastError = null;
+                console.log('Successfully connected to Ollama');
+                
+                // Update available models
+                const data = await response.json();
+                this.availableModels = data.models || [];
+                
+                return true;
+            }
+
+            this.isConnected = false;
+            this.lastError = 'Failed to connect to Ollama';
+            return false;
+        } catch (error) {
+            console.error('Ollama connection error:', error);
+            this.isConnected = false;
+            this.lastError = error.message;
+            return false;
         }
     }
 }

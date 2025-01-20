@@ -37,3 +37,240 @@
     font-size: 12px;
     opacity: 0.7;
 }
+
+/* Word marking styles */
+.marked-word {
+    font-weight: bold;
+    cursor: pointer;
+}
+
+.marked-positive {
+    color: #4CAF50;
+    border-bottom: 2px solid #4CAF50;
+}
+
+.marked-negative {
+    color: #f44336;
+    border-bottom: 2px solid #f44336;
+}
+
+/* Context menu styles */
+.word-context-menu {
+    position: fixed;
+    background: var(--theme-background);
+    border: 1px solid var(--theme-border);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    padding: 6px 0;
+    min-width: 180px;
+    z-index: 1000;
+    backdrop-filter: blur(10px);
+}
+
+.word-context-menu .menu-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--theme-text);
+    transition: background-color 0.2s;
+}
+
+.word-context-menu .menu-item:hover {
+    background-color: var(--theme-hover);
+}
+
+.word-context-menu .menu-item.positive {
+    color: #4CAF50;
+}
+
+.word-context-menu .menu-item.negative {
+    color: #f44336;
+}
+
+/* Marked words panel */
+.marked-words-panel {
+    position: absolute;
+    right: 10px;
+    top: 10px;
+    background: var(--theme-background);
+    border: 1px solid var(--theme-color);
+    border-radius: 8px;
+    padding: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+    display: none;
+    min-width: 200px;
+    backdrop-filter: blur(10px);
+    z-index: 2;
+}
+
+.marked-words-panel .panel-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid var(--theme-border);
+}
+
+.marked-words-panel .panel-header strong {
+    color: var(--theme-text);
+    font-size: 14px;
+}
+
+.marked-words-panel .panel-header i {
+    cursor: pointer;
+    opacity: 0.6;
+    color: var(--theme-text);
+    transition: opacity 0.2s;
+}
+
+.marked-words-panel .panel-header i:hover {
+    opacity: 1;
+}
+
+.marked-words-panel.visible {
+    display: block;
+    animation: fadeIn 0.2s ease-out;
+}
+
+.marked-words-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+
+.marked-words-list li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 0;
+    color: var(--theme-text);
+}
+
+.marked-words-list li .remove-mark {
+    cursor: pointer;
+    opacity: 0.6;
+    color: var(--theme-text);
+    transition: opacity 0.2s;
+}
+
+.marked-words-list li .remove-mark:hover {
+    opacity: 1;
+}
+
+/* Marked words indicator */
+.tool-button.has-marked-words {
+    position: relative;
+}
+
+.tool-button.has-marked-words::after {
+    content: '';
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    width: 8px;
+    height: 8px;
+    background: #4CAF50;
+    border-radius: 50%;
+    border: 2px solid var(--theme-background);
+}
+
+.tool-button.has-marked-words.has-negative::after {
+    background: #f44336;
+}
+
+.tool-button.has-marked-words.has-both::after {
+    background: linear-gradient(45deg, #4CAF50 50%, #f44336 50%);
+}
+
+/* Prompt input highlighting */
+.prompt-textarea-container {
+    position: relative;
+    width: 100%;
+}
+
+#promptInput {
+    background: transparent !important;
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    min-height: 80px;
+    padding: 12px;
+    box-sizing: border-box;
+}
+
+.prompt-input-highlight {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    padding: 12px;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    color: transparent;
+    pointer-events: none;
+    z-index: 0;
+    width: 100%;
+    min-height: 80px;
+    box-sizing: border-box;
+    border: 1px solid transparent; /* Match textarea border */
+    overflow: hidden;
+}
+
+.prompt-input-highlight .highlight-positive {
+    background: rgba(76, 175, 80, 0.1);
+    border-bottom: 2px solid #4CAF50;
+    border-radius: 2px;
+    padding: 0 1px; /* Add slight padding to ensure highlight covers text */
+    margin: 0 -1px; /* Offset padding to maintain alignment */
+}
+
+.prompt-input-highlight .highlight-negative {
+    background: rgba(244, 67, 54, 0.1);
+    border-bottom: 2px solid #f44336;
+    border-radius: 2px;
+    padding: 0 1px; /* Add slight padding to ensure highlight covers text */
+    margin: 0 -1px; /* Offset padding to maintain alignment */
+}
+
+/* Make sure textarea and highlight div have exactly the same text properties */
+#promptInput,
+.prompt-input-highlight {
+    font-family: inherit;
+    font-size: inherit;
+    font-weight: inherit;
+    line-height: 1.5;
+    letter-spacing: normal;
+    text-align: left;
+    text-indent: 0;
+    text-rendering: auto;
+    text-transform: none;
+    margin: 0;
+    border: 0;
+    resize: none;
+    overflow-y: auto;
+    -webkit-text-size-adjust: 100%;
+    tab-size: 4;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* Hide scrollbar on highlight div but keep functionality */
+.prompt-input-highlight::-webkit-scrollbar {
+    width: 0;
+    height: 0;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}

@@ -14,13 +14,10 @@ const DEFAULT_TAGS = [
 const activeGenerations = new Map();
 
 // Dodaj na początku pliku
-window.addEventListener('error', (event) => {
-    console.error('Renderer error:', event.error);
-});
-
-window.addEventListener('unhandledrejection', (event) => {
-    console.error('Unhandled rejection in renderer:', event.reason);
-});
+let markedWords = {
+    positive: new Set(),
+    negative: new Set()
+};
 
 // Flaga do blokowania równoległych generacji sekwencyjnych
 let isSequentialGenerationInProgress = false;
@@ -1032,6 +1029,188 @@ function showToast(message) {
 document.addEventListener('DOMContentLoaded', async () => {
     console.log('DOM Content Loaded - Initializing application...');
 
+    try {
+        await loadStyles();
+        initializeWindowControls();
+        initializeButtons();
+        initializePromptInput(); // Dodaj inicjalizację pola promptu
+        initializeTheme();
+        
+        // Initialize switch functionality
+        const switchBtns = document.querySelectorAll('.switch-btn');
+        switchBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const view = btn.dataset.view;
+                toggleStylesView(view);
+            });
+        });
+
+        // Initialize with active view
+        toggleStylesView('active');
+        updateStyleCounts();
+        updateGeneratePromptsButton();
+        
+    } catch (error) {
+        console.error('Error during initialization:', error);
+        showToast('Error initializing application');
+    }
+});
+
+// Funkcja do ładowania stylów
+async function loadStyles() {
+    try {
+        const styles = await ipcRenderer.invoke('get-styles');
+        console.log('Loaded styles:', styles);
+        
+        const stylesList = document.querySelector('.styles-list');
+        if (!stylesList) {
+            console.error('Styles list container not found');
+            return;
+        }
+
+        stylesList.innerHTML = '';
+
+        styles.forEach(style => {
+            const card = createStyleCard(style);
+            stylesList.appendChild(card);
+        });
+        
+        // Get current view
+        const currentView = document.querySelector('.switch-btn.active')?.dataset?.view || 'active';
+        
+        // Apply initial filtering
+        toggleStylesView(currentView);
+        
+        updateStyleCounts();
+        updateGeneratePromptsButton();
+    } catch (error) {
+        console.error('Error loading styles:', error);
+        showToast('Error loading styles');
+    }
+}
+
+// Funkcja do aktualizacji promptu w karcie stylu
+function updateStylePrompt(styleId, prompt) {
+    const card = document.querySelector(`.style-card[data-style-id="${styleId}"]`);
+    if (!card) return;
+
+    const promptText = card.querySelector('.prompt-text');
+    const drawBtn = card.querySelector('.draw-btn');
+    
+    if (promptText) {
+        promptText.textContent = prompt || 'Click Generate to create a prompt...';
+        
+        // Update button states
+        const hasPrompt = prompt && prompt.trim() !== '' && prompt !== 'Click Generate to create a prompt...';
+        
+        if (drawBtn) {
+            drawBtn.disabled = !hasPrompt;
+            drawBtn.classList.toggle('disabled', !hasPrompt);
+        }
+    }
+}
+
+// Funkcja do kopiowania promptu
+function copyStylePrompt(styleId) {
+    const card = document.querySelector(`[data-style-id="${styleId}"]`);
+    if (!card) return;
+    
+    const promptText = card.querySelector('.prompt-text');
+    if (promptText && promptText.textContent && promptText.textContent !== 'Click Generate to create a prompt...') {
+        navigator.clipboard.writeText(promptText.textContent);
+        showToast('Prompt copied to clipboard');
+    } else {
+        showToast('No prompt to copy');
+    }
+}
+
+// Funkcja do wysyłania do Draw Things
+async function sendToDrawThings(styleId) {
+    try {
+        const card = document.querySelector(`.style-card[data-style-id="${styleId}"]`);
+        if (!card) return;
+
+        const promptText = card.querySelector('.prompt-text');
+        const drawBtn = card.querySelector('.draw-btn');
+        
+        if (!promptText || !drawBtn) return;
+        
+        const prompt = promptText.textContent.trim();
+        if (!prompt || prompt === 'Click Generate to create a prompt...') {
+            showToast('No prompt to send to Draw Things');
+            return;
+        }
+
+        // Disable button and show loading state
+        drawBtn.disabled = true;
+        drawBtn.classList.add('disabled');
+        const originalContent = drawBtn.innerHTML;
+        drawBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+
+        try {
+            // Check Draw Things connection first
+            const isConnected = await ipcRenderer.invoke('check-draw-things-connection');
+            if (!isConnected) {
+                throw new Error('Draw Things is not connected. Please check if the app is running and API Server is enabled.');
+            }
+
+            // Send prompt to Draw Things
+            await ipcRenderer.invoke('send-to-draw-things', prompt);
+            showToast('Successfully sent to Draw Things! ');
+        } catch (error) {
+            console.error('Error sending to Draw Things:', error);
+            showToast(`Error: ${error.message}`);
+        } finally {
+            // Restore button state
+            drawBtn.disabled = false;
+            drawBtn.classList.remove('disabled');
+            drawBtn.innerHTML = originalContent;
+        }
+    } catch (error) {
+        console.error('Error in sendToDrawThings:', error);
+        showToast('An unexpected error occurred');
+    }
+}
+
+// Funkcja do sprawdzania połączenia z Draw Things
+async function checkDrawThingsConnection() {
+    try {
+        return await ipcRenderer.invoke('check-draw-things');
+    } catch (error) {
+        console.error('Error checking Draw Things connection:', error);
+        return false;
+    }
+}
+
+// Funkcja do zapisywania stanu stylu
+async function saveStyleState(styleId, active) {
+    try {
+        await ipcRenderer.invoke('save-style-state', { styleId, active });
+    } catch (error) {
+        console.error('Error saving style state:', error);
+    }
+}
+
+// Funkcja do wyświetlania powiadomień
+function showToast(message) {
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.classList.add('show');
+        setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => toast.remove(), 300);
+        }, 2000);
+    }, 100);
+}
+
+// Usuń poprzednie nasłuchiwacze DOMContentLoaded i zastąp jednym głównym
+document.addEventListener('DOMContentLoaded', async () => {
+    console.log('DOM Content Loaded - Initializing application...');
+
     // Initialize history functionality
     const historyBtn = document.getElementById('history-btn');
     const historyPanel = document.querySelector('.history-panel');
@@ -1323,7 +1502,7 @@ function initializeButtons() {
     }
 }
 
-// Funkcja debounce (jeśli jeszcze nie jest zdefiniowana)
+// Utility function to debounce frequent updates
 function debounce(func, wait) {
     let timeout;
     return function executedFunction(...args) {
@@ -1477,7 +1656,11 @@ async function generatePromptsSequentially(basePrompt, view = 'active') {
                     basePrompt: style.prefix ? `${style.prefix} ${basePrompt}` : basePrompt,
                     styleId,
                     style,
-                    promptType
+                    promptType,
+                    markedWords: {
+                        positive: Array.from(markedWords.positive),
+                        negative: Array.from(markedWords.negative)
+                    }
                 });
 
                 if (result && result.prompt) {
@@ -2223,3 +2406,210 @@ dropdownMenu.addEventListener('click', (e) => {
 
 // Set default option
 updateSelectedOption('standard');
+
+// Add new function for handling word marking
+function initializeWordMarking() {
+    const promptInput = document.getElementById('promptInput');
+    const contextMenu = document.getElementById('wordContextMenu');
+    const markedWordsPanel = document.getElementById('markedWordsPanel');
+    const closeMarkedWords = document.getElementById('closeMarkedWords');
+    let selectedText = '';
+    let selectedRange = null;
+
+    // Handle input changes for highlighting
+    promptInput.addEventListener('input', updatePromptHighlighting);
+    promptInput.addEventListener('scroll', () => {
+        document.getElementById('promptHighlight').scrollTop = promptInput.scrollTop;
+    });
+
+    // Handle right click on prompt input
+    promptInput.addEventListener('contextmenu', (e) => {
+        const selection = window.getSelection();
+        const text = selection.toString().trim();
+
+        // Show menu if text is selected
+        if (text) {
+            e.preventDefault();
+            selectedText = text;
+            selectedRange = selection.getRangeAt(0);
+
+            // Position context menu
+            contextMenu.style.left = e.pageX + 'px';
+            contextMenu.style.top = e.pageY + 'px';
+            contextMenu.style.display = 'block';
+        }
+    });
+
+    // Handle menu item clicks
+    contextMenu.addEventListener('click', (e) => {
+        const menuItem = e.target.closest('.menu-item');
+        if (!menuItem) return;
+
+        const action = menuItem.dataset.action;
+        markWord(selectedText, action);
+        updateMarkedWordsList();
+        contextMenu.style.display = 'none';
+        
+        // Show panel when adding new word/phrase
+        markedWordsPanel.classList.add('visible');
+    });
+
+    // Close context menu when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.word-context-menu')) {
+            contextMenu.style.display = 'none';
+        }
+    });
+
+    // Close marked words panel
+    closeMarkedWords.addEventListener('click', () => {
+        markedWordsPanel.classList.remove('visible');
+    });
+
+    // Show marked words panel button
+    const showMarkedWordsBtn = document.createElement('button');
+    showMarkedWordsBtn.className = 'tool-button';
+    showMarkedWordsBtn.title = 'Show Marked Words';
+    showMarkedWordsBtn.innerHTML = '<i class="fas fa-tags"></i><span>Marked Words</span>';
+    showMarkedWordsBtn.onclick = () => {
+        markedWordsPanel.classList.toggle('visible');
+        updateMarkedWordsList();
+    };
+
+    // Add button to tools
+    document.querySelector('.input-buttons').appendChild(showMarkedWordsBtn);
+}
+
+// Function to mark/unmark a word
+function markWord(text, type) {
+    if (markedWords[type].has(text)) {
+        markedWords[type].delete(text);
+    } else {
+        // Remove from opposite list if present
+        const oppositeType = type === 'positive' ? 'negative' : 'positive';
+        markedWords[oppositeType].delete(text);
+        markedWords[type].add(text);
+    }
+    
+    // Update highlighting
+    updatePromptHighlighting();
+}
+
+// Function to update marked words list
+function updateMarkedWordsList() {
+    const list = document.getElementById('markedWordsList');
+    list.innerHTML = '';
+
+    const hasPositive = markedWords.positive.size > 0;
+    const hasNegative = markedWords.negative.size > 0;
+
+    const showMarkedWordsBtn = document.querySelector('.tool-button[title="Show Marked Words"]');
+    showMarkedWordsBtn.classList.toggle('has-marked-words', hasPositive || hasNegative);
+    showMarkedWordsBtn.classList.toggle('has-negative', !hasPositive && hasNegative);
+    showMarkedWordsBtn.classList.toggle('has-both', hasPositive && hasNegative);
+
+    // Add positive words/phrases
+    markedWords.positive.forEach(text => {
+        const li = document.createElement('li');
+        li.innerHTML = `
+            <span class="marked-positive">${text}</span>
+            <i class="fas fa-times remove-mark"></i>
+        `;
+        li.querySelector('.remove-mark').onclick = () => {
+            markWord(text, 'positive');
+            updateMarkedWordsList();
+        };
+        list.appendChild(li);
+    });
+
+    // Add negative words/phrases
+    markedWords.negative.forEach(text => {
+        const li = document.createElement('li');
+        li.innerHTML = `
+            <span class="marked-negative">${text}</span>
+            <i class="fas fa-times remove-mark"></i>
+        `;
+        li.querySelector('.remove-mark').onclick = () => {
+            markWord(text, 'negative');
+            updateMarkedWordsList();
+        };
+        list.appendChild(li);
+    });
+}
+
+// Add to DOMContentLoaded
+document.addEventListener('DOMContentLoaded', () => {
+    initializeWordMarking();
+});
+
+// Function to escape text for safe HTML insertion
+function escapeHtml(text) {
+    return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+// Function to highlight marked words in the prompt input
+function updatePromptHighlighting() {
+    const promptInput = document.getElementById('promptInput');
+    const highlightDiv = document.getElementById('promptHighlight');
+    let text = promptInput.value;
+    
+    // Ensure exact whitespace preservation
+    if (!text) {
+        highlightDiv.innerHTML = '';
+        return;
+    }
+    
+    // First escape HTML to prevent XSS and preserve whitespace
+    let highlightedText = escapeHtml(text)
+        .replace(/ /g, '&nbsp;')
+        .replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;');
+    
+    // Create a regex pattern for all marked words
+    const allMarkedWords = [];
+    
+    // Add positive words
+    markedWords.positive.forEach(word => {
+        if (word.trim()) {
+            allMarkedWords.push({
+                word: word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), // Escape regex special chars
+                type: 'positive'
+            });
+        }
+    });
+    
+    // Add negative words
+    markedWords.negative.forEach(word => {
+        if (word.trim()) {
+            allMarkedWords.push({
+                word: word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+                type: 'negative'
+            });
+        }
+    });
+    
+    // Sort by length (longest first) to handle overlapping matches correctly
+    allMarkedWords.sort((a, b) => b.word.length - a.word.length);
+    
+    // Apply highlighting
+    allMarkedWords.forEach(({ word, type }) => {
+        const regex = new RegExp(`\\b(${word})\\b(?![^<]*>)`, 'gi'); // Match whole words only, don't match inside HTML tags
+        highlightedText = highlightedText.replace(regex, `<span class="highlight-${type}">$1</span>`);
+    });
+    
+    // Replace newlines with <br> for proper display
+    highlightedText = highlightedText.replace(/\n/g, '<br>');
+    
+    // Add a space at the end to ensure proper text wrapping
+    highlightedText += '&nbsp;';
+    
+    // Update the highlight div
+    highlightDiv.innerHTML = highlightedText;
+    
+    // Sync scroll position
+    highlightDiv.scrollTop = promptInput.scrollTop;
+}

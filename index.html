@@ -14,7 +14,23 @@
                 <div class="prompt-input-container">
                     <div class="prompt-input-wrapper">
                         <div class="prompt-textarea-container">
+                            <div class="prompt-input-highlight" id="promptHighlight"></div>
                             <textarea id="promptInput" placeholder="Enter your prompt here..." rows="3"></textarea>
+                            <div id="wordContextMenu" class="word-context-menu" style="display: none;">
+                                <div class="menu-item positive" data-action="positive">
+                                    <i class="fas fa-check"></i> Mark as Positive
+                                </div>
+                                <div class="menu-item negative" data-action="negative">
+                                    <i class="fas fa-times"></i> Mark as Negative
+                                </div>
+                            </div>
+                            <div id="markedWordsPanel" class="marked-words-panel">
+                                <div class="panel-header">
+                                    <strong>Marked Words</strong>
+                                    <i class="fas fa-times" id="closeMarkedWords"></i>
+                                </div>
+                                <ul class="marked-words-list" id="markedWordsList"></ul>
+                            </div>
                         </div>
                     </div>
                     <div class="prompt-input-wrapper-tools">
