@@ -371,22 +371,25 @@ class OllamaManager {
             const promptConfig = {
                 simple: {
                     maxLength: 300,
+                    maxTokens: 512,
                     instruction: function() { 
-                        return `Create a natural, descriptive prompt that feels like a human description. Focus on the main subject and mood. Fit in: ${this.maxLength} words.`
+                        return `Create a natural, descriptive prompt that feels like a human description. Focus on the main subject and mood. Fit in: ${this.maxLength} words and make sure prompt will not be too long.`
                     },
                     example: 'Beautiful cyberpunk cityscape bathed in warm neon lights, with sleek flying vehicles gliding through the air, creating a cozy yet futuristic atmosphere, volumetric fog adds depth, cinematic mood lighting enhances the scene'
                 },
                 standard: {
-                    maxLength: 700,
+                    maxLength: 900,
+                    maxTokens: 1024,
                     instruction: function() {
                         return `Create a detailed, natural description that flows like human speech while maintaining artistic precision. Include subject, mood, environment and technical aspects. Fit in: ${this.maxLength} words.`
                     },
                     example: 'Stunning cyberpunk cityscape with elegant crystalline megastructures reaching into the cloudy sky, graceful streams of hovering vehicles weaving between the buildings, massive holographic advertisements casting colorful reflections on the rain-soaked streets below, soft volumetric fog diffusing the vibrant neon lights, creating an atmospheric scene with perfect cinematic composition, high attention to detail, masterful lighting design brings the scene to life'
                 },
                 detailed: {
-                    maxLength: 1500,
+                    maxLength: 2000,
+                    maxTokens: 2048,
                     instruction: function() {
-                        return `Create an extensive, natural description that reads like a professional artist explaining their vision. Include rich details about subject, environment, lighting, mood, composition, and technical aspects. Fit in: ${this.maxLength} words.`
+                        return `Create an extensive, natural description that reads like a professional artist explaining their vision. Include rich details about subject, environment, lighting, mood, composition, and technical aspects. Fit in: ${this.maxLength} words and make prompt rich, long and detailed.`
                     },
                     example: 'Breathtaking cyberpunk cityscape where majestic crystal megastructures pierce through layers of neon-illuminated clouds, elegant streams of antigravity vehicles gracefully weave through towering canyons of steel and glass, massive holographic advertisements cast mesmerizing prismatic reflections across rain-slicked graphene streets, delicate volumetric fog diffuses the warm glow of bioluminescent signage, advanced energy conduits pulse rhythmically with flowing plasma, ray-traced global illumination bathes the scene in realistic light, cinematic ultra-wide composition captures the epic scale, hyperrealistic details bring every surface to life, masterful octane render with perfect exposure and color grading, professional photography quality'
                 }
@@ -421,7 +424,8 @@ Example output: "A majestic medieval castle perched atop craggy mountain peaks, 
                 options: {
                     temperature: style?.modelParams?.temperature || 0.75,
                     top_k: style?.modelParams?.topK || 40,
-                    top_p: style?.modelParams?.topP || 0.9
+                    top_p: style?.modelParams?.topP || 0.9,
+                    max_tokens: config.maxTokens
                 }
             };
 

@@ -6,6 +6,7 @@
         <link rel="stylesheet" href="styles/main.css">
         <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
         <link rel="stylesheet" href="history.css">
+        <link rel="stylesheet" href="styles.css">
     </head>
     <body>
         <div class="app-container">
@@ -43,10 +44,10 @@
                         </div>
                         <div class="styles-nav-right">
                             <div class="generate-button-group">
-                                <button id="generatePrompts" class="style-card-button"><i class="fas fa-wand-magic-sparkles"></i><span>Generate Prompts</span></button>
+                                <button id="generatePrompts" class="style-card-button"></i><span>Generate Prompts</span></button>
                                 <button id="promptOptionsDropdown" class="style-card-button dropdown-toggle">
                                     <span class="selected-option">Standard</span>
-                                    <i class="fas fa-chevron-down"></i>
+                                    <i class="fas fa-chevron-down" style="float: right;"></i>
                                 </button>
                                 <div class="prompt-options-dropdown">
                                     <div class="dropdown-item" data-option="simple">Simple</div>
@@ -54,7 +55,7 @@
                                     <div class="dropdown-item" data-option="detailed">Long and Detailed</div>
                                 </div>
                             </div>
-                            <button class="style-card-button manage-styles-btn"><i class="fas fa-gear"></i><span>Manage Styles</span></button>
+                            <button class="style-card-button manage-styles-btn"><span>Manage Styles</span></button>
                         </div>
                     </div>
                     <div class="styles-container">

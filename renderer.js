@@ -84,16 +84,26 @@ function createStyleCard(style) {
     card.setAttribute('data-style-id', style.id);
     card.dataset.favorite = localStorage.getItem(`style_${style.id}_favorite`) === 'true' ? 'true' : 'false';
 
+    // Create header
     const header = document.createElement('div');
-    header.className = 'style-card-header';
-    
+    header.className = 'style-header';
+
+    const headerLeft = document.createElement('div');
+    headerLeft.className = 'style-header-left';
+
+    const headerRight = document.createElement('div');
+    headerRight.className = 'style-header-right';
+
     const titleContainer = document.createElement('div');
     titleContainer.className = 'style-card-title-container';
-    
-    const title = document.createElement('div');
-    title.className = 'style-card-title';
-    title.innerHTML = `<i class="fas fa-${style.icon}"></i> ${style.name}`;
 
+    const icon = document.createElement('i');
+    icon.className = style.icon || 'fas fa-palette';
+    titleContainer.appendChild(icon);
+
+    const title = document.createElement('span');
+    title.className = 'style-card-title';
+    title.textContent = style.name;
     titleContainer.appendChild(title);
 
     const favoriteBtn = document.createElement('button');
@@ -108,111 +118,60 @@ function createStyleCard(style) {
         favoriteBtn.classList.toggle('active', !isFavorite);
         updateStyleCounts();
     };
-    
     titleContainer.appendChild(favoriteBtn);
-    
+
     const description = document.createElement('div');
     description.className = 'style-card-description';
     description.textContent = style.description || 'No description available';
-    
-    header.appendChild(titleContainer);
-    header.appendChild(description);
+
+    headerLeft.appendChild(titleContainer);
+    headerLeft.appendChild(description);
 
     // Controls container (switch and generate button)
     const controls = document.createElement('div');
     controls.className = 'style-card-controls';
-    
-    const promptTypeSelector = document.createElement('div');
-    promptTypeSelector.className = 'prompt-type-selector';
-    
-    const promptTypeBtn = document.createElement('button');
-    promptTypeBtn.className = 'prompt-type-button';
-    promptTypeBtn.title = 'Select prompt detail level';
-    promptTypeBtn.innerHTML = `
-        <span class="prompt-type-text">Standard</span>
-        <i class="fas fa-chevron-down"></i>
+
+    const generateButtonGroup = document.createElement('div');
+    generateButtonGroup.className = 'generate-button-group';
+
+    const generateButton = document.createElement('button');
+    generateButton.className = 'style-card-button';
+    generateButton.innerHTML = '<span>Generate</span>';
+
+    const dropdownButton = document.createElement('button');
+    dropdownButton.className = 'style-card-button dropdown-toggle';
+    dropdownButton.innerHTML = '<span class="selected-option">Standard</span><i class="fas fa-chevron-down"></i>';
+
+    const dropdownMenu = document.createElement('div');
+    dropdownMenu.className = 'prompt-options-dropdown';
+    dropdownMenu.innerHTML = `
+        <div class="dropdown-item" data-option="simple">Simple</div>
+        <div class="dropdown-item" data-option="standard">Standard</div>
+        <div class="dropdown-item" data-option="detailed">Long and Detailed</div>
     `;
-    
-    const generateBtn = document.createElement('button');
-    generateBtn.className = 'generate-btn';
-    generateBtn.setAttribute('type', 'button');
-    generateBtn.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i> Generate';
-    generateBtn.onclick = async (e) => {
+
+    dropdownButton.addEventListener('click', (e) => {
         e.stopPropagation();
-        e.preventDefault();
+        dropdownMenu.classList.toggle('show');
+    });
 
-        // Check if already generating
-        if (activeGenerations.has(style.id)) {
-            return;
-        }
+    dropdownMenu.querySelectorAll('.dropdown-item').forEach(item => {
+        item.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const selectedOption = e.target.dataset.option;
+            dropdownButton.querySelector('.selected-option').textContent = e.target.textContent;
+            dropdownMenu.classList.remove('show');
+        });
+    });
 
-        const promptInput = document.getElementById('promptInput');
-        const basePrompt = promptInput.value.trim();
-        
-        if (!basePrompt) {
-            showToast('Please enter a prompt first');
-            return;
-        }
+    document.addEventListener('click', () => {
+        dropdownMenu.classList.remove('show');
+    });
 
-        try {
-            const promptContainer = card.querySelector('.prompt-container');
-            const loadingContainer = card.querySelector('.generating-container');
-            const promptDisplay = card.querySelector('.prompt-text');
-            
-            if (!promptContainer || !loadingContainer || !promptDisplay) {
-                console.error('Missing required elements for card:', style.id);
-                return;
-            }
+    generateButtonGroup.appendChild(generateButton);
+    generateButtonGroup.appendChild(dropdownButton);
+    generateButtonGroup.appendChild(dropdownMenu);
 
-            // Mark as generating
-            activeGenerations.set(style.id, true);
-
-            // Show loading animation
-            promptDisplay.style.display = 'none';
-            loadingContainer.style.display = 'flex';
-            showLoadingAnimation(loadingContainer, 'Generating prompt...');
-            generateBtn.classList.add('disabled', 'loading');
-            generateBtn.disabled = true;
-
-            // Generate prompt
-            try {
-                const promptType = promptTypeSelect.value || 'standard';
-                const result = await ipcRenderer.invoke('generate-prompt', {
-                    basePrompt: style.prefix ? `${style.prefix}${basePrompt}` : basePrompt,
-                    styleId: style.id,
-                    promptType
-                });
-
-                if (result && result.prompt) {
-                    // Hide loading animation
-                    loadingContainer.style.display = 'none';
-                    promptContainer.style.display = 'block';
-                    promptDisplay.style.display = 'block';
-                    promptDisplay.textContent = '';
-                    await revealPrompt(result.prompt, promptDisplay);
-                    addToStyleHistory(style.id, result.prompt);
-                    updateHistoryButtons(style.id);
-                } else {
-                    throw new Error('Empty response from model');
-                }
-            } catch (error) {
-                console.error('Error generating prompt:', error);
-                promptDisplay.textContent = `Error: ${error.message}`;
-                promptDisplay.style.display = 'block';
-            }
-        } finally {
-            // Restore UI state
-            const loadingContainer = card.querySelector('.generating-container');
-            if (loadingContainer) {
-                loadingContainer.style.display = 'none';
-            }
-            generateBtn.classList.remove('disabled', 'loading');
-            generateBtn.disabled = false;
-            // Clear generating flag
-            activeGenerations.delete(style.id);
-        }
-    };
-    
     const toggle = document.createElement('div');
     toggle.className = 'style-toggle';
     const toggleInput = document.createElement('input');
@@ -220,14 +179,18 @@ function createStyleCard(style) {
     toggleInput.checked = localStorage.getItem(`style_${style.id}_active`) === 'true';
     toggle.appendChild(toggleInput);
 
-    // Add change event listener directly to the input
     toggleInput.addEventListener('change', () => {
         toggleStyle(style.id, toggleInput.checked);
     });
 
-    controls.appendChild(promptTypeSelector);
-    controls.appendChild(generateBtn);
+    controls.appendChild(generateButtonGroup);
     controls.appendChild(toggle);
+
+    headerRight.appendChild(controls);
+
+    header.appendChild(headerLeft);
+    header.appendChild(headerRight);
+    card.appendChild(header);
 
     // Create prompt container
     const promptContainer = document.createElement('div');
@@ -247,8 +210,6 @@ function createStyleCard(style) {
     promptContainer.appendChild(promptText);
     promptContainer.appendChild(loadingContainer);
     
-    card.appendChild(header);
-    card.appendChild(controls);
     card.appendChild(promptContainer);
     
     // Create prompt actions container
@@ -288,14 +249,6 @@ function createStyleCard(style) {
         e.stopPropagation();
         copyStylePrompt(style.id);
     };
-
-    // Create Magic Refiner button
-    const magicRefinerBtn = document.createElement('button');
-    magicRefinerBtn.className = 'prompt-action-btn magic-refiner-btn disabled';
-    magicRefinerBtn.innerHTML = '<i class="fas fa-magic"></i> Magic Refiner';
-    magicRefinerBtn.title = 'Magic Refiner';
-    magicRefinerBtn.disabled = true;
-    magicRefinerBtn.onclick = () => refinePrompt(style.id);
 
     // Create Draw Things button
     const drawBtn = document.createElement('button');
@@ -378,9 +331,6 @@ function createStyleCard(style) {
                 const promptContent = promptText.textContent.trim();
                 const hasPrompt = promptContent && promptContent !== 'Click Generate to create a prompt...';
                 
-                magicRefinerBtn.disabled = !hasPrompt;
-                magicRefinerBtn.classList.toggle('disabled', !hasPrompt);
-                
                 drawBtn.disabled = !hasPrompt;
                 drawBtn.classList.toggle('disabled', !hasPrompt);
                 
@@ -410,7 +360,6 @@ function createStyleCard(style) {
     // Create container for Magic Refiner and Draw Things buttons
     const actionButtons = document.createElement('div');
     actionButtons.className = 'action-buttons';
-    actionButtons.appendChild(magicRefinerBtn);
     actionButtons.appendChild(drawBtn);
 
     // Add all elements to prompt actions
@@ -420,6 +369,83 @@ function createStyleCard(style) {
     // Add prompt actions to card
     card.appendChild(promptActions);
     
+    // Generate button click handler
+    generateButton.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+
+        // Check if already generating
+        if (activeGenerations.has(style.id)) {
+            return;
+        }
+
+        const promptInput = document.getElementById('promptInput');
+        const basePrompt = promptInput.value.trim();
+        
+        if (!basePrompt) {
+            showToast('Please enter a prompt first');
+            return;
+        }
+
+        try {
+            const promptContainer = card.querySelector('.prompt-container');
+            const loadingContainer = card.querySelector('.generating-container');
+            const promptDisplay = card.querySelector('.prompt-text');
+            
+            if (!promptContainer || !loadingContainer || !promptDisplay) {
+                console.error('Missing required elements for card:', style.id);
+                return;
+            }
+
+            // Mark as generating
+            activeGenerations.set(style.id, true);
+
+            // Show loading animation
+            promptDisplay.style.display = 'none';
+            loadingContainer.style.display = 'flex';
+            showLoadingAnimation(loadingContainer, 'Generating prompt...');
+            generateButton.classList.add('disabled', 'loading');
+            generateButton.disabled = true;
+
+            // Get selected prompt type from dropdown
+            const promptType = dropdownButton.querySelector('.selected-option').textContent.toLowerCase().replace(/\s+/g, '');
+            
+            const result = await ipcRenderer.invoke('generate-prompt', {
+                basePrompt: style.prefix ? `${style.prefix}${basePrompt}` : basePrompt,
+                styleId: style.id,
+                promptType
+            });
+
+            if (result && result.prompt) {
+                // Hide loading animation
+                loadingContainer.style.display = 'none';
+                promptContainer.style.display = 'block';
+                promptDisplay.style.display = 'block';
+                promptDisplay.textContent = '';
+                await revealPrompt(result.prompt, promptDisplay);
+                addToStyleHistory(style.id, result.prompt);
+                updateHistoryButtons(style.id);
+            } else {
+                throw new Error('Empty response from model');
+            }
+        } catch (error) {
+            console.error('Error generating prompt:', error);
+            promptDisplay.textContent = `Error: ${error.message}`;
+            promptDisplay.style.display = 'block';
+        }
+        finally {
+            // Restore UI state
+            const loadingContainer = card.querySelector('.generating-container');
+            if (loadingContainer) {
+                loadingContainer.style.display = 'none';
+            }
+            generateButton.classList.remove('disabled', 'loading');
+            generateButton.disabled = false;
+            // Clear generating flag
+            activeGenerations.delete(style.id);
+        }
+    });
+
     return card;
 }
 
@@ -708,7 +734,6 @@ function updateStylePrompt(styleId, prompt) {
     if (!card) return;
 
     const promptText = card.querySelector('.prompt-text');
-    const magicRefinerBtn = card.querySelector('.magic-refiner-btn');
     const drawBtn = card.querySelector('.draw-btn');
     
     if (promptText) {
@@ -716,11 +741,6 @@ function updateStylePrompt(styleId, prompt) {
         
         // Update button states
         const hasPrompt = prompt && prompt.trim() !== '' && prompt !== 'Click Generate to create a prompt...';
-        
-        if (magicRefinerBtn) {
-            magicRefinerBtn.disabled = !hasPrompt;
-            magicRefinerBtn.classList.toggle('disabled', !hasPrompt);
-        }
         
         if (drawBtn) {
             drawBtn.disabled = !hasPrompt;
@@ -896,7 +916,6 @@ function updateStylePrompt(styleId, prompt) {
     if (!card) return;
 
     const promptText = card.querySelector('.prompt-text');
-    const magicRefinerBtn = card.querySelector('.magic-refiner-btn');
     const drawBtn = card.querySelector('.draw-btn');
     
     if (promptText) {
@@ -904,11 +923,6 @@ function updateStylePrompt(styleId, prompt) {
         
         // Update button states
         const hasPrompt = prompt && prompt.trim() !== '' && prompt !== 'Click Generate to create a prompt...';
-        
-        if (magicRefinerBtn) {
-            magicRefinerBtn.disabled = !hasPrompt;
-            magicRefinerBtn.classList.toggle('disabled', !hasPrompt);
-        }
         
         if (drawBtn) {
             drawBtn.disabled = !hasPrompt;
@@ -1396,23 +1410,39 @@ async function generatePromptsSequentially(basePrompt, view = 'active') {
     }
 
     isSequentialGenerationInProgress = true;
-    const generateAllBtn = document.getElementById('generateAllBtn');
-    if (generateAllBtn) {
-        generateAllBtn.disabled = true;
-        generateAllBtn.classList.add('loading');
-        generateAllBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+    const generateBtn = document.getElementById('generatePrompts');
+    if (generateBtn) {
+        generateBtn.disabled = true;
+        generateBtn.classList.add('loading');
+        generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
     }
 
     try {
+        // Get current view from active switch button
+        const activeSwitch = document.querySelector('.switch-btn.active');
+        const currentView = activeSwitch ? activeSwitch.dataset.view : 'active';
+        console.log('Current view:', currentView);
+
         const cards = Array.from(document.querySelectorAll('.style-card'))
             .filter(card => {
-                if (view === 'active') {
-                    return !card.classList.contains('inactive');
-                } else if (view === 'favorites') {
-                    return card.dataset.favorite === 'true';
+                if (!card.dataset.styleId) return false;
+                
+                const isActive = localStorage.getItem(`style_${card.dataset.styleId}_active`) === 'true';
+                const isFavorite = card.dataset.favorite === 'true';
+                
+                switch (currentView) {
+                    case 'active':
+                        return isActive;
+                    case 'inactive':
+                        return !isActive;
+                    case 'favorites':
+                        return isFavorite;
+                    default:
+                        return false;
                 }
-                return true;
             });
+
+        console.log('Found cards to process:', cards.length);
 
         for (const card of cards) {
             const styleId = card.dataset.styleId;
@@ -1436,10 +1466,18 @@ async function generatePromptsSequentially(basePrompt, view = 'active') {
                     throw new Error('Style not found');
                 }
 
+                // Get the selected prompt type from the main dropdown
+                const mainDropdown = document.getElementById('promptOptionsDropdown');
+                const selectedOption = mainDropdown.querySelector('.selected-option');
+                const promptType = selectedOption ? selectedOption.textContent.trim().toLowerCase().replace(/\s+/g, '') : 'standard';
+                
+                console.log('Generating prompt for style:', styleId, 'with type:', promptType);
+                
                 const result = await ipcRenderer.invoke('generate-prompt', {
-                    basePrompt: style.prefix ? `${style.prefix}${basePrompt}` : basePrompt,
+                    basePrompt: style.prefix ? `${style.prefix} ${basePrompt}` : basePrompt,
                     styleId,
-                    promptType: selectedOption // Use the global selectedOption
+                    style,
+                    promptType
                 });
 
                 if (result && result.prompt) {
@@ -1461,15 +1499,15 @@ async function generatePromptsSequentially(basePrompt, view = 'active') {
             }
 
             // Add a small delay between generations to avoid overwhelming the model
-            await new Promise(resolve => setTimeout(resolve, 100));
+            await new Promise(resolve => setTimeout(resolve, 500));
         }
     } finally {
         isSequentialGenerationInProgress = false;
-        const generateAllBtn = document.getElementById('generateAllBtn');
-        if (generateAllBtn) {
-            generateAllBtn.disabled = false;
-            generateAllBtn.classList.remove('loading');
-            generateAllBtn.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i> Generate All';
+        const generateBtn = document.getElementById('generatePrompts');
+        if (generateBtn) {
+            generateBtn.disabled = false;
+            generateBtn.classList.remove('loading');
+            generateBtn.innerHTML = 'Generate All';
         }
     }
 }
@@ -1544,7 +1582,7 @@ function updateGeneratePromptsButton() {
             return false;
         }).length;
 
-        generatePromptsBtn.innerHTML = `<i class="fas fa-wand-magic-sparkles"></i><span>Generate Prompts (${visibleCards})</span>`;
+        generatePromptsBtn.innerHTML = `<span>Generate Prompts (${visibleCards})</span>`;
     } catch (err) {
         console.warn('Could not update generate button:', err);
     }

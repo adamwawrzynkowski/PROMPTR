@@ -11,6 +11,7 @@
     --card-background: rgba(255, 255, 255, 0.05);
     --card-background-darker: rgba(45, 45, 45, 0.95);
     --input-background: rgba(0, 0, 0, 0.2);
+    --gradient-background: linear-gradient(90deg, #4c00ff, #ff0080, #4c00ff);
     
     /* Text colors */
     --text: #ffffff;
