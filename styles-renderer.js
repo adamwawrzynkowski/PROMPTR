@@ -30,6 +30,22 @@ document.addEventListener('DOMContentLoaded', () => {
                         <span class="style-tag">${tag}</span>
                     `).join('')}
                 </div>
+                <div class="style-card-actions">
+                    <div class="prompt-type-selector">
+                        <button class="prompt-type-button" title="Select prompt detail level">
+                            <span class="prompt-type-text">Standard</span>
+                            <i class="fas fa-chevron-down"></i>
+                        </button>
+                        <select class="prompt-type">
+                            <option value="simple">Simple</option>
+                            <option value="standard" selected>Standard</option>
+                            <option value="detailed">Long and Detailed</option>
+                        </select>
+                    </div>
+                    <button class="generate-btn" type="button">
+                        <i class="fas fa-wand-magic-sparkles"></i> Generate
+                    </button>
+                </div>
                 ${style.custom ? `
                     <div class="style-actions">
                         <button class="style-action-btn edit" title="Edit style">
@@ -42,6 +58,33 @@ document.addEventListener('DOMContentLoaded', () => {
                 ` : ''}
             </div>
         `).join('');
+
+        // Po wyrenderowaniu, dodaj obsługę zdarzeń dla przycisków typu promptu
+        document.querySelectorAll('.prompt-type-button').forEach(button => {
+            const select = button.parentElement.querySelector('.prompt-type');
+            const text = button.querySelector('.prompt-type-text');
+
+            // Aktualizuj tekst przycisku przy zmianie selecta
+            select.addEventListener('change', () => {
+                text.textContent = select.options[select.selectedIndex].text;
+            });
+
+            // Pokaż/ukryj select przy kliknięciu w przycisk
+            button.addEventListener('click', (e) => {
+                e.stopPropagation();
+                select.style.display = select.style.display === 'none' ? 'block' : 'none';
+            });
+
+            // Ukryj select po wybraniu opcji
+            select.addEventListener('change', () => {
+                select.style.display = 'none';
+            });
+
+            // Ukryj select przy kliknięciu poza nim
+            document.addEventListener('click', () => {
+                select.style.display = 'none';
+            });
+        });
 
         // Dodaj obsługę przycisków
         addStyleCardListeners();

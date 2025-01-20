@@ -354,7 +354,7 @@ class OllamaManager {
         return model;
     }
 
-    async generatePrompt(basePrompt, styleId, style) {
+    async generatePrompt(basePrompt, styleId, style, promptType = 'standard') {
         try {
             const model = await this.ensureTextModelSelected();
             console.log('Generating prompt with model:', model);
@@ -363,31 +363,63 @@ class OllamaManager {
                 throw new Error('Style is required for prompt generation');
             }
 
-            // Use style's prefix and suffix if available, otherwise use defaults
-            const prefix = style.prefix || 'Generate a Stable Diffusion prompt for: ';
-            const suffix = style.suffix || '';
             const systemInstructions = style.systemInstructions || '';
+            const styleName = style.name || 'default';
+            const styleKeywords = style.keywords || [];
+
+            // Define prompt length and complexity based on type
+            const promptConfig = {
+                simple: {
+                    maxLength: 300,
+                    instruction: function() { 
+                        return `Create a natural, descriptive prompt that feels like a human description. Focus on the main subject and mood. Fit in: ${this.maxLength} words.`
+                    },
+                    example: 'Beautiful cyberpunk cityscape bathed in warm neon lights, with sleek flying vehicles gliding through the air, creating a cozy yet futuristic atmosphere, volumetric fog adds depth, cinematic mood lighting enhances the scene'
+                },
+                standard: {
+                    maxLength: 700,
+                    instruction: function() {
+                        return `Create a detailed, natural description that flows like human speech while maintaining artistic precision. Include subject, mood, environment and technical aspects. Fit in: ${this.maxLength} words.`
+                    },
+                    example: 'Stunning cyberpunk cityscape with elegant crystalline megastructures reaching into the cloudy sky, graceful streams of hovering vehicles weaving between the buildings, massive holographic advertisements casting colorful reflections on the rain-soaked streets below, soft volumetric fog diffusing the vibrant neon lights, creating an atmospheric scene with perfect cinematic composition, high attention to detail, masterful lighting design brings the scene to life'
+                },
+                detailed: {
+                    maxLength: 1500,
+                    instruction: function() {
+                        return `Create an extensive, natural description that reads like a professional artist explaining their vision. Include rich details about subject, environment, lighting, mood, composition, and technical aspects. Fit in: ${this.maxLength} words.`
+                    },
+                    example: 'Breathtaking cyberpunk cityscape where majestic crystal megastructures pierce through layers of neon-illuminated clouds, elegant streams of antigravity vehicles gracefully weave through towering canyons of steel and glass, massive holographic advertisements cast mesmerizing prismatic reflections across rain-slicked graphene streets, delicate volumetric fog diffuses the warm glow of bioluminescent signage, advanced energy conduits pulse rhythmically with flowing plasma, ray-traced global illumination bathes the scene in realistic light, cinematic ultra-wide composition captures the epic scale, hyperrealistic details bring every surface to life, masterful octane render with perfect exposure and color grading, professional photography quality'
+                }
+            };
+
+            const config = promptConfig[promptType] || promptConfig.standard;
 
             // Create the system message with instructions
-            const systemMessage = `You are an AI assistant specializing in creating image generation prompts.
-                ${systemInstructions}
-                
-                IMPORTANT: 
-                1. Do not include any instructions or meta-text in your response.
-                2. Just provide the pure description.
-                3. Do not repeat or include any of the following in your response:
-                   - The prefix: "${prefix}"
-                   - The suffix: "${suffix}"
-                4. Focus only on describing the image content.
-                5. Your description will be automatically formatted later.`;
+            const systemMessage = `You are a specialized AI trained to generate high-quality image prompts. Your task is to take an existing prompt and make it more detailed and specific, while maintaining its original intent and style.
 
-            // Prepare the request body
+Follow these guidelines:
+1. Analyze the original prompt carefully
+2. Add more specific visual details and descriptive elements
+3. Enhance atmosphere and mood descriptions
+4. Include additional relevant artistic elements
+5. Maintain the original style and theme
+6. Keep the language natural and flowing
+7. DO NOT add any style tags, quality terms, or technical specifications at the end
+8. DO NOT drastically change the original concept
+9. ONLY return the enhanced prompt text, nothing else
+10. DO NOT include any explanations or comments about the changes made
+11. DO NOT include phrases like "Original prompt:" or "Enhanced prompt:"
+12. ${config.instruction()}
+
+Example input: "A castle in the mountains"
+Example output: "A majestic medieval castle perched atop craggy mountain peaks, its ancient stone towers reaching into misty clouds, while snow-capped peaks stretch endlessly into the distance, the fortress walls weathered by centuries of alpine winds"`;
+
             const requestBody = {
                 model: model,
-                prompt: `${systemMessage}\n\nUser input: ${basePrompt}\n\nProvide only the description, without any instructions, prefix, suffix, or meta-text:`,
+                prompt: `${systemMessage}\n\nEnhance this prompt: ${basePrompt}`,
                 stream: false,
                 options: {
-                    temperature: style?.modelParams?.temperature || 0.7,
+                    temperature: style?.modelParams?.temperature || 0.75,
                     top_k: style?.modelParams?.topK || 40,
                     top_p: style?.modelParams?.topP || 0.9
                 }
@@ -408,58 +440,89 @@ class OllamaManager {
                 throw new Error(`Failed to generate prompt: ${errorText}`);
             }
 
-            const data = await response.json();
-            let generatedText = data.response.trim();
+            let fullResponse = '';
+            try {
+                const data = await response.json();
+                fullResponse = data.response;
+            } catch (error) {
+                console.error('Error parsing JSON response:', error);
+                const text = await response.text();
+                console.log('Raw response text:', text);
+                const match = text.match(/"response":"([^"]+)"/);
+                if (match) {
+                    fullResponse = match[1];
+                } else {
+                    throw new Error('Failed to parse response from Ollama');
+                }
+            }
 
-            // Remove any remaining instruction-like text
-            const instructionPhrases = [
-                'Create a humorous and playful description of:',
-                'Focus on exaggerated, quirky features',
-                'Create a detailed description',
-                'Generate a description',
-                'Provide a description',
-                'Here\'s a description',
-                'Create an image of',
-                'The scene shows',
-                'The image should show',
-                'The image features'
+            // Remove any markdown, titles, or sections
+            let generatedText = fullResponse
+                .replace(/^(Style|Keywords|Description|Prompt|Output):.+$/gim, '')
+                .replace(/^[\*\#\-\_\`]+/gm, '')
+                .replace(/[\*\#\-\_\`]+$/gm, '')
+                .replace(/\n+/g, ' ')
+                .trim();
+
+            // Clean up common instruction phrases
+            const cleanupPhrases = [
+                'Create a', 'Generate a', 'Provide a', 'Here\'s a', 'I will create', 'Let me create',
+                'The scene shows', 'The image should', 'The image features', 'The prompt is',
+                'Focus on', 'Make sure to', 'Remember to', 'Include', 'Emphasize', 'Consider',
+                'Prompt:', 'Output:', 'Description:', 'Here is', 'This prompt', 'I suggest',
+                'You requested', 'As requested', 'The style is', 'The scene is', 'Picture this',
+                'Imagine', 'Visualize', 'In this scene', 'The composition shows', 'We see',
+                'This image depicts', 'The artwork shows', 'The design features'
             ];
 
-            for (const phrase of instructionPhrases) {
+            for (const phrase of cleanupPhrases) {
                 if (generatedText.toLowerCase().startsWith(phrase.toLowerCase())) {
                     generatedText = generatedText.substring(phrase.length).trim();
                 }
             }
 
-            // Remove any trailing instructions
-            const trailingInstructions = [
-                'Focus on',
-                'Make sure to',
-                'Remember to',
-                'Include',
-                'Emphasize'
-            ];
+            // Remove quotes and normalize spacing
+            generatedText = generatedText
+                .replace(/["'`]/g, '') // Remove all types of quotes
+                .replace(/\s+/g, ' ')  // Normalize spaces
+                .replace(/^\s+|\s+$/g, '') // Trim ends
+                .replace(/\s*,\s*/g, ', ') // Normalize comma spacing
+                .replace(/\s*\.\s*/g, '. ') // Normalize period spacing
+                .replace(/\s+([,\.])/g, '$1') // Remove spaces before punctuation
+                .replace(/([,\.])\s+/g, '$1 '); // Ensure single space after punctuation
 
-            for (const instruction of trailingInstructions) {
-                const index = generatedText.toLowerCase().lastIndexOf(instruction.toLowerCase());
-                if (index !== -1) {
-                    generatedText = generatedText.substring(0, index).trim();
+            // Add descriptive adjectives at the start if missing
+            const descriptiveStarters = ['Beautiful', 'Stunning', 'Magnificent', 'Breathtaking', 'Majestic', 'Elegant', 'Impressive', 'Enchanting'];
+            const startsWithAdjective = descriptiveStarters.some(adj => 
+                generatedText.toLowerCase().startsWith(adj.toLowerCase())
+            );
+            
+            if (!startsWithAdjective) {
+                const randomStarter = descriptiveStarters[Math.floor(Math.random() * descriptiveStarters.length)];
+                generatedText = randomStarter + ' ' + generatedText.charAt(0).toLowerCase() + generatedText.slice(1);
+            }
+
+            // Ensure first letter is capitalized
+            generatedText = generatedText.charAt(0).toUpperCase() + generatedText.slice(1);
+
+            // Verify if style name is included, if not - add it naturally
+            if (!generatedText.toLowerCase().includes(styleName.toLowerCase())) {
+                if (generatedText.includes(',')) {
+                    const firstComma = generatedText.indexOf(',');
+                    generatedText = generatedText.slice(0, firstComma) + ` in ${styleName} style` + generatedText.slice(firstComma);
+                } else {
+                    generatedText = `${styleName}-style ` + generatedText;
                 }
             }
 
-            // Remove the prefix if it somehow got included in the response
-            if (generatedText.toLowerCase().startsWith(prefix.toLowerCase())) {
-                generatedText = generatedText.substring(prefix.length).trim();
-            }
-
-            // Remove the suffix if it somehow got included in the response
-            if (generatedText.toLowerCase().endsWith(suffix.toLowerCase())) {
-                generatedText = generatedText.substring(0, generatedText.length - suffix.length).trim();
+            // Ensure the text doesn't exceed the maximum length
+            if (generatedText.length > config.maxLength) {
+                generatedText = generatedText.substring(0, config.maxLength).replace(/[,.]\s*[^,.]*$/, '');
+                generatedText += '.';
             }
 
             console.log('Generated description:', generatedText);
 
-            // Return in the expected format
             return {
                 prompt: generatedText,
                 parameters: requestBody.options
@@ -860,17 +923,25 @@ Keep it brief and concise. Do not describe the content or subjects in the image.
             await this.ensureTextModelSelected();
             const currentModel = await this.getCurrentModel();
             
-            const prompt = `Based on the following style description, generate clear and concise system instructions that would help an AI model understand and follow this style consistently:
+            const prompt = `Based on the following style description, generate clear and specific system instructions for an AI model that creates image generation prompts:
 
 Description: ${description}
 
-Generate instructions that:
-1. Define the tone and voice
-2. Specify any formatting preferences
-3. Highlight key characteristics
-4. Include any specific constraints or requirements
+Create instructions that MUST include:
+1. Define the visual style and artistic characteristics (e.g., medium, technique, color palette)
+2. Specify the mood, atmosphere, and emotional impact
+3. List specific visual elements or patterns that MUST be included
+4. Describe composition preferences and framing
+5. List MANDATORY style-specific keywords and terminology that MUST appear in every output
+6. Emphasize that the style name itself MUST be incorporated naturally in every generated description
 
-Keep the instructions clear, specific, and actionable.`;
+IMPORTANT: Make it absolutely clear that:
+- The style name MUST appear in every generated description
+- The specified keywords MUST be used in the output
+- The style's unique characteristics MUST be clearly reflected
+
+Keep instructions focused on visual and artistic elements only. Be extremely specific and actionable.
+Do not include any meta-instructions about prompt formatting.`;
 
             const requestBody = {
                 model: currentModel,
@@ -900,10 +971,8 @@ Keep the instructions clear, specific, and actionable.`;
                 fullResponse = data.response;
             } catch (error) {
                 console.error('Error parsing JSON response:', error);
-                // If JSON parsing fails, try to get the raw text
                 const text = await response.text();
                 console.log('Raw response text:', text);
-                // Try to extract the response from the raw text
                 const match = text.match(/"response":"([^"]+)"/);
                 if (match) {
                     fullResponse = match[1];
@@ -915,189 +984,6 @@ Keep the instructions clear, specific, and actionable.`;
             return fullResponse.trim();
         } catch (error) {
             console.error('Error generating system instructions:', error);
-            throw error;
-        }
-    }
-
-    async pullModel(modelName, progressCallback) {
-        try {
-            console.log('Starting model pull:', modelName);
-            const response = await this.makeRequest(`${this.getBaseUrl()}/api/pull`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    name: modelName,
-                    stream: true
-                })
-            });
-
-            console.log('Pull request response:', response.status);
-            if (!response.ok) {
-                throw new Error(`Failed to pull model: ${response.status}`);
-            }
-
-            const reader = response.body.getReader();
-            let buffer = '';
-
-            while (true) {
-                const { done, value } = await reader.read();
-                if (done) {
-                    console.log('Stream complete');
-                    break;
-                }
-
-                const text = new TextDecoder().decode(value);
-                console.log('Received chunk:', text);
-                buffer += text;
-                const lines = buffer.split('\n');
-                buffer = lines.pop(); // Keep the last incomplete line
-
-                for (const line of lines) {
-                    if (line.trim()) {
-                        try {
-                            const data = JSON.parse(line);
-                            console.log('Parsed data:', data);
-                            if (data.total && data.completed) {
-                                const progress = (data.completed / data.total) * 100;
-                                console.log('Progress:', progress);
-                                if (progressCallback) {
-                                    progressCallback(progress);
-                                }
-                            }
-                        } catch (e) {
-                            console.warn('Error parsing JSON:', e, 'Line:', line);
-                        }
-                    }
-                }
-            }
-
-            // Process any remaining data in buffer
-            if (buffer.trim()) {
-                try {
-                    const data = JSON.parse(buffer);
-                    console.log('Final data:', data);
-                    if (data.total && data.completed && progressCallback) {
-                        const progress = (data.completed / data.total) * 100;
-                        console.log('Final progress:', progress);
-                        progressCallback(progress);
-                    }
-                } catch (e) {
-                    console.warn('Error parsing final JSON:', e, 'Buffer:', buffer);
-                }
-            }
-
-            console.log('Pull complete');
-            return true;
-        } catch (error) {
-            console.error('Error pulling model:', error);
-            throw error;
-        }
-    }
-
-    async generateTags(text, batchSize = 6, totalBatches = 5) {
-        try {
-            const model = await this.ensureTextModelSelected();
-            console.log('Generating tags with model:', model);
-
-            const prompt = `Generate ${batchSize * totalBatches} unique, relevant tags for the following text. Each tag should be a single word or short phrase. Separate tags with commas: ${text}`;
-
-            const response = await fetch(`${this.getBaseUrl()}/api/generate`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    model: model,
-                    prompt: prompt,
-                    stream: false,
-                    options: {
-                        temperature: 0.7,
-                        top_p: 0.9,
-                        top_k: 50
-                    }
-                })
-            });
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`Failed to generate tags: ${errorText}`);
-            }
-
-            const data = await response.json();
-            const tags = data.response
-                .split(',')
-                .map(tag => tag.trim())
-                .filter(tag => tag.length > 0);
-
-            // Group tags into batches
-            const batches = [];
-            for (let i = 0; i < tags.length; i += batchSize) {
-                batches.push(tags.slice(i, i + batchSize));
-            }
-
-            return batches.slice(0, totalBatches);
-        } catch (error) {
-            console.error('Error in generateTags:', error);
-            throw error;
-        }
-    }
-
-    async refinePrompt(prompt, style) {
-        try {
-            const model = await this.ensureTextModelSelected();
-            console.log('Refining prompt with model:', model);
-
-            const systemInstruction = `You are a specialized AI trained to enhance and refine prompts for image generation. Your task is to take an existing prompt and make it more detailed and specific, while maintaining its original intent and style.
-
-Follow these guidelines:
-1. Analyze the original prompt carefully
-2. Add more specific visual details and descriptive elements
-3. Enhance atmosphere and mood descriptions
-4. Include additional relevant artistic elements
-5. Maintain the original style and theme
-6. Keep the language natural and flowing
-7. DO NOT add any style tags, quality terms, or technical specifications at the end
-8. DO NOT drastically change the original concept
-9. ONLY return the enhanced prompt text, nothing else
-10. DO NOT include any explanations or comments about the changes made
-11. DO NOT include phrases like "Original prompt:" or "Enhanced prompt:"
-
-Example input: "A castle in the mountains"
-Example output: "A majestic medieval castle perched atop craggy mountain peaks, its ancient stone towers reaching into misty clouds, while snow-capped peaks stretch endlessly into the distance, the fortress walls weathered by centuries of alpine winds"`;
-
-            const requestBody = {
-                model: model,
-                prompt: systemInstruction + "\n\nEnhance this prompt: " + prompt,
-                stream: false,
-                options: {
-                    temperature: style?.modelParameters?.temperature || 0.75,
-                    top_p: style?.modelParameters?.top_p || 0.9,
-                    top_k: style?.modelParameters?.top_k || 50,
-                    repeat_penalty: style?.modelParameters?.repeat_penalty || 1.2
-                }
-            };
-
-            console.log('Making refine request with body:', requestBody);
-            
-            const response = await fetch(`${this.getBaseUrl()}/api/generate`, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(requestBody)
-            });
-
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`Failed to refine prompt: ${errorText}`);
-            }
-
-            const data = await response.json();
-            return data.response.trim();
-        } catch (error) {
-            console.error('Error in refinePrompt:', error);
             throw error;
         }
     }

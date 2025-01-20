@@ -18,7 +18,7 @@
                     </div>
                     <div class="prompt-input-wrapper-tools">
                         <div class="input-buttons">
-                            <button id="visionBtn" class="tool-button" title="Add Image"><i class="fas fa-image"></i><span>Vision</span>
+                            <button disabled id="visionBtn" class="tool-button" title="Add Image"><i class="fas fa-image"></i><span>Vision (Soon)</span>
                             </button>
                             <button id="copyPromptBtn" class="tool-button" title="Copy Prompt"><i class="fas fa-copy"></i><span>Copy</span>
                             </button>
@@ -42,20 +42,27 @@
                             </div>
                         </div>
                         <div class="styles-nav-right">
-                            <button id="generatePrompts" class="style-card-button"><i class="fas fa-wand-magic-sparkles"></i><span>Generate Prompts</span>
-                            </button>
-                            <button class="style-card-button manage-styles-btn"><i class="fas fa-gear"></i><span>Manage Styles</span>
-                            </button>
+                            <div class="generate-button-group">
+                                <button id="generatePrompts" class="style-card-button"><i class="fas fa-wand-magic-sparkles"></i><span>Generate Prompts</span></button>
+                                <button id="promptOptionsDropdown" class="style-card-button dropdown-toggle">
+                                    <span class="selected-option">Standard</span>
+                                    <i class="fas fa-chevron-down"></i>
+                                </button>
+                                <div class="prompt-options-dropdown">
+                                    <div class="dropdown-item" data-option="simple">Simple</div>
+                                    <div class="dropdown-item" data-option="standard">Standard</div>
+                                    <div class="dropdown-item" data-option="detailed">Long and Detailed</div>
+                                </div>
+                            </div>
+                            <button class="style-card-button manage-styles-btn"><i class="fas fa-gear"></i><span>Manage Styles</span></button>
                         </div>
                     </div>
                     <div class="styles-container">
                         <div class="styles-list" id="stylesList">
                             <!-- Style cards will be inserted here -->
                             <div class="style-card">
-                                <button class="style-card-button-refiner"><span>Magic Refiner</span><i class="fas fa-magic"></i>
-                                </button>
-                                <button class="style-card-button"><span>Send to Draw Things</span><i class="fas fa-arrow-right"></i>
-                                </button>
+                                <button class="style-card-button-refiner"><span>Magic Refiner</span><i class="fas fa-magic"></i></button>
+                                <button class="style-card-button"><span>Send to Draw Things</span><i class="fas fa-arrow-right"></i></button>
                             </div>
                         </div>
                     </div>

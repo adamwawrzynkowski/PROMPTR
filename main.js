@@ -878,7 +878,7 @@ ipcMain.handle('detect-and-translate', async (event, text) => {
     }
 });
 
-ipcMain.handle('generate-prompt', async (event, { basePrompt, styleId }) => {
+ipcMain.handle('generate-prompt', async (event, { basePrompt, styleId, promptType }) => {
     try {
         // Get the style from the styles manager
         const style = await stylesManager.getStyle(styleId);
@@ -886,8 +886,8 @@ ipcMain.handle('generate-prompt', async (event, { basePrompt, styleId }) => {
             throw new Error('Style not found');
         }
 
-        // Generate the prompt using the style
-        const result = await ollamaManager.generatePrompt(basePrompt, styleId, style);
+        // Generate the prompt using the style and prompt type
+        const result = await ollamaManager.generatePrompt(basePrompt, styleId, style, promptType);
         return result;
     } catch (error) {
         console.error('Error generating prompt:', error);

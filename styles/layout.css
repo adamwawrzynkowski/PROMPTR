@@ -76,7 +76,7 @@
 
 .styles-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(600px, 1fr));
     gap: 20px;
     width: 100%;
     padding-bottom: 20px;
@@ -87,7 +87,7 @@
 .style-card {
     position: relative;
     width: 100%;
-    min-height: 200px;
+    min-height: 260px;
     display: flex;
     flex-direction: column;
     background: var(--card-background-darker);
@@ -99,160 +99,143 @@
     transition: border-color 0.2s ease;
     will-change: transform;
     transform: translateZ(0);
-    backface-visibility: hidden;
-    transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-}
-
-.style-card:hover {
-    border-color: var(--theme-color);
-}
-
-.style-card-header {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    padding-right: 160px; /* Space for the switch and generate button */
-}
-
-.style-card-title {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    font-size: 16px;
-    font-weight: 500;
-    color: var(--text);
-}
-
-.style-card-description {
-    font-size: 14px;
-    color: var(--text-secondary);
-    line-height: 1.4;
-}
-
-.style-card .prompt-preview {
-    flex: 1;
-    background: var(--background);
-    border: none;
-    border-radius: 8px;
-    padding: 15px;
-    font-size: 14px;
-    color: var(--text);
-    overflow: hidden;
-    line-height: 1.5;
-    margin-top: 5px;
-}
-
-.style-card .prompt-preview.empty {
-    color: var(--text-secondary);
-    opacity: 0.5;
-    font-style: italic;
 }
 
 .style-card-controls {
-    position: absolute;
-    top: 25px;
-    right: 25px;
     display: flex;
-    gap: 10px;
+    gap: 8px;
+    margin-top: auto;
+    padding-top: 16px;
+    border-top: 1px solid var(--border-color);
     align-items: center;
 }
 
-.generate-btn {
-    height: 31px;
+.prompt-type-selector {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+}
+
+.prompt-type-button {
+    width: 100%;
+    height: 36px;
     padding: 0 12px;
-    border-radius: 8px;
-    border: 1px solid var(--theme-color-back);
-    background: var(--card-background);
-    color: var(--text);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background-color: var(--card-background);
+    color: var(--text-color);
     font-size: 14px;
     cursor: pointer;
-    transition: all 0.2s ease;
     display: flex;
     align-items: center;
+    justify-content: space-between;
+    transition: all 0.2s ease;
 }
 
-.generate-btn:hover {
-    background: var(--card-background-darker);
-    border: 1px solid var(--theme-color);
+.prompt-type-button:hover {
+    border-color: var(--theme-color);
+    background-color: var(--card-background-hover);
+}
+
+.prompt-type {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    margin-top: 4px;
+    border: 1px solid var(--border-color);
     border-radius: 6px;
-    color: var(--text);
+    background-color: var(--card-background);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    z-index: 100;
+}
+
+.prompt-type option {
+    padding: 8px 12px;
+    cursor: pointer;
+    background-color: var(--card-background);
+    color: var(--text-color);
+}
+
+.prompt-type option:hover {
+    background-color: var(--card-background-hover);
+}
+
+.prompt-action-btn {
+    height: 36px;
+    padding: 0 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background: var(--card-background);
+    color: var(--text-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
     transition: all 0.2s ease;
+    font-size: 13px;
+}
+
+.prompt-action-btn.prev-btn,
+.prompt-action-btn.next-btn,
+.prompt-action-btn.copy-btn {
+    width: 36px;
+    padding: 0;
+    border: 1px solid var(--theme-color-back);
+}
+
+.prompt-action-btn:hover:not(.disabled) {
+    background: var(--theme-color);
+    border-color: var(--theme-color);
+    color: white;
+    transform: translateY(-1px);
+}
+
+.prompt-action-btn.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.prompt-action-btn.disabled:hover {
+    background: var(--card-background);
+    border-color: var(--border-color);
+    color: var(--text-color);
+    transform: none;
+}
+
+.prompt-action-btn i {
+    font-size: 14px;
+    margin-right: 6px;
+}
+
+.prompt-action-btn.prev-btn i,
+.prompt-action-btn.next-btn i,
+.prompt-action-btn.copy-btn i {
+    margin-right: 0;
 }
 
 .prompt-actions {
     display: flex;
-    justify-content: space-between;
+    gap: 8px;
     align-items: center;
-    gap: 10px;
-    margin-top: auto;
-    padding: 0 0px;
-}
-
-.prompt-actions-left {
-    display: flex;
-    gap: 6px;
-    align-items: center;
+    padding: 8px;
+    border-top: 1px solid var(--border-color);
 }
 
 .history-buttons {
     display: flex;
-    border: 1px solid var(--theme-color-back);
-    border-radius: 8px;
-    overflow: hidden;
-    height: 36px;
-    gap: 0px;
-}
-
-.history-buttons .prompt-action-btn {
-    width: 36px;
-    height: 36px;
-    border: 1px solid transparent;
-    border-radius: 0;
-    background: var(--button-background);
-    color: var(--text);
-    display: flex;
+    gap: 4px;
     align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: all 0.2s ease;
 }
 
-.history-buttons .prompt-action-btn:first-child {
-    border-right: 1px solid var(--theme-color-back);
-}
-
-.prompt-action-btn {
-    width: 36px;
-    height: 36px;
-    border-radius: 8px;
-    border: 1px solid transparent;
-    background: var(--button-background);
-    color: var(--text);
+.action-buttons {
     display: flex;
+    gap: 8px;
     align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    padding: 0 10px;
+    margin-left: auto;
 }
 
-.prompt-action-btn:hover {
-    border: 1px solid var(--theme-color);
-    background: var(--button-hover);
-}
-
-.prompt-action-btn:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    border: 1px solid transparent;
-}
-
-.prompt-action-btn:disabled:hover {
-    background: var(--button-background);
-    border: 1px solid transparent;
-}
-
-/* Magic Refiner button */
 .magic-refiner-btn {
     display: flex;
     align-items: center;
@@ -270,11 +253,13 @@
     cursor: pointer;
     transition: all 0.2s ease;
     flex-direction: row-reverse;
+    white-space: nowrap;
 }
 
 .magic-refiner-btn:hover {
     background: var(--theme-color-back);
     color: var(--theme-color-text);
+    border-color: var(--theme-color);
 }
 
 .magic-refiner-btn.disabled {
@@ -282,13 +267,11 @@
     cursor: not-allowed;
 }
 
-/* Send to Draw Things button */
 .draw-btn {
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
-    margin-left: auto;
     padding: 0 12px;
     height: 36px;
     width: 200px;
@@ -300,11 +283,13 @@
     cursor: pointer;
     transition: all 0.2s ease;
     flex-direction: row-reverse;
+    white-space: nowrap;
 }
 
 .draw-btn:hover {
     background: var(--theme-color-back);
     color: var(--theme-color-text);
+    border-color: var(--theme-color);
 }
 
 .content-container {
@@ -318,15 +303,37 @@
 }
 
 .prompt-container {
+    position: relative;
+    flex: 1;
+    min-height: 100px;
     display: flex;
     flex-direction: column;
-    padding: 12px 16px;
-    gap: 12px;
-    width: 100%;
-    max-width: 800px;
-    margin: 0 auto;
-    border: 1px dashed var(--theme-color-back);
-    border-radius: 12px;
+    padding: 20px;
+    border-radius: 8px;
+    background: var(--card-background);
+    border: 1px solid var(--border-color);
+}
+
+.prompt-text {
+    flex: 1;
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--text-color);
+    white-space: pre-wrap;
+    overflow-wrap: break-word;
+    overflow-y: auto;
+    padding: 0;
+}
+
+.generating-container {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    position: absolute;
+    inset: 0;
+    background: var(--card-background);
+    border-radius: 8px;
 }
 
 /* Headers */
@@ -457,9 +464,8 @@
 
 .styles-nav-right {
     display: flex;
+    gap: 10px;
     align-items: center;
-    gap: 8px;
-    height: 100%;
     padding-right: 9px;
 }
 
@@ -495,7 +501,7 @@
 
 .styles-list {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(540px, 1fr));
     gap: 20px;
     width: 100%;
     box-sizing: border-box;
@@ -549,6 +555,167 @@
 
 .switch-btn:hover:not(.active) {
     background: rgba(255, 255, 255, 0.1);
+}
+
+.generate-btn {
+    height: 36px;
+    padding: 0 16px;
+    border: 1px solid var(--theme-color-back);
+    border-radius: 6px;
+    background: var(--card-background);
+    color: var(--text-color);
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.generate-btn:hover {
+    background: var(--theme-color);
+    border-color: var(--theme-color);
+    color: white;
+}
+
+.generate-btn i {
+    font-size: 14px;
+}
+
+.generate-btn.disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.generate-btn.loading {
+    opacity: 0.8;
+    cursor: wait;
+}
+
+.generate-button-group {
+    display: flex;
+    align-items: stretch;
+    position: relative;
+}
+
+.generate-button-group .style-card-button {
+    border-radius: 0;
+    margin: 0;
+    border: 1px solid var(--theme-color);
+}
+
+.generate-button-group .style-card-button:first-child {
+    border-top-left-radius: 8px;
+    border-bottom-left-radius: 8px;
+    border-right: none;
+}
+
+.generate-button-group .dropdown-toggle {
+    border-top-right-radius: 8px;
+    border-bottom-right-radius: 8px;
+    padding: 0 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-width: 120px;
+}
+
+.generate-button-group .dropdown-toggle .selected-option {
+    font-size: 14px;
+    color: var(--text);
+    margin-right: 4px;
+}
+
+.generate-button-group .dropdown-toggle i {
+    font-size: 12px;
+    margin: 0;
+    opacity: 0.7;
+}
+
+.prompt-options-dropdown {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    background: var(--card-background-darker);
+    border: 1px solid var(--theme-color);
+    border-radius: 8px;
+    margin-top: 4px;
+    min-width: 180px;
+    display: none;
+    z-index: 1000;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+}
+
+.prompt-options-dropdown.show {
+    display: block;
+}
+
+.prompt-options-dropdown .dropdown-item {
+    padding: 8px 12px;
+    color: var(--text);
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.prompt-options-dropdown .dropdown-item:hover {
+    background-color: var(--theme-color-back);
+}
+
+.prompt-options-dropdown .dropdown-item:first-child {
+    border-top-left-radius: 8px;
+    border-top-right-radius: 8px;
+}
+
+.prompt-options-dropdown .dropdown-item:last-child {
+    border-bottom-left-radius: 8px;
+    border-bottom-right-radius: 8px;
+}
+
+.style-card-button-group {
+    display: flex;
+    align-items: stretch;
+}
+
+.style-card-button-group .style-card-button,
+.style-card-button-group .style-card-button-refiner {
+    border-radius: 0;
+    margin: 0;
+    border: 1px solid var(--theme-color);
+}
+
+.style-card-button-group .style-card-button:first-child,
+.style-card-button-group .style-card-button-refiner:first-child {
+    border-top-left-radius: 8px;
+    border-bottom-left-radius: 8px;
+    border-right: none;
+}
+
+.style-card-button-group .dropdown-toggle {
+    border-top-right-radius: 8px;
+    border-bottom-right-radius: 8px;
+    padding: 0 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.style-card-button-group .dropdown-toggle i {
+    font-size: 12px;
+    margin: 0;
+}
+
+.style-card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.styles-nav-right {
+    display: flex;
+    gap: 10px;
+    align-items: center;
 }
 
 @keyframes fadeIn {
@@ -636,16 +803,6 @@
 @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
-}
-
-.generating-container {
-    display: none;
-    align-items: center;
-    justify-content: center;
-    min-height: 100px;
-    background: var(--background);
-    border-radius: 8px;
-    margin-top: 5px;
 }
 
 @keyframes pulse {
@@ -739,6 +896,7 @@
     background-size: 200% 100%;
     animation: shimmer 3s infinite linear;
     transition: all 0.2s ease;
+    border-color: var(--theme-color);
 }
 
 .style-card-button {
@@ -752,4 +910,16 @@
     overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
     scroll-behavior: smooth;
+}
+
+.action-buttons-container {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    align-items: center;
+}
+
+.magic-refiner-btn,
+.draw-btn {
+    white-space: nowrap;
 }
