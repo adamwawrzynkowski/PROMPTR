@@ -2249,3 +2249,118 @@ ipcMain.on('close-style-selector', () => {
         styleSelectorWindow.close();
     }
 });
+
+// Nasłuchuj na żądanie odświeżenia listy stylów
+ipcMain.on('refresh-styles-list', () => {
+    // Znajdź okno zarządzania stylami i wyślij do niego sygnał odświeżenia
+    const manageStylesWindow = BrowserWindow.getAllWindows().find(window => 
+        window.getTitle() === 'Manage Styles'
+    );
+    
+    if (manageStylesWindow) {
+        manageStylesWindow.webContents.send('styles-refresh-needed');
+    }
+});
+
+// Funkcja do czyszczenia promptu przez Ollama
+async function cleanPrompt(prompt) {
+    try {
+        const cleaningSystemPrompt = `You are a prompt cleaner. Your ONLY task is to remove any introductory phrases and output a clean prompt.
+
+REMOVE all variations of these phrases from the start of the prompt:
+- "Stable Diffusion prompt for/of"
+- "A prompt for/of"
+- "An image of/showing"
+- "Create/Generate/Make/Design"
+- "Picture/Illustration/Visualization of"
+- "In the style of"
+- "This image shows/depicts"
+- "This prompt creates/generates"
+
+Rules:
+1. Start DIRECTLY with the subject/content
+2. Keep all style descriptions and details
+3. Maintain the original artistic intent
+4. Do not add any new phrases or words
+5. Do not explain or add metadata
+
+Example input: "Stable Diffusion prompt for a serene landscape with mountains"
+Correct output: "serene landscape with mountains"
+
+Example input: "Create an image of a portrait in cyberpunk style"
+Correct output: "portrait in cyberpunk style"
+
+Clean this prompt by removing any introductory phrases: "${prompt}"
+Output ONLY the cleaned prompt.`;
+
+        const response = await ollama.generate({
+            model: "mistral",
+            prompt: cleaningSystemPrompt,
+            stream: false
+        });
+
+        return response.response.trim();
+    } catch (error) {
+        console.error('Error cleaning prompt:', error);
+        throw error;
+    }
+}
+
+// Główna funkcja generowania promptu
+async function generatePrompt(prompt, style) {
+    try {
+        const systemInstructions = style.systemInstructions || defaultSystemInstructions;
+        
+        // Pierwszy etap - generowanie promptu
+        const generationPrompt = `You are transforming prompts to match a specific style: "${style.description}".
+Your task is to enhance the prompt while maintaining its core intent.
+
+Style elements to include:
+- ${style.description} characteristics
+- Unique style elements
+- Consistent style application
+
+${systemInstructions}
+
+Transform this prompt: "${prompt}"`;
+
+        const completion = await ollama.generate({
+            model: "mistral",
+            prompt: generationPrompt,
+            stream: false
+        });
+
+        const generatedPrompt = completion.response.trim();
+
+        // Sprawdź czy prompt wymaga czyszczenia
+        const needsCleaning = /^(stable diffusion prompt|a prompt|an image|create|generate|picture|illustration|visualization|in the style of|this image|this prompt)/i.test(generatedPrompt);
+
+        if (needsCleaning) {
+            console.log('Prompt needs cleaning:', generatedPrompt);
+            const cleanedPrompt = await cleanPrompt(generatedPrompt);
+            console.log('Cleaned prompt:', cleanedPrompt);
+            return {
+                prompt: cleanedPrompt,
+                needsCleaning: true
+            };
+        }
+
+        return {
+            prompt: generatedPrompt,
+            needsCleaning: false
+        };
+    } catch (error) {
+        console.error('Error generating prompt:', error);
+        throw error;
+    }
+}
+
+// Rejestracja handlera IPC
+ipcMain.handle('generate-prompt', async (event, { prompt, style }) => {
+    try {
+        return await generatePrompt(prompt, style);
+    } catch (error) {
+        console.error('Error in generate-prompt handler:', error);
+        throw error;
+    }
+});

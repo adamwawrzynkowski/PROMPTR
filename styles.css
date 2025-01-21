@@ -313,6 +313,33 @@
     height: 0;
 }
 
+.style-prompt {
+    font-size: 14px;
+    color: var(--text);
+    margin-top: 4px;
+    padding: 8px;
+    background: var(--card-background);
+    border-radius: 6px;
+    min-height: 20px;
+    transition: all 0.3s ease;
+}
+
+.prompt-updated {
+    animation: highlightPrompt 1s ease;
+}
+
+@keyframes highlightPrompt {
+    0% {
+        background: var(--card-background);
+    }
+    50% {
+        background: var(--theme-color-light);
+    }
+    100% {
+        background: var(--card-background);
+    }
+}
+
 @keyframes fadeIn {
     from {
         opacity: 0;

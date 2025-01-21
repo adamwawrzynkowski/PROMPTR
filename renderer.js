@@ -19,7 +19,7 @@ let markedWords = {
     negative: new Set()
 };
 
-// Flaga do blokowania równoległych generacji sekwencyjnych
+// Flaga do śledzenia stanu generowania
 let isSequentialGenerationInProgress = false;
 
 // Funkcja do zarządzania historią promptów
@@ -78,7 +78,7 @@ function navigateHistory(styleId, direction) {
 function createStyleCard(style) {
     const card = document.createElement('div');
     card.className = 'style-card';
-    card.setAttribute('data-style-id', style.id);
+    card.dataset.styleId = style.id;
     card.dataset.favorite = localStorage.getItem(`style_${style.id}_favorite`) === 'true' ? 'true' : 'false';
 
     // Create header
@@ -679,7 +679,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
         await loadStyles();
         initializeWindowControls();
-        initializeButtons();
+        initializeButtons(); // Dodanie inicjalizacji przycisków
         initializePromptInput(); // Dodaj inicjalizację pola promptu
         initializeTheme();
         
@@ -861,7 +861,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
         await loadStyles();
         initializeWindowControls();
-        initializeButtons();
+        initializeButtons(); // Dodanie inicjalizacji przycisków
         initializePromptInput(); // Dodaj inicjalizację pola promptu
         initializeTheme();
         
@@ -1043,7 +1043,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
         await loadStyles();
         initializeWindowControls();
-        initializeButtons();
+        initializeButtons(); // Dodanie inicjalizacji przycisków
         initializePromptInput(); // Dodaj inicjalizację pola promptu
         initializeTheme();
         
@@ -1335,17 +1335,17 @@ function initializeButtons() {
                 }
 
                 // Disable button and show loading state
+                generatePromptsBtn.disabled = true;
                 generatePromptsBtn.classList.add('loading');
                 try {
                     await generatePromptsSequentially(text, currentView);
                 } finally {
+                    generatePromptsBtn.disabled = false;
                     generatePromptsBtn.classList.remove('loading');
                 }
             } catch (error) {
                 console.error('Error generating prompts:', error);
                 showToast('Error generating prompts: ' + error.message);
-            } finally {
-                updateGeneratePromptsButton();
             }
         });
 
@@ -1600,12 +1600,6 @@ async function generatePromptsSequentially(basePrompt, view = 'active') {
     }
 
     isSequentialGenerationInProgress = true;
-    const generateBtn = document.getElementById('generatePrompts');
-    if (generateBtn) {
-        generateBtn.disabled = true;
-        generateBtn.classList.add('loading');
-        generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
-    }
 
     try {
         // Get current view from active switch button
@@ -1675,6 +1669,12 @@ async function generatePromptsSequentially(basePrompt, view = 'active') {
                 });
 
                 if (result && result.prompt) {
+                    if (result.needsCleaning) {
+                        console.log('Cleaning prompt...');
+                        loadingContainer.innerHTML = '<div class="loading-animation"><i class="fas fa-spinner fa-spin"></i> Finishing...</div>';
+                        await new Promise(resolve => setTimeout(resolve, 1000));
+                    }
+
                     loadingContainer.style.display = 'none';
                     promptContainer.style.display = 'block';
                     promptDisplay.style.display = 'block';
@@ -1697,12 +1697,6 @@ async function generatePromptsSequentially(basePrompt, view = 'active') {
         }
     } finally {
         isSequentialGenerationInProgress = false;
-        const generateBtn = document.getElementById('generatePrompts');
-        if (generateBtn) {
-            generateBtn.disabled = false;
-            generateBtn.classList.remove('loading');
-            generateBtn.innerHTML = 'Generate All';
-        }
     }
 }
 
@@ -1768,7 +1762,7 @@ function updateGeneratePromptsButton() {
         // Count only visible cards based on current view
         const visibleCards = Array.from(document.querySelectorAll('.style-card')).filter(card => {
             const isActive = localStorage.getItem(`style_${card.dataset.styleId}_active`) === 'true';
-            const isFavorite = card.dataset.favorite === 'true' || localStorage.getItem(`style_${card.dataset.styleId}_favorite`) === 'true';
+            const isFavorite = localStorage.getItem(`style_${card.dataset.styleId}_favorite`) === 'true';
             
             if (currentView === 'active') return isActive;
             if (currentView === 'inactive') return !isActive;
@@ -1937,7 +1931,7 @@ async function copyToClipboard(text) {
         showToast('Copied to clipboard!');
     } catch (err) {
         console.error('Failed to copy text: ', err);
-        showToast('Failed to copy text');
+        showToast('Failed to copy to clipboard');
     }
 }
 
@@ -2283,8 +2277,8 @@ function createStyleCards(styles) {
     const container = document.querySelector('.styles-container');
     
     styles.forEach(style => {
-        const card = createStyleCard(style);
-        fragment.appendChild(card);
+        const styleCard = createStyleCard(style);
+        fragment.appendChild(styleCard);
     });
     
     container.appendChild(fragment);
@@ -2357,20 +2351,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Funkcja do wyświetlania animacji ładowania
 function showLoadingAnimation(container, text) {
-    // Remove any existing loading animations first
-    const existingAnimation = container.querySelector('.loading-animation');
-    if (existingAnimation) {
-        existingAnimation.remove();
-    }
-
-    // Create new loading animation
-    const loadingAnimation = document.createElement('div');
-    loadingAnimation.className = 'loading-animation';
-    loadingAnimation.innerHTML = `
-        <i class="fas fa-spinner fa-spin"></i>
-        <span>${text}</span>
+    container.innerHTML = `
+        <div class="loading-animation">
+            <i class="fas fa-spinner fa-spin"></i>
+            <span>${text}</span>
+        </div>
     `;
-    container.appendChild(loadingAnimation);
 }
 
 // Funkcja do usuwania animacji ładowania
@@ -2484,7 +2470,7 @@ function initializeWordMarking() {
     });
 
     // Close context menu when clicking outside
-    document.addEventListener('click', (e) => {
+    document.addEventListener('click', () => {
         if (!e.target.closest('.word-context-menu')) {
             contextMenu.style.display = 'none';
         }
@@ -2495,18 +2481,62 @@ function initializeWordMarking() {
         markedWordsPanel.classList.remove('visible');
     });
 
-    // Show marked words panel button
-    const showMarkedWordsBtn = document.createElement('button');
-    showMarkedWordsBtn.className = 'tool-button';
-    showMarkedWordsBtn.title = 'Show Marked Words';
-    showMarkedWordsBtn.innerHTML = '<i class="fas fa-tags"></i><span>Marked Words</span>';
-    showMarkedWordsBtn.onclick = () => {
-        markedWordsPanel.classList.toggle('visible');
-        updateMarkedWordsList();
-    };
+    // Initialize copy and clear prompt buttons
+    const copyPromptBtn = document.getElementById('copyPromptBtn');
+    if (copyPromptBtn) {
+        copyPromptBtn.addEventListener('click', () => {
+            const promptInput = document.getElementById('promptInput');
+            if (promptInput && promptInput.value.trim()) {
+                navigator.clipboard.writeText(promptInput.value);
+                showToast('Prompt copied to clipboard');
+            } else {
+                showToast('Nothing to copy');
+            }
+        });
+    }
 
-    // Add button to tools
-    document.querySelector('.input-buttons').appendChild(showMarkedWordsBtn);
+    const clearPromptBtn = document.getElementById('clearPromptBtn');
+    if (clearPromptBtn) {
+        clearPromptBtn.addEventListener('click', () => {
+            const promptInput = document.getElementById('promptInput');
+            promptInput.value = '';
+            // Trigger the input event to update tags
+            promptInput.dispatchEvent(new Event('input'));
+            showToast('Prompt cleared');
+        });
+    }
+
+    // Initialize coffee button
+    const coffeeButton = document.querySelector('.coffee-button');
+    if (coffeeButton) {
+        coffeeButton.addEventListener('click', () => {
+            ipcRenderer.invoke('open-external', 'https://buymeacoffee.com/a_wawrzynkowski');
+        });
+    }
+
+    // Initialize info button
+    const infoButton = document.querySelector('.info-button');
+    if (infoButton) {
+        infoButton.addEventListener('click', () => {
+            ipcRenderer.send('open-credits');
+        });
+    }
+
+    // Initialize history button
+    const historyBtn = document.getElementById('history-btn');
+    const historyPanel = document.querySelector('.history-panel');
+    const historyCloseBtn = document.querySelector('.history-close');
+
+    if (historyBtn && historyPanel && historyCloseBtn) {
+        historyBtn.addEventListener('click', () => {
+            historyPanel.classList.toggle('open');
+            updateHistoryPanelContent();
+        });
+
+        historyCloseBtn.addEventListener('click', () => {
+            historyPanel.classList.remove('open');
+        });
+    }
 }
 
 // Function to mark/unmark a word
@@ -2674,4 +2704,548 @@ function updatePromptHighlighting() {
     
     // Sync scroll position
     highlightDiv.scrollTop = promptInput.scrollTop;
+}
+
+ipcRenderer.on('styles-refresh-needed', async () => {
+    try {
+        const styles = await ipcRenderer.invoke('get-styles');
+        updateStylesList(styles);
+    } catch (error) {
+        console.error('Error refreshing styles:', error);
+    }
+});
+
+function updateStylesList(styles) {
+    const stylesContainer = document.getElementById('styles-container');
+    if (!stylesContainer) return;
+
+    // Zachowaj scroll position
+    const scrollPosition = stylesContainer.scrollTop;
+
+    // Wyczyść kontener
+    stylesContainer.innerHTML = '';
+
+    // Dodaj style z powrotem
+    styles.forEach(style => {
+        const styleCard = createStyleCard(style);
+        stylesContainer.appendChild(styleCard);
+    });
+
+    // Przywróć scroll position
+    stylesContainer.scrollTop = scrollPosition;
+}
+
+// Funkcja do generowania promptu (współdzielona)
+async function generateStyledPrompt(prompt, style) {
+    try {
+        const styleCard = document.querySelector(`[data-style-id="${style.id}"]`);
+        if (!styleCard) {
+            throw new Error('Style card not found');
+        }
+
+        const promptDisplay = styleCard.querySelector('.style-prompt');
+        const loadingContainer = styleCard.querySelector('.generating-container');
+        
+        if (!promptDisplay || !loadingContainer) {
+            throw new Error('Required elements not found');
+        }
+
+        // Pierwszy etap - generowanie
+        promptDisplay.style.display = 'none';
+        loadingContainer.style.display = 'flex';
+        loadingContainer.innerHTML = '<div class="loading-animation"><i class="fas fa-spinner fa-spin"></i> Generating...</div>';
+
+        const result = await ipcRenderer.invoke('generate-prompt', {
+            prompt: prompt,
+            style: style
+        });
+
+        // Drugi etap - czyszczenie
+        if (result.needsCleaning) {
+            console.log('Cleaning prompt...');
+            loadingContainer.innerHTML = '<div class="loading-animation"><i class="fas fa-spinner fa-spin"></i> Finishing...</div>';
+            await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+
+        // Pokazanie wyniku
+        loadingContainer.style.display = 'none';
+        promptDisplay.style.display = 'block';
+        promptDisplay.textContent = result.prompt;
+        
+        // Dodaj klasę dla animacji
+        promptDisplay.classList.add('prompt-updated');
+        setTimeout(() => {
+            promptDisplay.classList.remove('prompt-updated');
+        }, 1000);
+
+        return result.prompt;
+    } catch (error) {
+        console.error('Error generating prompt:', error);
+        throw error;
+    }
+}
+
+// Sequential Generate
+async function sequentialGenerate() {
+    const promptInput = document.getElementById('prompt-input');
+    const prompt = promptInput.value.trim();
+    
+    if (!prompt) {
+        showNotification('Please enter a prompt first', 'warning');
+        return;
+    }
+
+    const styles = await ipcRenderer.invoke('get-styles');
+    const results = document.getElementById('results');
+    results.innerHTML = ''; // Clear previous results
+
+    const generateButton = document.getElementById('generate-prompts-btn');
+    if (!generateButton) return;
+
+    const originalButtonText = generateButton.innerHTML;
+    generateButton.disabled = true;
+    generateButton.classList.add('loading');
+    generateButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+
+    try {
+        for (const style of styles) {
+            const resultDiv = document.createElement('div');
+            resultDiv.className = 'result-item';
+            
+            const header = document.createElement('div');
+            header.className = 'result-header';
+            
+            const icon = document.createElement('i');
+            icon.className = `fas fa-${style.icon || 'magic'}`;
+            
+            const title = document.createElement('span');
+            title.textContent = style.name;
+            
+            header.appendChild(icon);
+            header.appendChild(title);
+            
+            const content = document.createElement('div');
+            content.className = 'result-content';
+            content.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+            
+            resultDiv.appendChild(header);
+            resultDiv.appendChild(content);
+            results.appendChild(resultDiv);
+
+            try {
+                // Pierwszy etap - generowanie
+                const result = await ipcRenderer.invoke('generate-prompt', {
+                    prompt: prompt,
+                    style: style
+                });
+
+                // Drugi etap - czyszczenie
+                if (result.needsCleaning) {
+                    content.innerHTML = '<div class="loading-animation"><i class="fas fa-spinner fa-spin"></i> Finishing...</div>';
+                    await new Promise(resolve => setTimeout(resolve, 1000));
+                }
+
+                content.textContent = result.prompt;
+                
+                // Dodaj animację ukończenia
+                content.classList.add('generation-complete');
+                setTimeout(() => {
+                    content.classList.remove('generation-complete');
+                }, 1000);
+            } catch (error) {
+                console.error(`Error generating prompt for style ${style.name}:`, error);
+                content.innerHTML = '<span class="error">Failed to generate prompt</span>';
+            }
+        }
+    } catch (error) {
+        console.error('Error during sequential generation:', error);
+        showNotification('Error generating prompts', 'error');
+    } finally {
+        generateButton.disabled = false;
+        generateButton.classList.remove('loading');
+        generateButton.innerHTML = originalButtonText;
+    }
+}
+
+// Funkcja tworząca kartę stylu
+function createStyleCard(style) {
+    const card = document.createElement('div');
+    card.className = 'style-card';
+    card.dataset.styleId = style.id;
+    card.dataset.favorite = localStorage.getItem(`style_${style.id}_favorite`) === 'true' ? 'true' : 'false';
+
+    // Create header
+    const header = document.createElement('div');
+    header.className = 'style-header';
+
+    const headerLeft = document.createElement('div');
+    headerLeft.className = 'style-header-left';
+
+    const headerRight = document.createElement('div');
+    headerRight.className = 'style-header-right';
+
+    const titleContainer = document.createElement('div');
+    titleContainer.className = 'style-card-title-container';
+
+    const icon = document.createElement('i');
+    icon.className = `fas fa-${style.icon || 'paint-brush'}`;
+    titleContainer.appendChild(icon);
+
+    const title = document.createElement('span');
+    title.className = 'style-card-title';
+    title.textContent = style.name;
+    titleContainer.appendChild(title);
+
+    // Create favorite button
+    const favoriteBtn = document.createElement('button');
+    favoriteBtn.className = 'favorite-btn';
+    favoriteBtn.innerHTML = '<i class="fas fa-star"></i>';
+    favoriteBtn.title = 'Add to favorites';
+    
+    // Set initial favorite state
+    const isFavorite = localStorage.getItem(`style_${style.id}_favorite`) === 'true';
+    card.dataset.favorite = isFavorite;
+    
+    favoriteBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const currentFavorite = card.dataset.favorite === 'true';
+        const newFavorite = !currentFavorite;
+        card.dataset.favorite = newFavorite;
+        localStorage.setItem(`style_${style.id}_favorite`, newFavorite);
+    });
+    
+    titleContainer.appendChild(favoriteBtn);
+
+    const description = document.createElement('div');
+    description.className = 'style-card-description';
+    description.textContent = style.description || 'No description available';
+
+    headerLeft.appendChild(titleContainer);
+    headerLeft.appendChild(description);
+
+    // Controls container (switch and generate button)
+    const controls = document.createElement('div');
+    controls.className = 'style-card-controls';
+
+    const generateButtonGroup = document.createElement('div');
+    generateButtonGroup.className = 'generate-button-group';
+
+    const generateButton = document.createElement('button');
+    generateButton.className = 'style-card-button';
+    generateButton.innerHTML = '<span>Generate</span>';
+
+    const dropdownButton = document.createElement('button');
+    dropdownButton.className = 'style-card-button dropdown-toggle';
+    dropdownButton.innerHTML = '<span class="selected-option">Standard</span><i class="fas fa-chevron-down"></i>';
+
+    const dropdownMenu = document.createElement('div');
+    dropdownMenu.className = 'prompt-options-dropdown';
+    dropdownMenu.innerHTML = `
+        <div class="dropdown-item" data-option="simple">Simple</div>
+        <div class="dropdown-item" data-option="standard">Standard</div>
+        <div class="dropdown-item" data-option="detailed">Long and Detailed</div>
+    `;
+
+    dropdownButton.addEventListener('click', (e) => {
+        e.stopPropagation();
+        dropdownMenu.classList.toggle('show');
+    });
+
+    dropdownMenu.querySelectorAll('.dropdown-item').forEach(item => {
+        item.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const selectedOption = e.target.dataset.option;
+            dropdownButton.querySelector('.selected-option').textContent = e.target.textContent;
+            dropdownMenu.classList.remove('show');
+        });
+    });
+
+    document.addEventListener('click', () => {
+        dropdownMenu.classList.remove('show');
+    });
+
+    generateButtonGroup.appendChild(generateButton);
+    generateButtonGroup.appendChild(dropdownButton);
+    generateButtonGroup.appendChild(dropdownMenu);
+
+    const toggle = document.createElement('div');
+    toggle.className = 'style-toggle';
+    const toggleInput = document.createElement('input');
+    toggleInput.type = 'checkbox';
+    toggleInput.checked = localStorage.getItem(`style_${style.id}_active`) === 'true';
+    toggle.appendChild(toggleInput);
+
+    toggleInput.addEventListener('change', () => {
+        toggleStyle(style.id, toggleInput.checked);
+    });
+
+    controls.appendChild(generateButtonGroup);
+    controls.appendChild(toggle);
+
+    headerRight.appendChild(controls);
+
+    header.appendChild(headerLeft);
+    header.appendChild(headerRight);
+    card.appendChild(header);
+
+    // Create prompt container
+    const promptContainer = document.createElement('div');
+    promptContainer.className = 'prompt-container';
+    
+    // Create loading container
+    const loadingContainer = document.createElement('div');
+    loadingContainer.className = 'generating-container';
+    loadingContainer.style.display = 'none';
+    
+    // Create prompt text container
+    const promptText = document.createElement('div');
+    promptText.className = 'prompt-text';
+    promptText.id = `prompt-${style.id}`;  // Add ID for easier reference
+    promptText.textContent = 'Click Generate to create a prompt...';
+    
+    promptContainer.appendChild(promptText);
+    promptContainer.appendChild(loadingContainer);
+    
+    card.appendChild(promptContainer);
+    
+    // Create prompt actions container
+    const promptActions = document.createElement('div');
+    promptActions.className = 'prompt-actions';
+
+    // Create history buttons container
+    const historyButtons = document.createElement('div');
+    historyButtons.className = 'history-buttons';
+
+    // Create previous button
+    const prevButton = document.createElement('button');
+    prevButton.className = 'prompt-action-btn prev-btn disabled';
+    prevButton.title = 'Previous prompt';
+    prevButton.innerHTML = '<i class="fas fa-chevron-left"></i>';
+    prevButton.onclick = (e) => {
+        e.stopPropagation();
+        navigateHistory(style.id, 'prev');
+    };
+
+    // Create next button
+    const nextButton = document.createElement('button');
+    nextButton.className = 'prompt-action-btn next-btn disabled';
+    nextButton.title = 'Next prompt';
+    nextButton.innerHTML = '<i class="fas fa-chevron-right"></i>';
+    nextButton.onclick = (e) => {
+        e.stopPropagation();
+        navigateHistory(style.id, 'next');
+    };
+
+    // Create copy button
+    const copyButton = document.createElement('button');
+    copyButton.className = 'prompt-action-btn copy-btn disabled';
+    copyButton.title = 'Copy prompt';
+    copyButton.innerHTML = '<i class="fas fa-copy"></i>';
+    copyButton.onclick = (e) => {
+        e.stopPropagation();
+        copyStylePrompt(style.id);
+    };
+
+    // Create Draw Things button
+    const drawBtn = document.createElement('button');
+    drawBtn.className = 'prompt-action-btn draw-btn disabled';
+    drawBtn.innerHTML = '<i class="fas fa-arrow-right"></i> Send to Draw Things';
+    drawBtn.title = 'Send to Draw Things';
+    drawBtn.disabled = true;
+    drawBtn.onclick = () => sendToDrawThings(style.id);
+
+    // Add tooltip functionality to Draw Things button
+    function createDrawThingsTooltip() {
+        const tooltip = document.createElement('div');
+        tooltip.className = 'custom-tooltip';
+        tooltip.innerHTML = `
+            <div class="custom-tooltip-title">Draw Things Integration Setup</div>
+            <p>PROMPTR integrates seamlessly with the Draw Things app. To activate the integration, follow these steps:</p>
+            <ol>
+                <li>Open the Draw Things app.</li>
+                <li>Switch the settings tab to 'Advanced' or 'All'.</li>
+                <li>Locate the 'API Server' option and enable it.</li>
+                <li>Ensure the settings are configured as follows:</li>
+            </ol>
+            <ul>
+                <li>Protocol: HTTP</li>
+                <li>Port: 3333</li>
+                <li>IP: 127.0.0.1</li>
+            </ul>
+            <div class="custom-tooltip-footer">Once these steps are completed, PROMPTR will be ready to interact with Draw Things! </div>
+        `;
+        document.body.appendChild(tooltip);
+        return tooltip;
+    }
+
+    function addDrawThingsTooltip(drawBtn) {
+        const tooltip = createDrawThingsTooltip();
+        let timeout;
+
+        drawBtn.addEventListener('mouseenter', () => {
+            const rect = drawBtn.getBoundingClientRect();
+            tooltip.style.left = `${rect.left}px`;
+            tooltip.style.top = `${rect.bottom + 10}px`;
+            
+            clearTimeout(timeout);
+            tooltip.classList.add('visible');
+            
+            const tooltipRect = tooltip.getBoundingClientRect();
+            const viewportWidth = window.innerWidth;
+            const viewportHeight = window.innerHeight;
+            
+            if (tooltipRect.right > viewportWidth) {
+                tooltip.style.left = `${viewportWidth - tooltipRect.width - 10}px`;
+            }
+            
+            if (tooltipRect.bottom > viewportHeight) {
+                tooltip.style.top = `${rect.top - tooltipRect.height - 10}px`;
+            }
+        });
+
+        drawBtn.addEventListener('mouseleave', () => {
+            timeout = setTimeout(() => {
+                tooltip.classList.remove('visible');
+            }, 200);
+        });
+
+        tooltip.addEventListener('mouseenter', () => {
+            clearTimeout(timeout);
+        });
+
+        tooltip.addEventListener('mouseleave', () => {
+            tooltip.classList.remove('visible');
+        });
+    }
+
+    addDrawThingsTooltip(drawBtn);
+
+    // Observe prompt text changes
+    const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+            if (mutation.type === 'characterData' || mutation.type === 'childList') {
+                const promptContent = promptText.textContent.trim();
+                const hasPrompt = promptContent && promptContent !== 'Click Generate to create a prompt...';
+                
+                drawBtn.disabled = !hasPrompt;
+                drawBtn.classList.toggle('disabled', !hasPrompt);
+                
+                prevButton.disabled = !hasPrompt;
+                prevButton.classList.toggle('disabled', !hasPrompt);
+                
+                nextButton.disabled = !hasPrompt;
+                nextButton.classList.toggle('disabled', !hasPrompt);
+                
+                copyButton.disabled = !hasPrompt;
+                copyButton.classList.toggle('disabled', !hasPrompt);
+            }
+        });
+    });
+
+    observer.observe(promptText, { 
+        characterData: true, 
+        childList: true,
+        subtree: true
+    });
+
+    // Add buttons to history buttons container
+    historyButtons.appendChild(prevButton);
+    historyButtons.appendChild(nextButton);
+    historyButtons.appendChild(copyButton);
+
+    // Create container for Magic Refiner and Draw Things buttons
+    const actionButtons = document.createElement('div');
+    actionButtons.className = 'action-buttons';
+    actionButtons.appendChild(drawBtn);
+
+    // Add all elements to prompt actions
+    promptActions.appendChild(historyButtons);
+    promptActions.appendChild(actionButtons);
+
+    // Add prompt actions to card
+    card.appendChild(promptActions);
+    
+    // Generate button click handler
+    generateButton.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        e.preventDefault();
+
+        // Check if already generating
+        if (activeGenerations.has(style.id)) {
+            return;
+        }
+
+        const promptInput = document.getElementById('promptInput');
+        const basePrompt = promptInput.value.trim();
+        
+        if (!basePrompt) {
+            showToast('Please enter a prompt first');
+            return;
+        }
+
+        try {
+            const promptContainer = card.querySelector('.prompt-container');
+            const loadingContainer = card.querySelector('.generating-container');
+            const promptDisplay = card.querySelector('.prompt-text');
+            
+            if (!promptContainer || !loadingContainer || !promptDisplay) {
+                console.error('Missing required elements for card:', style.id);
+                return;
+            }
+
+            // Mark as generating
+            activeGenerations.set(style.id, true);
+
+            // Show loading animation
+            promptDisplay.style.display = 'none';
+            loadingContainer.style.display = 'flex';
+            showLoadingAnimation(loadingContainer, 'Generating prompt...');
+            generateButton.classList.add('disabled', 'loading');
+            generateButton.disabled = true;
+
+            // Get selected prompt type from dropdown
+            const promptType = dropdownButton.querySelector('.selected-option').textContent.toLowerCase().replace(/\s+/g, '');
+            
+            const result = await ipcRenderer.invoke('generate-prompt', {
+                basePrompt: style.prefix ? `${style.prefix}${basePrompt}` : basePrompt,
+                styleId: style.id,
+                promptType,
+                style,
+                markedWords: {
+                    positive: Array.from(markedWords.positive),
+                    negative: Array.from(markedWords.negative)
+                }
+            });
+
+            if (result && result.prompt) {
+                // Hide loading animation
+                loadingContainer.style.display = 'none';
+                promptContainer.style.display = 'block';
+                promptDisplay.style.display = 'block';
+                promptDisplay.textContent = '';
+                await revealPrompt(result.prompt, promptDisplay);
+                addToStyleHistory(style.id, result.prompt);
+                updateHistoryButtons(style.id);
+            } else {
+                throw new Error('Empty response from model');
+            }
+        } catch (error) {
+            console.error('Error generating prompt:', error);
+            promptDisplay.textContent = `Error: ${error.message}`;
+            promptDisplay.style.display = 'block';
+        }
+        finally {
+            // Restore UI state
+            const loadingContainer = card.querySelector('.generating-container');
+            if (loadingContainer) {
+                loadingContainer.style.display = 'none';
+            }
+            generateButton.classList.remove('disabled', 'loading');
+            generateButton.disabled = false;
+            // Clear generating flag
+            activeGenerations.delete(style.id);
+        }
+    });
+
+    return card;
 }

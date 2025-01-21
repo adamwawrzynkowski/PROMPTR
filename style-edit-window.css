@@ -9,6 +9,8 @@
     --button-hover: rgba(255, 255, 255, 0.2);
     --theme-color: #007bff;
     --generate-button-hover: #0056b3;
+    --theme-color-darker: #0056b3;
+    --error-color: #ff0000;
 }
 
 body {
@@ -94,10 +96,16 @@ textarea {
     transition: all 0.2s ease;
 }
 
+input[type="text"]:hover,
+textarea:hover {
+    border-color: var(--theme-color);
+}
+
 input[type="text"]:focus,
 textarea:focus {
-    border-color: var(--theme-color);
     outline: none;
+    border-color: var(--theme-color);
+    box-shadow: 0 0 0 2px rgba(var(--theme-color-rgb), 0.2);
 }
 
 textarea {
@@ -110,6 +118,8 @@ textarea {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(36px, 1fr));
     gap: 8px;
+    max-height: 200px;
+    overflow-y: auto;
     padding: 8px;
     background: var(--card-background);
     border: 1px solid var(--border);
@@ -117,26 +127,50 @@ textarea {
 }
 
 .icon-option {
-    aspect-ratio: 1;
     display: flex;
     align-items: center;
     justify-content: center;
-    background: var(--button-background);
+    width: 36px;
+    height: 36px;
     border-radius: 6px;
     cursor: pointer;
     transition: all 0.2s ease;
-    color: var(--text-secondary);
+    background: var(--background);
+    border: 1px solid transparent;
 }
 
 .icon-option:hover {
-    background: var(--button-hover);
-    color: var(--text);
-    transform: translateY(-1px);
+    background: var(--card-background-darker);
+    border-color: var(--theme-color);
+    color: var(--theme-color);
 }
 
 .icon-option.selected {
     background: var(--theme-color);
     color: white;
+    border-color: var(--theme-color);
+}
+
+.icon-option i {
+    font-size: 16px;
+}
+
+.icons-grid::-webkit-scrollbar {
+    width: 8px;
+}
+
+.icons-grid::-webkit-scrollbar-track {
+    background: var(--card-background);
+    border-radius: 4px;
+}
+
+.icons-grid::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 4px;
+}
+
+.icons-grid::-webkit-scrollbar-thumb:hover {
+    background: var(--text-secondary);
 }
 
 /* System instructions section */
@@ -267,30 +301,99 @@ input[type="range"]::-webkit-slider-thumb:hover {
     color: var(--text-secondary);
 }
 
-/* Save button */
-.save-btn {
-    background: var(--theme-color);
-    border: none;
-    padding: 12px;
-    border-radius: 8px;
-    color: white;
+/* New styles */
+.description-header,
+.instructions-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+}
+
+.char-counter {
+    font-size: 12px;
+    color: var(--text-secondary);
+    transition: color 0.2s ease;
+}
+
+.char-counter.limit {
+    color: var(--theme-color);
+}
+
+.generate-btn {
+    padding: 6px 12px;
+    border: 1px solid var(--theme-color);
+    border-radius: 6px;
+    background: transparent;
+    color: var(--theme-color);
     cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 14px;
+}
+
+.generate-btn:hover {
+    background: var(--theme-color);
+    color: white;
+}
+
+.generate-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.save-btn {
+    width: 100%;
+    padding: 10px;
+    background: var(--theme-color);
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 500;
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 8px;
-    font-weight: 500;
     transition: all 0.2s ease;
     margin-top: 20px;
 }
 
-.save-btn:hover {
-    background: var(--generate-button-hover);
+.save-btn:hover:not(:disabled) {
+    background: var(--theme-color-darker);
     transform: translateY(-1px);
 }
 
-.save-btn i {
-    font-size: 14px;
+.save-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Required and error styles */
+.required {
+    color: var(--error-color);
+    margin-left: 4px;
+}
+
+.error-message {
+    color: var(--error-color);
+    font-size: 12px;
+    margin-top: 4px;
+    min-height: 16px;
+}
+
+input:invalid,
+textarea:invalid {
+    border-color: var(--error-color);
+}
+
+.form-group.error input,
+.form-group.error textarea {
+    border-color: var(--error-color);
 }
 
 /* Theme-specific styles */

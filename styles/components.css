@@ -774,6 +774,10 @@
     z-index: 99999;
 }
 
+.prompt-options-dropdown.show {
+    display: block;
+}
+
 .history-header {
     display: flex;
     justify-content: space-between;
@@ -850,24 +854,56 @@
 .generate-button-group {
     position: relative;
     display: flex;
-    gap: 8px;
+    align-items: center;
+    gap: 0;
     z-index: 10;
+}
+
+.generate-button-group button {
+    border-radius: 0;
+    height: 36px;
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+}
+
+.generate-button-group button:first-child {
+    border-top-left-radius: 6px;
+    border-bottom-left-radius: 6px;
+}
+
+.generate-button-group button:last-child {
+    border-top-right-radius: 6px;
+    border-bottom-right-radius: 6px;
+    border-left: 1px solid var(--theme-color-back);
 }
 
 .prompt-options-dropdown {
     position: absolute;
-    top: 100%;
+    top: calc(100% + 4px);
     right: 0;
+    min-width: 150px;
     background: var(--card-background);
     border: 1px solid var(--theme-color-back);
     border-radius: 8px;
-    padding: 8px 0;
-    margin-top: 4px;
+    padding: 4px 0;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
     display: none;
     z-index: 11;
 }
 
-.prompt-options-dropdown.show {
+.dropdown-item {
+    padding: 8px 16px;
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-size: 14px;
     display: block;
+    width: 100%;
+    text-align: left;
+}
+
+.dropdown-item:hover {
+    background: var(--card-background-darker);
+    color: var(--theme-color);
 }
