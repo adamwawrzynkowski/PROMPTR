@@ -716,6 +716,19 @@ Keep it brief and concise. Do not describe the content or subjects in the image.
                        modelName.startsWith(installed + ':');
             });
             
+            if (!isInstalled) {
+                console.log(`Model ${modelName} not installed, attempting to pull...`);
+                try {
+                    await this.pullModel(modelName, (progress) => {
+                        console.log(`Pulling model ${modelName}: ${progress}%`);
+                    });
+                    return true;
+                } catch (pullError) {
+                    console.error('Error pulling model:', pullError);
+                    return false;
+                }
+            }
+            
             console.log(`Model ${modelName} installed:`, isInstalled);
             return isInstalled;
         } catch (error) {

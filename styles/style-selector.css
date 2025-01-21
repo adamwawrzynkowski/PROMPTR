@@ -81,3 +81,19 @@
     font-size: 12px;
     line-height: 1.4;
 }
+
+.style-icon {
+    width: 32px;
+    height: 32px;
+    background: var(--accent-light);
+    border-radius: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 8px;
+}
+
+.style-icon i {
+    font-size: 16px;
+    color: var(--accent);
+}

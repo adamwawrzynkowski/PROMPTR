@@ -9,6 +9,7 @@
     margin-top: 4px;
     box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
     z-index: 1000000;
+    pointer-events: all;
 }
 
 .prompt-options-dropdown.show {
@@ -21,8 +22,8 @@
     color: var(--text);
     transition: all 0.2s ease;
     position: relative;
-    z-index: 9999;
     background: var(--card-background);
+    pointer-events: all;
 }
 
 .dropdown-item:hover {
@@ -33,11 +34,22 @@
     position: relative;
     padding-right: 24px !important;
     z-index: 1;
+    pointer-events: auto;
+}
+
+.style-card {
+    position: relative;
+    z-index: 1;
 }
 
 .style-card .dropdown-toggle {
     position: relative;
-    z-index: 9998;
+    z-index: 999999;
+}
+
+.generate-button-group {
+    position: relative;
+    z-index: 999999;
 }
 
 .dropdown-toggle .fa-chevron-down {

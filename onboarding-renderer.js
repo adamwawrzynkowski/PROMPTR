@@ -63,9 +63,18 @@ async function checkOllamaConnection() {
 // Enable model selection
 function enableModelSelection() {
     modelCards.forEach(card => {
-        card.style.cursor = 'pointer';
-        const selectBtn = card.querySelector('.select-model-btn');
-        selectBtn.disabled = false;
+        if (card.dataset.comingSoon === 'true') {
+            card.style.cursor = 'not-allowed';
+            card.style.opacity = '0.8';
+            const selectBtn = card.querySelector('.select-model-btn');
+            selectBtn.disabled = true;
+            selectBtn.style.cursor = 'not-allowed';
+            selectBtn.style.opacity = '0.6';
+        } else {
+            card.style.cursor = 'pointer';
+            const selectBtn = card.querySelector('.select-model-btn');
+            selectBtn.disabled = false;
+        }
     });
 }
 
@@ -74,12 +83,17 @@ selectButtons.forEach(button => {
     button.addEventListener('click', async (e) => {
         e.stopPropagation();
         const card = e.target.closest('.model-card');
-        if (!card) return;
+        if (!card || card.dataset.comingSoon === 'true') return;
         
         // Reset previous selection
         modelCards.forEach(c => {
             c.classList.remove('selected');
-            c.querySelector('.select-model-btn').textContent = 'Select';
+            const btn = c.querySelector('.select-model-btn');
+            if (c.dataset.comingSoon === 'true') {
+                btn.textContent = 'Coming Soon';
+            } else {
+                btn.textContent = 'Select';
+            }
         });
         
         // Update new selection

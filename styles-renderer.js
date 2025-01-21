@@ -21,8 +21,13 @@ document.addEventListener('DOMContentLoaded', () => {
         stylesList.innerHTML = Object.entries(styles).map(([id, style]) => `
             <div class="style-card ${style.custom ? 'custom' : ''}" data-id="${id}">
                 <div class="style-header">
-                    <i class="style-icon fas fa-${style.icon}"></i>
-                    <h3 class="style-name">${style.name}</h3>
+                    <div class="style-title">
+                        <i class="fas fa-${style.icon || 'paint-brush'}"></i>
+                        <h3 class="style-name">${style.name}</h3>
+                    </div>
+                    <button class="favorite-btn" title="Add to favorites">
+                        <i class="far fa-star"></i>
+                    </button>
                 </div>
                 <p class="style-description">${style.description}</p>
                 <div class="style-tags">

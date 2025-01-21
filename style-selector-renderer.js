@@ -19,7 +19,7 @@ function createStyleTile(style) {
     const tile = document.createElement('div');
     tile.className = 'style-tile';
     tile.innerHTML = `
-        <div class="style-icon"><i class="fas ${style.icon || 'fa-paint-brush'}"></i></div>
+        <div class="style-icon"><i class="fas fa-${style.icon || 'paint-brush'}"></i></div>
         <div class="style-name">${style.name}</div>
         <div class="style-description">${style.description || ''}</div>
     `;
@@ -52,22 +52,22 @@ ipcRenderer.on('load-styles', (event, styles) => {
             {
                 name: 'Sci-Fi',
                 description: 'Analyze the image through a science fiction lens, focusing on futuristic and technological elements.',
-                icon: 'fa-robot'
+                icon: 'robot'
             },
             {
                 name: 'Art Critic',
                 description: 'Evaluate the image as an art critic would, discussing composition, technique, and artistic merit.',
-                icon: 'fa-palette'
+                icon: 'palette'
             },
             {
                 name: 'Detective',
                 description: 'Examine the image like a detective, looking for clues and analyzing details.',
-                icon: 'fa-magnifying-glass'
+                icon: 'magnifying-glass'
             },
             {
                 name: 'Storyteller',
                 description: 'Interpret the image as a scene from a story, focusing on narrative elements and potential plot.',
-                icon: 'fa-book'
+                icon: 'book'
             }
         ];
     }

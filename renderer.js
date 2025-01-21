@@ -95,7 +95,7 @@ function createStyleCard(style) {
     titleContainer.className = 'style-card-title-container';
 
     const icon = document.createElement('i');
-    icon.className = style.icon || 'fas fa-palette';
+    icon.className = `fas fa-${style.icon || 'paint-brush'}`;
     titleContainer.appendChild(icon);
 
     const title = document.createElement('span');
@@ -103,18 +103,24 @@ function createStyleCard(style) {
     title.textContent = style.name;
     titleContainer.appendChild(title);
 
+    // Create favorite button
     const favoriteBtn = document.createElement('button');
     favoriteBtn.className = 'favorite-btn';
     favoriteBtn.innerHTML = '<i class="fas fa-star"></i>';
-    favoriteBtn.classList.toggle('active', card.dataset.favorite === 'true');
-    favoriteBtn.onclick = (e) => {
+    favoriteBtn.title = 'Add to favorites';
+    
+    // Set initial favorite state
+    const isFavorite = localStorage.getItem(`style_${style.id}_favorite`) === 'true';
+    card.dataset.favorite = isFavorite;
+    
+    favoriteBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-        const isFavorite = card.dataset.favorite === 'true';
-        card.dataset.favorite = (!isFavorite).toString();
-        localStorage.setItem(`style_${style.id}_favorite`, (!isFavorite).toString());
-        favoriteBtn.classList.toggle('active', !isFavorite);
-        updateStyleCounts();
-    };
+        const currentFavorite = card.dataset.favorite === 'true';
+        const newFavorite = !currentFavorite;
+        card.dataset.favorite = newFavorite;
+        localStorage.setItem(`style_${style.id}_favorite`, newFavorite);
+    });
+    
     titleContainer.appendChild(favoriteBtn);
 
     const description = document.createElement('div');

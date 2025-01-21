@@ -40,6 +40,14 @@ const textModels = [
         type: 'High Quality Model'
     },
     {
+        name: 'PROMPTR Reasoning',
+        description: 'A model that specializes in broad understanding of the context of user requests and a creative approach to constructing responses.',
+        modelName: 'deepseek-r1:7b',
+        type: 'Specialized Model',
+        comingSoon: true,
+        warning: 'This model will be available soon. Stay tuned for updates!'
+    },
+    {
         name: 'PROMPTR NSFW',
         description: 'An unrestricted model capable of handling mature and sensitive content.',
         modelName: 'dolphin-llama3:8b',
@@ -54,7 +62,8 @@ const MODELS_WITH_PARAMS = [
     'mistral',
     'gemma',
     'dolphin-llama3',
-    'llama3.2'
+    'llama3.2',
+    'deepseek-r1'
 ];
 
 // Elements
@@ -74,6 +83,22 @@ function createTextModelItem(model) {
     modelItem.querySelector('.model-type').textContent = model.type;
     modelItem.querySelector('.model-description').textContent = model.description;
     modelItem.querySelector('.model-tag').textContent = model.modelName;
+    
+    // Handle coming soon models
+    if (model.comingSoon) {
+        modelItem.classList.add('coming-soon');
+        const downloadButton = modelItem.querySelector('.download-button');
+        downloadButton.disabled = true;
+        downloadButton.style.opacity = '0.6';
+        downloadButton.style.cursor = 'not-allowed';
+        downloadButton.querySelector('span').textContent = 'Coming Soon';
+        
+        // Add coming soon badge
+        const badge = document.createElement('div');
+        badge.className = 'coming-soon-badge';
+        badge.innerHTML = '<i class="fas fa-clock"></i> Coming Soon';
+        modelItem.querySelector('.model-header').appendChild(badge);
+    }
     
     // Remove warning section if no warning exists
     if (!model.warning) {
@@ -104,12 +129,14 @@ function createTextModelItem(model) {
         currentBadge.innerHTML = '<i class="fas fa-check-circle"></i> Current Model';
         modelItem.querySelector('.model-header').appendChild(currentBadge);
         downloadButton.querySelector('span').textContent = 'Current Model';
-    } else {
+    } else if (!model.comingSoon) {
         downloadButton.querySelector('span').textContent = 'Choose';
     }
     
-    downloadButton.addEventListener('click', () => installModel(model.modelName, modelItem));
-    removeButton.addEventListener('click', () => removeModel(model.modelName, modelItem));
+    if (!model.comingSoon) {
+        downloadButton.addEventListener('click', () => installModel(model.modelName, modelItem));
+        removeButton.addEventListener('click', () => removeModel(model.modelName, modelItem));
+    }
     
     return modelItem;
 }

@@ -195,6 +195,36 @@
     opacity: 1;
 }
 
+.style-card .style-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.style-card .style-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.style-card .style-title i {
+    font-size: 16px;
+    color: var(--theme-color);
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.style-card .style-name {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text);
+    margin: 0;
+}
+
 /* Ensure proper interaction */
 .style-card .style-header,
 .style-card .prompt-container,

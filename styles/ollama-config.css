@@ -383,3 +383,50 @@
 .model-card.loading .remove-button {
     display: none !important;
 }
+
+.model-card[data-model*="deepseek-r1"] {
+    background: linear-gradient(135deg, var(--card-background), rgba(147, 51, 234, 0.05));
+    border: 1px solid rgba(147, 51, 234, 0.2);
+}
+
+.model-card[data-model*="deepseek-r1"]:hover {
+    background: linear-gradient(135deg, var(--card-background), rgba(147, 51, 234, 0.1));
+    border-color: rgba(147, 51, 234, 0.3);
+    box-shadow: 0 4px 12px rgba(147, 51, 234, 0.1);
+}
+
+.model-card[data-model*="deepseek-r1"] .model-tag {
+    background-color: rgba(147, 51, 234, 0.1);
+    color: rgb(147, 51, 234);
+    border-color: rgba(147, 51, 234, 0.3);
+}
+
+.model-card[data-model*="deepseek-r1"].installed {
+    border-color: rgb(147, 51, 234);
+}
+
+.coming-soon-badge {
+    background-color: rgba(147, 51, 234, 0.1);
+    color: rgb(147, 51, 234);
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 0.8em;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    border: 1px solid rgba(147, 51, 234, 0.3);
+    margin-left: auto;
+}
+
+.coming-soon-badge i {
+    font-size: 0.9em;
+}
+
+.model-item.coming-soon {
+    opacity: 0.8;
+    pointer-events: auto;
+}
+
+.model-item.coming-soon .download-button {
+    pointer-events: none;
+}
