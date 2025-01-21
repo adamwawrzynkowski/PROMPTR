@@ -82,6 +82,7 @@
     background: var(--background);
     border-bottom: 1px solid var(--theme-color-back);
     -webkit-app-region: drag;
+    z-index: 999;
 }
 
 .title {

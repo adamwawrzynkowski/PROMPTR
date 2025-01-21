@@ -1,13 +1,13 @@
 .history-panel {
     position: fixed;
-    top: 30px; /* Leave space for title bar */
+    top: 0;
     right: -400px;
     width: 400px;
-    height: calc(100vh - 30px); /* Adjust for title bar */
+    height: 100vh;
     background: var(--background);
     box-shadow: -2px 0 10px rgba(0, 0, 0, 0.2);
     transition: right 0.3s ease;
-    z-index: 1000;
+    z-index: 999999;
     display: flex;
     flex-direction: column;
     border-left: 1px solid var(--border);

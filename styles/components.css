@@ -14,6 +14,8 @@
     gap: 20px;
     padding: 5px 20px;
     background: var(--background);
+    position: relative;
+    z-index: 10;
 }
 
 .styles-nav-right {
@@ -751,4 +753,121 @@
 
 .style-card[data-favorite="true"] .favorite-btn i {
     color: var(--theme-color);
+}
+
+/* History Panel */
+.history-panel {
+    position: fixed;
+    top: 0;
+    right: 0;
+    width: 400px;
+    height: 100vh;
+    background: var(--card-background);
+    border-left: 1px solid var(--theme-color-back);
+    box-shadow: -4px 0 32px rgba(0, 0, 0, 0.2);
+    display: flex;
+    flex-direction: column;
+    z-index: 100000;
+}
+
+.prompt-options-dropdown {
+    z-index: 99999;
+}
+
+.history-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px;
+    border-bottom: 1px solid var(--theme-color-back);
+}
+
+.history-header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.history-header h2 {
+    margin: 0;
+    font-size: 18px;
+    color: var(--text);
+}
+
+.history-clear-all {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 4px 8px;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.history-clear-all:hover {
+    color: var(--theme-color);
+    background: var(--card-background-darker);
+}
+
+.history-close {
+    background: none;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    padding: 8px;
+    border-radius: 4px;
+    transition: all 0.2s ease;
+}
+
+.history-close:hover {
+    color: var(--theme-color);
+    background: var(--card-background-darker);
+}
+
+.history-content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px;
+}
+
+.history-content::-webkit-scrollbar {
+    width: 8px;
+}
+
+.history-content::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.history-content::-webkit-scrollbar-thumb {
+    background: var(--border);
+    border-radius: 4px;
+}
+
+.history-content::-webkit-scrollbar-thumb:hover {
+    background: var(--text-secondary);
+}
+
+.generate-button-group {
+    position: relative;
+    display: flex;
+    gap: 8px;
+    z-index: 10;
+}
+
+.prompt-options-dropdown {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    background: var(--card-background);
+    border: 1px solid var(--theme-color-back);
+    border-radius: 8px;
+    padding: 8px 0;
+    margin-top: 4px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    display: none;
+    z-index: 11;
+}
+
+.prompt-options-dropdown.show {
+    display: block;
 }
