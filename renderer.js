@@ -2574,7 +2574,7 @@ function escapeHtml(text) {
 function updatePromptHighlighting() {
     const promptInput = document.getElementById('promptInput');
     const highlightDiv = document.getElementById('promptHighlight');
-    let text = promptInput.value;
+    const text = promptInput.value;
     
     // Ensure exact whitespace preservation
     if (!text) {
@@ -2582,42 +2582,75 @@ function updatePromptHighlighting() {
         return;
     }
     
-    // First escape HTML to prevent XSS and preserve whitespace
-    let highlightedText = escapeHtml(text)
-        .replace(/ /g, '&nbsp;')
-        .replace(/\t/g, '&nbsp;&nbsp;&nbsp;&nbsp;');
+    // First escape HTML to prevent XSS
+    let highlightedText = escapeHtml(text);
     
     // Create a regex pattern for all marked words
     const allMarkedWords = [];
     
-    // Add positive words
-    markedWords.positive.forEach(word => {
-        if (word.trim()) {
+    // Add positive words/phrases
+    markedWords.positive.forEach(phrase => {
+        if (phrase.trim()) {
             allMarkedWords.push({
-                word: word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), // Escape regex special chars
+                phrase: phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), // Escape regex special chars
                 type: 'positive'
             });
         }
     });
     
-    // Add negative words
-    markedWords.negative.forEach(word => {
-        if (word.trim()) {
+    // Add negative words/phrases
+    markedWords.negative.forEach(phrase => {
+        if (phrase.trim()) {
             allMarkedWords.push({
-                word: word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+                phrase: phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
                 type: 'negative'
             });
         }
     });
     
     // Sort by length (longest first) to handle overlapping matches correctly
-    allMarkedWords.sort((a, b) => b.word.length - a.word.length);
+    allMarkedWords.sort((a, b) => b.phrase.length - a.phrase.length);
     
-    // Apply highlighting
-    allMarkedWords.forEach(({ word, type }) => {
-        const regex = new RegExp(`\\b(${word})\\b(?![^<]*>)`, 'gi'); // Match whole words only, don't match inside HTML tags
-        highlightedText = highlightedText.replace(regex, `<span class="highlight-${type}">$1</span>`);
+    // Create an array of text parts and their types
+    const parts = [];
+    let lastIndex = 0;
+    
+    // Find all matches and their positions
+    const matches = [];
+    allMarkedWords.forEach(({ phrase, type }) => {
+        const regex = new RegExp(phrase, 'gi');
+        let match;
+        while ((match = regex.exec(text)) !== null) {
+            matches.push({
+                start: match.index,
+                end: match.index + match[0].length,
+                text: match[0],
+                type
+            });
+        }
     });
+    
+    // Sort matches by start position
+    matches.sort((a, b) => a.start - b.start);
+    
+    // Build highlighted text
+    matches.forEach(match => {
+        if (match.start > lastIndex) {
+            // Add non-highlighted text before this match
+            parts.push(escapeHtml(text.substring(lastIndex, match.start)));
+        }
+        // Add highlighted text
+        parts.push(`<span class="highlight-${match.type}">${escapeHtml(match.text)}</span>`);
+        lastIndex = match.end;
+    });
+    
+    // Add any remaining text
+    if (lastIndex < text.length) {
+        parts.push(escapeHtml(text.substring(lastIndex)));
+    }
+    
+    // Join all parts
+    highlightedText = parts.join('');
     
     // Replace newlines with <br> for proper display
     highlightedText = highlightedText.replace(/\n/g, '<br>');

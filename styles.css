@@ -245,33 +245,27 @@
     pointer-events: none;
     z-index: 0;
     width: 100%;
-    min-height: 80px;
+    height: 100%;
     box-sizing: border-box;
-    border: 1px solid transparent; /* Match textarea border */
+    border: 1px solid transparent;
     overflow: hidden;
 }
 
 .prompt-input-highlight .highlight-positive {
     background: rgba(76, 175, 80, 0.1);
     border-bottom: 2px solid #4CAF50;
-    border-radius: 2px;
-    padding: 0 1px; /* Add slight padding to ensure highlight covers text */
-    margin: 0 -1px; /* Offset padding to maintain alignment */
 }
 
 .prompt-input-highlight .highlight-negative {
     background: rgba(244, 67, 54, 0.1);
     border-bottom: 2px solid #f44336;
-    border-radius: 2px;
-    padding: 0 1px; /* Add slight padding to ensure highlight covers text */
-    margin: 0 -1px; /* Offset padding to maintain alignment */
 }
 
 /* Make sure textarea and highlight div have exactly the same text properties */
 #promptInput,
 .prompt-input-highlight {
     font-family: inherit;
-    font-size: inherit;
+    font-size: 16px;
     font-weight: inherit;
     line-height: 1.5;
     letter-spacing: normal;
@@ -281,11 +275,15 @@
     text-transform: none;
     margin: 0;
     border: 0;
+    padding: 30px;
     resize: none;
+    width: 100%;
+    min-height: 90px;
     overflow-y: auto;
     -webkit-text-size-adjust: 100%;
     tab-size: 4;
     -webkit-font-smoothing: antialiased;
+    box-sizing: border-box;
 }
 
 /* Hide scrollbar on highlight div but keep functionality */
