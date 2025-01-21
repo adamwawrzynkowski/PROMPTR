@@ -6,6 +6,8 @@ document.addEventListener('DOMContentLoaded', () => {
     const stylePrefixInput = document.getElementById('style-prefix');
     const styleSuffixInput = document.getElementById('style-suffix');
     const systemInstructionsInput = document.getElementById('system-instructions');
+    const positiveWordsInput = document.getElementById('positive-words');
+    const negativeWordsInput = document.getElementById('negative-words');
     const iconsGrid = document.getElementById('icons-grid');
     const windowTitle = document.getElementById('window-title');
     const saveBtn = document.getElementById('save-btn');
@@ -80,6 +82,8 @@ document.addEventListener('DOMContentLoaded', () => {
             prefix: stylePrefixInput.value,
             suffix: styleSuffixInput.value,
             systemInstructions: systemInstructionsInput.value,
+            positiveWords: positiveWordsInput.value.split(',').map(word => word.trim()).filter(word => word),
+            negativeWords: negativeWordsInput.value.split(',').map(word => word.trim()).filter(word => word),
             icon: selectedIcon,
             custom: true
         };

@@ -162,6 +162,87 @@
     position: relative;
     overflow: hidden;
     min-height: 400px;
+    transform: translateY(0);
+    transition: all 0.3s ease;
+    box-shadow:
+        0 4px 6px -1px rgba(0, 0, 0, 0.1),
+        0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.style-card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        160deg,
+        transparent 0%,
+        rgba(var(--theme-color-rgb), 0.05) 100%
+    );
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+}
+
+.style-card:hover {
+    transform: translateY(-8px);
+    box-shadow:
+        0 20px 25px -5px rgba(0, 0, 0, 0.2),
+        0 10px 10px -5px rgba(0, 0, 0, 0.1);
+    border-color: var(--theme-color);
+}
+
+.style-card:hover::after {
+    opacity: 1;
+}
+
+/* Ensure proper interaction */
+.style-card .style-header,
+.style-card .prompt-container,
+.style-card .prompt-text,
+.style-card .prompt-actions,
+.style-card button,
+.style-card input {
+    position: relative;
+    z-index: 1;
+}
+
+.style-card-controls {
+    position: relative;
+    z-index: 2;
+}
+
+.style-card:hover::before {
+    opacity: 1;
+}
+
+/* Enhanced interactivity */
+.style-card {
+    transform-origin: center bottom;
+}
+
+.style-card .style-header {
+    transition: transform 0.3s ease;
+}
+
+.style-card:hover .style-header {
+    transform: translateY(-2px);
+}
+
+.style-card button,
+.style-card .action-btn,
+.style-card .favorite-btn,
+.style-card input[type="checkbox"] {
+    transition: transform 0.2s ease;
+}
+
+.style-card button:hover,
+.style-card .action-btn:hover,
+.style-card .favorite-btn:hover {
+    transform: translateY(-1px);
+}
+
+.style-card input[type="checkbox"]:hover {
+    transform: scale(1.05);
 }
 
 .style-card input[type="checkbox"] {
@@ -250,6 +331,44 @@
     gap: 10px;
     padding: 0 10px;
     margin-top: auto;
+    position: relative;
+    z-index: 100000;
+    isolation: isolate;
+}
+
+.style-card .action-btn {
+    position: relative;
+    z-index: 100000;
+}
+
+/* Ensure proper layering in style cards */
+.style-card {
+    isolation: isolate;
+}
+
+.style-card .prompt-text,
+.style-card .prompt-output {
+    pointer-events: none;
+    position: relative;
+    z-index: 1;
+}
+
+.style-card .dropdown-container {
+    position: relative;
+    z-index: 100000;
+}
+
+.style-card .prompt-options-dropdown {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    z-index: 100000;
+}
+
+.style-card .prompt-options-dropdown,
+.style-card .dropdown-toggle,
+.style-card .dropdown-item {
+    pointer-events: auto !important;
 }
 
 .style-card .action-btn {

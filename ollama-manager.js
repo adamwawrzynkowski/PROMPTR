@@ -310,23 +310,35 @@ class OllamaManager {
         try {
             // Check if Ollama is initialized
             if (!this._isInitialized) {
-                console.error('Ollama not initialized');
                 throw new Error('Ollama not initialized');
             }
 
             // Synchronize model before using
             this._defaultModel = this._ollamaManager.currentModel;
             if (!this._defaultModel) {
-                console.error('No text model selected. Please select a model in settings.');
                 throw new Error('No text model selected. Please select a model in settings.');
             }
 
-            let options = {
+            const options = {
                 temperature: 0.7,
                 top_p: 0.9,
                 top_k: 40,
-                repeat_penalty: 1.1
+                repeat_penalty: 1.1,
+                ...(customStyle?.modelParameters || {})
             };
+
+            // Filter out negative words first, before any other processing
+            let cleanedPrompt = prompt;
+            if (customStyle?.markedWords?.negative) {
+                for (const word of customStyle.markedWords.negative) {
+                    const regex = new RegExp(word.trim(), 'gi');
+                    cleanedPrompt = cleanedPrompt.replace(regex, '');
+                }
+                cleanedPrompt = cleanedPrompt.replace(/\s+/g, ' ').trim();
+                
+                // Remove negative words from memory immediately
+                delete customStyle.markedWords.negative;
+            }
 
             // Jeśli mamy customStyle, użyj jego parametrów
             if (customStyle) {
@@ -339,21 +351,64 @@ class OllamaManager {
                 };
             }
 
-            // Dodaj parametry stylu do promptu
-            let enhancedPrompt = prompt;
-            if (customStyle && customStyle.prefix) {
-                enhancedPrompt = `${customStyle.prefix} ${enhancedPrompt}`;
-            }
-            if (customStyle && customStyle.suffix) {
-                enhancedPrompt = `${enhancedPrompt} ${customStyle.suffix}`;
+            // Process input to remove negative words first
+            let processedPrompt = prompt;
+            
+            if (customStyle?.markedWords?.negative) {
+                // Filter out negative words
+                for (const word of customStyle.markedWords.negative) {
+                    const regex = new RegExp(word.trim(), 'gi');
+                    processedPrompt = processedPrompt.replace(regex, '');
+                }
+                processedPrompt = processedPrompt.replace(/\s+/g, ' ').trim();
+                
+                // Remove negative words from memory immediately
+                delete customStyle.markedWords.negative;
             }
 
-            console.log('Generating prompt with:', {
-                model: this._defaultModel,
-                styleId,
-                options,
-                enhancedPrompt
-            });
+            // Build final prompt
+            let enhancedPrompt = '';
+
+            if (customStyle) {
+                // Add prefix
+                if (customStyle.prefix) {
+                    enhancedPrompt += customStyle.prefix + ' ';
+                }
+
+                // Add processed prompt with positive words requirement
+                if (customStyle.markedWords?.positive?.length > 0) {
+                    const positiveElements = customStyle.markedWords.positive
+                        .map(word => word.trim())
+                        .join(' and ');
+                    enhancedPrompt += `Create a ${positiveElements} description of "${processedPrompt}"`;
+                } else {
+                    enhancedPrompt += processedPrompt;
+                }
+
+                // Add suffix
+                if (customStyle.suffix) {
+                    enhancedPrompt += ' ' + customStyle.suffix;
+                }
+
+                // Clean up style object to remove any trace of negative words
+                if (customStyle.markedWords) {
+                    delete customStyle.markedWords.negative;
+                    if (Object.keys(customStyle.markedWords).length === 0) {
+                        delete customStyle.markedWords;
+                    }
+                }
+
+                // Log without exposing filtered content or prompt
+                console.log('Generating prompt with:', {
+                    model: this._defaultModel,
+                    styleId,
+                    options
+                });
+
+                return { prompt: enhancedPrompt.trim(), parameters: options };
+            }
+
+            return { prompt: processedPrompt, parameters: options };
 
             const response = await fetch(`http://${this._host}:${this._currentPort}/api/generate`, {
                 method: 'POST',

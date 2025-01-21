@@ -410,7 +410,12 @@ function createStyleCard(style) {
             const result = await ipcRenderer.invoke('generate-prompt', {
                 basePrompt: style.prefix ? `${style.prefix}${basePrompt}` : basePrompt,
                 styleId: style.id,
-                promptType
+                promptType,
+                style,
+                markedWords: {
+                    positive: Array.from(markedWords.positive),
+                    negative: Array.from(markedWords.negative)
+                }
             });
 
             if (result && result.prompt) {

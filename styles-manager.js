@@ -13,6 +13,8 @@ const DEFAULT_STYLES = [
         fixedTags: ['realistic', 'natural', 'detailed', 'photorealistic'],
         custom: false,
         active: true,
+        positiveWords: ['detailed', 'realistic', 'natural', 'sharp', 'clear', 'high-quality'],
+        negativeWords: ['blurry', 'artificial', 'distorted', 'low-quality'],
         modelParameters: {
             temperature: 0.7,
             top_k: 50,

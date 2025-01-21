@@ -7,8 +7,8 @@
     border: 1px solid var(--theme-color);
     border-radius: 6px;
     margin-top: 4px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-    z-index: 1000;
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    z-index: 1000000;
 }
 
 .prompt-options-dropdown.show {
@@ -19,16 +19,25 @@
     padding: 8px 16px;
     cursor: pointer;
     color: var(--text);
-    transition: background-color 0.2s ease;
+    transition: all 0.2s ease;
+    position: relative;
+    z-index: 9999;
+    background: var(--card-background);
 }
 
 .dropdown-item:hover {
-    background: var(--button-hover);
+    background: var(--card-background-darker);
 }
 
 .dropdown-toggle {
     position: relative;
     padding-right: 24px !important;
+    z-index: 1;
+}
+
+.style-card .dropdown-toggle {
+    position: relative;
+    z-index: 9998;
 }
 
 .dropdown-toggle .fa-chevron-down {
