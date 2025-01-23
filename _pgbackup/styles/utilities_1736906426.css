@@ -1,0 +1,56 @@
+@import 'variables.css';
+
+/* Text utilities */
+.prompt-text {
+    font-size: 14px;
+    color: var(--text);
+    line-height: 1.6;
+    margin: 0;
+}
+
+/* Placeholder styles */
+.placeholder {
+    color: var(--text-secondary);
+    font-style: italic;
+}
+
+/* Suggestion area */
+.suggestion-area {
+    max-height: 200px;
+    overflow-y: auto;
+    border-radius: 6px;
+    background: var(--card-background);
+    border: 1px solid var(--border);
+}
+
+.suggestion-area::-webkit-scrollbar {
+    width: 8px;
+}
+
+.suggestion-area::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.suggestion-area::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: 4px;
+}
+
+.suggestion-area::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
+}
+
+/* History actions */
+.history-action-btn {
+    background: var(--button-background);
+    border: none;
+    padding: 6px;
+    border-radius: 4px;
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.history-action-btn:hover {
+    background: var(--button-hover);
+}

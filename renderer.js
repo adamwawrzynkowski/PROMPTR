@@ -1,4 +1,4 @@
-const { ipcRenderer, shell } = require('electron');
+const { ipcRenderer } = require('electron');
 const tagGenerator = require('./tag-generator');
 
 // Dodaj na początku pliku
@@ -14,13 +14,10 @@ const DEFAULT_TAGS = [
 const activeGenerations = new Map();
 
 // Dodaj na początku pliku
-window.addEventListener('error', (event) => {
-    console.error('Renderer error:', event.error);
-});
-
-window.addEventListener('unhandledrejection', (event) => {
-    console.error('Unhandled rejection in renderer:', event.reason);
-});
+let markedWords = {
+    positive: new Set(),
+    negative: new Set()
+};
 
 // Flaga do blokowania równoległych generacji sekwencyjnych
 let isSequentialGenerationInProgress = false;
@@ -81,52 +78,302 @@ function navigateHistory(styleId, direction) {
 function createStyleCard(style) {
     const card = document.createElement('div');
     card.className = 'style-card';
-    card.setAttribute('data-style-id', style.id);
+    card.dataset.styleId = style.id;
     card.dataset.favorite = localStorage.getItem(`style_${style.id}_favorite`) === 'true' ? 'true' : 'false';
 
+    // Create header
     const header = document.createElement('div');
-    header.className = 'style-card-header';
-    
+    header.className = 'style-header';
+
+    const headerLeft = document.createElement('div');
+    headerLeft.className = 'style-header-left';
+
+    const headerRight = document.createElement('div');
+    headerRight.className = 'style-header-right';
+
     const titleContainer = document.createElement('div');
     titleContainer.className = 'style-card-title-container';
-    
-    const title = document.createElement('div');
-    title.className = 'style-card-title';
-    title.innerHTML = `<i class="fas fa-${style.icon}"></i> ${style.name}`;
 
+    const icon = document.createElement('i');
+    icon.className = `fas fa-${style.icon || 'paint-brush'}`;
+    titleContainer.appendChild(icon);
+
+    const title = document.createElement('span');
+    title.className = 'style-card-title';
+    title.textContent = style.name;
     titleContainer.appendChild(title);
 
+    // Create favorite button
     const favoriteBtn = document.createElement('button');
     favoriteBtn.className = 'favorite-btn';
     favoriteBtn.innerHTML = '<i class="fas fa-star"></i>';
-    favoriteBtn.classList.toggle('active', card.dataset.favorite === 'true');
-    favoriteBtn.onclick = (e) => {
+    favoriteBtn.title = 'Add to favorites';
+    
+    // Set initial favorite state
+    const isFavorite = localStorage.getItem(`style_${style.id}_favorite`) === 'true';
+    card.dataset.favorite = isFavorite;
+    
+    favoriteBtn.addEventListener('click', (e) => {
         e.stopPropagation();
-        const isFavorite = card.dataset.favorite === 'true';
-        card.dataset.favorite = (!isFavorite).toString();
-        localStorage.setItem(`style_${style.id}_favorite`, (!isFavorite).toString());
-        favoriteBtn.classList.toggle('active', !isFavorite);
-        updateStyleCounts();
-    };
+        const currentFavorite = card.dataset.favorite === 'true';
+        const newFavorite = !currentFavorite;
+        card.dataset.favorite = newFavorite;
+        localStorage.setItem(`style_${style.id}_favorite`, newFavorite);
+    });
     
     titleContainer.appendChild(favoriteBtn);
-    
+
     const description = document.createElement('div');
     description.className = 'style-card-description';
     description.textContent = style.description || 'No description available';
-    
-    header.appendChild(titleContainer);
-    header.appendChild(description);
+
+    headerLeft.appendChild(titleContainer);
+    headerLeft.appendChild(description);
 
     // Controls container (switch and generate button)
     const controls = document.createElement('div');
     controls.className = 'style-card-controls';
+
+    const generateButtonGroup = document.createElement('div');
+    generateButtonGroup.className = 'generate-button-group';
+
+    const generateButton = document.createElement('button');
+    generateButton.className = 'style-card-button';
+    generateButton.innerHTML = '<span>Generate</span>';
+
+    const dropdownButton = document.createElement('button');
+    dropdownButton.className = 'style-card-button dropdown-toggle';
+    dropdownButton.innerHTML = '<span class="selected-option">Standard</span><i class="fas fa-chevron-down"></i>';
+
+    const dropdownMenu = document.createElement('div');
+    dropdownMenu.className = 'prompt-options-dropdown';
+    dropdownMenu.innerHTML = `
+        <div class="dropdown-item" data-option="simple">Simple</div>
+        <div class="dropdown-item" data-option="standard">Standard</div>
+        <div class="dropdown-item" data-option="detailed">Long and Detailed</div>
+    `;
+
+    dropdownButton.addEventListener('click', (e) => {
+        e.stopPropagation();
+        dropdownMenu.classList.toggle('show');
+    });
+
+    dropdownMenu.querySelectorAll('.dropdown-item').forEach(item => {
+        item.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const selectedOption = e.target.dataset.option;
+            dropdownButton.querySelector('.selected-option').textContent = e.target.textContent;
+            dropdownMenu.classList.remove('show');
+        });
+    });
+
+    document.addEventListener('click', () => {
+        dropdownMenu.classList.remove('show');
+    });
+
+    generateButtonGroup.appendChild(generateButton);
+    generateButtonGroup.appendChild(dropdownButton);
+    generateButtonGroup.appendChild(dropdownMenu);
+
+    const toggle = document.createElement('div');
+    toggle.className = 'style-toggle';
+    const toggleInput = document.createElement('input');
+    toggleInput.type = 'checkbox';
+    toggleInput.checked = localStorage.getItem(`style_${style.id}_active`) === 'true';
+    toggle.appendChild(toggleInput);
+
+    toggleInput.addEventListener('change', () => {
+        toggleStyle(style.id, toggleInput.checked);
+    });
+
+    controls.appendChild(generateButtonGroup);
+    controls.appendChild(toggle);
+
+    headerRight.appendChild(controls);
+
+    header.appendChild(headerLeft);
+    header.appendChild(headerRight);
+    card.appendChild(header);
+
+    // Create prompt container
+    const promptContainer = document.createElement('div');
+    promptContainer.className = 'prompt-container';
     
-    const generateBtn = document.createElement('button');
-    generateBtn.className = 'generate-btn';
-    generateBtn.setAttribute('type', 'button');
-    generateBtn.innerHTML = '<i class="fas fa-wand-magic-sparkles"></i> Generate';
-    generateBtn.onclick = async (e) => {
+    // Create loading container
+    const loadingContainer = document.createElement('div');
+    loadingContainer.className = 'generating-container';
+    loadingContainer.style.display = 'none';
+    
+    // Create prompt text container
+    const promptText = document.createElement('div');
+    promptText.className = 'prompt-text';
+    promptText.id = `prompt-${style.id}`;  // Add ID for easier reference
+    promptText.textContent = 'Click Generate to create a prompt...';
+    
+    promptContainer.appendChild(promptText);
+    promptContainer.appendChild(loadingContainer);
+    
+    card.appendChild(promptContainer);
+    
+    // Create prompt actions container
+    const promptActions = document.createElement('div');
+    promptActions.className = 'prompt-actions';
+
+    // Create history buttons container
+    const historyButtons = document.createElement('div');
+    historyButtons.className = 'history-buttons';
+
+    // Create previous button
+    const prevButton = document.createElement('button');
+    prevButton.className = 'prompt-action-btn prev-btn disabled';
+    prevButton.title = 'Previous prompt';
+    prevButton.innerHTML = '<i class="fas fa-chevron-left"></i>';
+    prevButton.onclick = (e) => {
+        e.stopPropagation();
+        navigateHistory(style.id, 'prev');
+    };
+
+    // Create next button
+    const nextButton = document.createElement('button');
+    nextButton.className = 'prompt-action-btn next-btn disabled';
+    nextButton.title = 'Next prompt';
+    nextButton.innerHTML = '<i class="fas fa-chevron-right"></i>';
+    nextButton.onclick = (e) => {
+        e.stopPropagation();
+        navigateHistory(style.id, 'next');
+    };
+
+    // Create copy button
+    const copyButton = document.createElement('button');
+    copyButton.className = 'prompt-action-btn copy-btn disabled';
+    copyButton.title = 'Copy prompt';
+    copyButton.innerHTML = '<i class="fas fa-copy"></i>';
+    copyButton.onclick = (e) => {
+        e.stopPropagation();
+        copyStylePrompt(style.id);
+    };
+
+    // Create Draw Things button
+    const drawBtn = document.createElement('button');
+    drawBtn.className = 'prompt-action-btn draw-btn disabled';
+    drawBtn.innerHTML = '<i class="fas fa-arrow-right"></i> Send to Draw Things';
+    drawBtn.title = 'Send to Draw Things';
+    drawBtn.disabled = true;
+    drawBtn.onclick = () => sendToDrawThings(style.id);
+
+    // Add tooltip functionality to Draw Things button
+    function createDrawThingsTooltip() {
+        const tooltip = document.createElement('div');
+        tooltip.className = 'custom-tooltip';
+        tooltip.innerHTML = `
+            <div class="custom-tooltip-title">Draw Things Integration Setup</div>
+            <p>PROMPTR integrates seamlessly with the Draw Things app. To activate the integration, follow these steps:</p>
+            <ol>
+                <li>Open the Draw Things app.</li>
+                <li>Switch the settings tab to 'Advanced' or 'All'.</li>
+                <li>Locate the 'API Server' option and enable it.</li>
+                <li>Ensure the settings are configured as follows:</li>
+            </ol>
+            <ul>
+                <li>Protocol: HTTP</li>
+                <li>Port: 3333</li>
+                <li>IP: 127.0.0.1</li>
+            </ul>
+            <div class="custom-tooltip-footer">Once these steps are completed, PROMPTR will be ready to interact with Draw Things! </div>
+        `;
+        document.body.appendChild(tooltip);
+        return tooltip;
+    }
+
+    function addDrawThingsTooltip(drawBtn) {
+        const tooltip = createDrawThingsTooltip();
+        let timeout;
+
+        drawBtn.addEventListener('mouseenter', () => {
+            const rect = drawBtn.getBoundingClientRect();
+            tooltip.style.left = `${rect.left}px`;
+            tooltip.style.top = `${rect.bottom + 10}px`;
+            
+            clearTimeout(timeout);
+            tooltip.classList.add('visible');
+            
+            const tooltipRect = tooltip.getBoundingClientRect();
+            const viewportWidth = window.innerWidth;
+            const viewportHeight = window.innerHeight;
+            
+            if (tooltipRect.right > viewportWidth) {
+                tooltip.style.left = `${viewportWidth - tooltipRect.width - 10}px`;
+            }
+            
+            if (tooltipRect.bottom > viewportHeight) {
+                tooltip.style.top = `${rect.top - tooltipRect.height - 10}px`;
+            }
+        });
+
+        drawBtn.addEventListener('mouseleave', () => {
+            timeout = setTimeout(() => {
+                tooltip.classList.remove('visible');
+            }, 200);
+        });
+
+        tooltip.addEventListener('mouseenter', () => {
+            clearTimeout(timeout);
+        });
+
+        tooltip.addEventListener('mouseleave', () => {
+            tooltip.classList.remove('visible');
+        });
+    }
+
+    addDrawThingsTooltip(drawBtn);
+
+    // Observe prompt text changes
+    const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+            if (mutation.type === 'characterData' || mutation.type === 'childList') {
+                const promptContent = promptText.textContent.trim();
+                const hasPrompt = promptContent && promptContent !== 'Click Generate to create a prompt...';
+                
+                drawBtn.disabled = !hasPrompt;
+                drawBtn.classList.toggle('disabled', !hasPrompt);
+                
+                prevButton.disabled = !hasPrompt;
+                prevButton.classList.toggle('disabled', !hasPrompt);
+                
+                nextButton.disabled = !hasPrompt;
+                nextButton.classList.toggle('disabled', !hasPrompt);
+                
+                copyButton.disabled = !hasPrompt;
+                copyButton.classList.toggle('disabled', !hasPrompt);
+            }
+        });
+    });
+
+    observer.observe(promptText, { 
+        characterData: true, 
+        childList: true,
+        subtree: true
+    });
+
+    // Add buttons to history buttons container
+    historyButtons.appendChild(prevButton);
+    historyButtons.appendChild(nextButton);
+    historyButtons.appendChild(copyButton);
+
+    // Create container for Magic Refiner and Draw Things buttons
+    const actionButtons = document.createElement('div');
+    actionButtons.className = 'action-buttons';
+    actionButtons.appendChild(drawBtn);
+
+    // Add all elements to prompt actions
+    promptActions.appendChild(historyButtons);
+    promptActions.appendChild(actionButtons);
+
+    // Add prompt actions to card
+    card.appendChild(promptActions);
+    
+    // Generate button click handler
+    generateButton.addEventListener('click', async (e) => {
         e.stopPropagation();
         e.preventDefault();
 
@@ -160,241 +407,53 @@ function createStyleCard(style) {
             promptDisplay.style.display = 'none';
             loadingContainer.style.display = 'flex';
             showLoadingAnimation(loadingContainer, 'Generating prompt...');
-            generateBtn.classList.add('disabled', 'loading');
-            generateBtn.disabled = true;
+            generateButton.classList.add('disabled', 'loading');
+            generateButton.disabled = true;
 
-            // Generate prompt
-            try {
-                const result = await ipcRenderer.invoke('generate-prompt', {
-                    basePrompt: style.prefix ? `${style.prefix}${basePrompt}` : basePrompt,
-                    styleId: style.id
-                });
-
-                if (result && result.prompt) {
-                    // Hide loading animation
-                    loadingContainer.style.display = 'none';
-                    promptContainer.style.display = 'block';
-                    promptDisplay.style.display = 'block';
-
-                    // Clear and reveal new prompt
-                    promptDisplay.textContent = '';
-                    await revealPrompt(result.prompt, promptDisplay);
-                    addToStyleHistory(style.id, result.prompt);
-                    updateHistoryButtons(style.id);
-                } else {
-                    throw new Error('Empty response from model');
+            // Get selected prompt type from dropdown
+            const promptType = dropdownButton.querySelector('.selected-option').textContent.toLowerCase().replace(/\s+/g, '');
+            
+            const result = await ipcRenderer.invoke('generate-prompt', {
+                basePrompt: style.prefix ? `${style.prefix}${basePrompt}` : basePrompt,
+                styleId: style.id,
+                promptType,
+                style,
+                markedWords: {
+                    positive: Array.from(markedWords.positive),
+                    negative: Array.from(markedWords.negative)
                 }
-            } catch (error) {
-                console.error('Error generating prompt:', error);
-                promptDisplay.textContent = `Error: ${error.message}`;
+            });
+
+            if (result && result.prompt) {
+                // Hide loading animation
+                loadingContainer.style.display = 'none';
+                promptContainer.style.display = 'block';
                 promptDisplay.style.display = 'block';
+                promptDisplay.textContent = '';
+                await revealPrompt(result.prompt, promptDisplay);
+                addToStyleHistory(style.id, result.prompt);
+                updateHistoryButtons(style.id);
+            } else {
+                throw new Error('Empty response from model');
             }
-        } finally {
+        } catch (error) {
+            console.error('Error generating prompt:', error);
+            promptDisplay.textContent = `Error: ${error.message}`;
+            promptDisplay.style.display = 'block';
+        }
+        finally {
             // Restore UI state
             const loadingContainer = card.querySelector('.generating-container');
             if (loadingContainer) {
                 loadingContainer.style.display = 'none';
             }
-            generateBtn.classList.remove('disabled', 'loading');
-            generateBtn.disabled = false;
+            generateButton.classList.remove('disabled', 'loading');
+            generateButton.disabled = false;
             // Clear generating flag
             activeGenerations.delete(style.id);
         }
-    };
-    
-    const toggle = document.createElement('div');
-    toggle.className = 'style-toggle';
-    const toggleInput = document.createElement('input');
-    toggleInput.type = 'checkbox';
-    toggleInput.checked = localStorage.getItem(`style_${style.id}_active`) === 'true';
-    toggle.appendChild(toggleInput);
-
-    // Add change event listener directly to the input
-    toggleInput.addEventListener('change', () => {
-        toggleStyle(style.id, toggleInput.checked);
     });
 
-    controls.appendChild(generateBtn);
-    controls.appendChild(toggle);
-
-    // Create prompt container
-    const promptContainer = document.createElement('div');
-    promptContainer.className = 'prompt-container';
-    
-    // Create loading container
-    const loadingContainer = document.createElement('div');
-    loadingContainer.className = 'generating-container';
-    loadingContainer.style.display = 'none';
-    
-    // Create prompt text container
-    const promptText = document.createElement('div');
-    promptText.className = 'prompt-text';
-    promptText.id = `prompt-${style.id}`;  // Add ID for easier reference
-    promptText.textContent = 'Click Generate to create a prompt...';
-    
-    promptContainer.appendChild(promptText);
-    promptContainer.appendChild(loadingContainer);
-    
-    card.appendChild(header);
-    card.appendChild(controls);
-    card.appendChild(promptContainer);
-    
-    const actions = document.createElement('div');
-    actions.className = 'prompt-actions';
-    
-    const leftActions = document.createElement('div');
-    leftActions.className = 'prompt-actions-left';
-    
-    // History buttons group
-    const historyButtons = document.createElement('div');
-    historyButtons.className = 'history-buttons';
-    
-    const undoBtn = document.createElement('button');
-    undoBtn.className = 'prompt-action-btn prev-btn';
-    undoBtn.innerHTML = '<i class="fas fa-undo"></i>';
-    undoBtn.title = 'Previous prompt';
-    undoBtn.onclick = (e) => {
-        e.stopPropagation();
-        navigateHistory(style.id, 'prev');
-    };
-    undoBtn.classList.add('disabled');
-    
-    const redoBtn = document.createElement('button');
-    redoBtn.className = 'prompt-action-btn next-btn';
-    redoBtn.innerHTML = '<i class="fas fa-redo"></i>';
-    redoBtn.title = 'Next prompt';
-    redoBtn.onclick = (e) => {
-        e.stopPropagation();
-        navigateHistory(style.id, 'next');
-    };
-    redoBtn.classList.add('disabled');
-    
-    historyButtons.appendChild(undoBtn);
-    historyButtons.appendChild(redoBtn);
-    
-    const copyBtn = document.createElement('button');
-    copyBtn.className = 'prompt-action-btn';
-    copyBtn.innerHTML = '<i class="fas fa-copy"></i>';
-    copyBtn.title = 'Copy prompt';
-    copyBtn.onclick = () => copyStylePrompt(style.id);
-    
-    leftActions.appendChild(historyButtons);
-    leftActions.appendChild(copyBtn);
-    
-    const magicRefinerBtn = document.createElement('button');
-    magicRefinerBtn.className = 'prompt-action-btn magic-refiner-btn disabled';  // Start as disabled
-    magicRefinerBtn.innerHTML = '<i class="fas fa-magic"></i> Magic Refiner';
-    magicRefinerBtn.title = 'Magic Refiner';
-    magicRefinerBtn.disabled = true;  // Start as disabled
-    magicRefinerBtn.onclick = () => refinePrompt(style.id);
-
-    const drawBtn = document.createElement('button');
-    drawBtn.className = 'prompt-action-btn draw-btn disabled';  // Start as disabled
-    drawBtn.innerHTML = '<i class="fas fa-arrow-right"></i> Send to Draw Things';
-    drawBtn.title = 'Send to Draw Things';
-    drawBtn.disabled = true;  // Start as disabled
-    drawBtn.onclick = () => sendToDrawThings(style.id);
-
-    // Create tooltip element
-    function createDrawThingsTooltip() {
-        const tooltip = document.createElement('div');
-        tooltip.className = 'custom-tooltip';
-        tooltip.innerHTML = `
-            <div class="custom-tooltip-title">Draw Things Integration Setup</div>
-            <p>PROMPTR integrates seamlessly with the Draw Things app. To activate the integration, follow these steps:</p>
-            <ol>
-                <li>Open the Draw Things app.</li>
-                <li>Switch the settings tab to 'Advanced' or 'All'.</li>
-                <li>Locate the 'API Server' option and enable it.</li>
-                <li>Ensure the settings are configured as follows:</li>
-            </ol>
-            <ul>
-                <li>Protocol: HTTP</li>
-                <li>Port: 3333</li>
-                <li>IP: 127.0.0.1</li>
-            </ul>
-            <div class="custom-tooltip-footer">Once these steps are completed, PROMPTR will be ready to interact with Draw Things! 🎨✨</div>
-        `;
-        document.body.appendChild(tooltip);
-        return tooltip;
-    }
-
-    // Add tooltip functionality to button
-    function addDrawThingsTooltip(drawBtn) {
-        const tooltip = createDrawThingsTooltip();
-        let timeout;
-
-        drawBtn.addEventListener('mouseenter', () => {
-            const rect = drawBtn.getBoundingClientRect();
-            tooltip.style.left = `${rect.left}px`;
-            tooltip.style.top = `${rect.bottom + 10}px`; // 10px below the button
-            
-            // Show tooltip
-            clearTimeout(timeout);
-            tooltip.classList.add('visible');
-            
-            // Adjust position if tooltip goes off screen
-            const tooltipRect = tooltip.getBoundingClientRect();
-            const viewportWidth = window.innerWidth;
-            const viewportHeight = window.innerHeight;
-            
-            if (tooltipRect.right > viewportWidth) {
-                tooltip.style.left = `${viewportWidth - tooltipRect.width - 10}px`;
-            }
-            
-            if (tooltipRect.bottom > viewportHeight) {
-                tooltip.style.top = `${rect.top - tooltipRect.height - 10}px`;
-            }
-        });
-
-        drawBtn.addEventListener('mouseleave', () => {
-            timeout = setTimeout(() => {
-                tooltip.classList.remove('visible');
-            }, 200);
-        });
-
-        tooltip.addEventListener('mouseenter', () => {
-            clearTimeout(timeout);
-        });
-
-        tooltip.addEventListener('mouseleave', () => {
-            tooltip.classList.remove('visible');
-        });
-    }
-
-    addDrawThingsTooltip(drawBtn);
-
-    // Obserwuj zmiany w tekście promptu
-    const observer = new MutationObserver((mutations) => {
-        mutations.forEach((mutation) => {
-            if (mutation.type === 'characterData' || mutation.type === 'childList') {
-                const promptContent = promptText.textContent.trim();
-                const hasPrompt = promptContent && promptContent !== 'Click Generate to create a prompt...';
-                
-                // Update Magic Refiner button
-                magicRefinerBtn.disabled = !hasPrompt;
-                magicRefinerBtn.classList.toggle('disabled', !hasPrompt);
-                
-                // Update Draw Things button
-                drawBtn.disabled = !hasPrompt;
-                drawBtn.classList.toggle('disabled', !hasPrompt);
-            }
-        });
-    });
-
-    // Start observing prompt text changes
-    observer.observe(promptText, { 
-        characterData: true, 
-        childList: true,
-        subtree: true
-    });
-
-    actions.appendChild(leftActions);
-    actions.appendChild(magicRefinerBtn);
-    actions.appendChild(drawBtn);
-    
-    card.appendChild(actions);
-    
     return card;
 }
 
@@ -683,7 +742,6 @@ function updateStylePrompt(styleId, prompt) {
     if (!card) return;
 
     const promptText = card.querySelector('.prompt-text');
-    const magicRefinerBtn = card.querySelector('.magic-refiner-btn');
     const drawBtn = card.querySelector('.draw-btn');
     
     if (promptText) {
@@ -691,11 +749,6 @@ function updateStylePrompt(styleId, prompt) {
         
         // Update button states
         const hasPrompt = prompt && prompt.trim() !== '' && prompt !== 'Click Generate to create a prompt...';
-        
-        if (magicRefinerBtn) {
-            magicRefinerBtn.disabled = !hasPrompt;
-            magicRefinerBtn.classList.toggle('disabled', !hasPrompt);
-        }
         
         if (drawBtn) {
             drawBtn.disabled = !hasPrompt;
@@ -750,7 +803,553 @@ async function sendToDrawThings(styleId) {
 
             // Send prompt to Draw Things
             await ipcRenderer.invoke('send-to-draw-things', prompt);
-            showToast('Successfully sent to Draw Things! 🎨');
+            showToast('Successfully sent to Draw Things! ');
+        } catch (error) {
+            console.error('Error sending to Draw Things:', error);
+            showToast(`Error: ${error.message}`);
+        } finally {
+            // Restore button state
+            drawBtn.disabled = false;
+            drawBtn.classList.remove('disabled');
+            drawBtn.innerHTML = originalContent;
+        }
+    } catch (error) {
+        console.error('Error in sendToDrawThings:', error);
+        showToast('An unexpected error occurred');
+    }
+}
+
+// Funkcja do sprawdzania połączenia z Draw Things
+async function checkDrawThingsConnection() {
+    try {
+        return await ipcRenderer.invoke('check-draw-things');
+    } catch (error) {
+        console.error('Error checking Draw Things connection:', error);
+        return false;
+    }
+}
+
+// Funkcja do zapisywania stanu stylu
+async function saveStyleState(styleId, active) {
+    try {
+        await ipcRenderer.invoke('save-style-state', { styleId, active });
+    } catch (error) {
+        console.error('Error saving style state:', error);
+    }
+}
+
+// Funkcja do wyświetlania powiadomień
+function showToast(message) {
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.classList.add('show');
+        setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => toast.remove(), 300);
+        }, 2000);
+    }, 100);
+}
+
+// Usuń poprzednie nasłuchiwacze DOMContentLoaded i zastąp jednym głównym
+document.addEventListener('DOMContentLoaded', async () => {
+    console.log('DOM Content Loaded - Initializing application...');
+
+    try {
+        await loadStyles();
+        initializeWindowControls();
+        initializeButtons();
+        initializePromptInput(); // Dodaj inicjalizację pola promptu
+        initializeTheme();
+        
+        // Initialize switch functionality
+        const switchBtns = document.querySelectorAll('.switch-btn');
+        switchBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const view = btn.dataset.view;
+                toggleStylesView(view);
+            });
+        });
+
+        // Initialize with active view
+        toggleStylesView('active');
+        updateStyleCounts();
+        updateGeneratePromptsButton();
+        
+    } catch (error) {
+        console.error('Error during initialization:', error);
+        showToast('Error initializing application');
+    }
+});
+
+// Funkcja do ładowania stylów
+async function loadStyles() {
+    try {
+        const styles = await ipcRenderer.invoke('get-styles');
+        console.log('Loaded styles:', styles);
+        
+        const stylesList = document.querySelector('.styles-list');
+        if (!stylesList) {
+            console.error('Styles list container not found');
+            return;
+        }
+
+        stylesList.innerHTML = '';
+
+        styles.forEach(style => {
+            const card = createStyleCard(style);
+            stylesList.appendChild(card);
+        });
+        
+        // Get current view
+        const currentView = document.querySelector('.switch-btn.active')?.dataset?.view || 'active';
+        
+        // Apply initial filtering
+        toggleStylesView(currentView);
+        
+        updateStyleCounts();
+        updateGeneratePromptsButton();
+    } catch (error) {
+        console.error('Error loading styles:', error);
+        showToast('Error loading styles');
+    }
+}
+
+// Funkcja do aktualizacji promptu w karcie stylu
+function updateStylePrompt(styleId, prompt) {
+    const card = document.querySelector(`.style-card[data-style-id="${styleId}"]`);
+    if (!card) return;
+
+    const promptText = card.querySelector('.prompt-text');
+    const drawBtn = card.querySelector('.draw-btn');
+    
+    if (promptText) {
+        promptText.textContent = prompt || 'Click Generate to create a prompt...';
+        
+        // Update button states
+        const hasPrompt = prompt && prompt.trim() !== '' && prompt !== 'Click Generate to create a prompt...';
+        
+        if (drawBtn) {
+            drawBtn.disabled = !hasPrompt;
+            drawBtn.classList.toggle('disabled', !hasPrompt);
+        }
+    }
+}
+
+// Funkcja do kopiowania promptu
+function copyStylePrompt(styleId) {
+    const card = document.querySelector(`[data-style-id="${styleId}"]`);
+    if (!card) return;
+    
+    const promptText = card.querySelector('.prompt-text');
+    if (promptText && promptText.textContent && promptText.textContent !== 'Click Generate to create a prompt...') {
+        navigator.clipboard.writeText(promptText.textContent);
+        showToast('Prompt copied to clipboard');
+    } else {
+        showToast('No prompt to copy');
+    }
+}
+
+// Funkcja do wysyłania do Draw Things
+async function sendToDrawThings(styleId) {
+    try {
+        const card = document.querySelector(`.style-card[data-style-id="${styleId}"]`);
+        if (!card) return;
+
+        const promptText = card.querySelector('.prompt-text');
+        const drawBtn = card.querySelector('.draw-btn');
+        
+        if (!promptText || !drawBtn) return;
+        
+        const prompt = promptText.textContent.trim();
+        if (!prompt || prompt === 'Click Generate to create a prompt...') {
+            showToast('No prompt to send to Draw Things');
+            return;
+        }
+
+        // Disable button and show loading state
+        drawBtn.disabled = true;
+        drawBtn.classList.add('disabled');
+        const originalContent = drawBtn.innerHTML;
+        drawBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+
+        try {
+            // Check Draw Things connection first
+            const isConnected = await ipcRenderer.invoke('check-draw-things-connection');
+            if (!isConnected) {
+                throw new Error('Draw Things is not connected. Please check if the app is running and API Server is enabled.');
+            }
+
+            // Send prompt to Draw Things
+            await ipcRenderer.invoke('send-to-draw-things', prompt);
+            showToast('Successfully sent to Draw Things! ');
+        } catch (error) {
+            console.error('Error sending to Draw Things:', error);
+            showToast(`Error: ${error.message}`);
+        } finally {
+            // Restore button state
+            drawBtn.disabled = false;
+            drawBtn.classList.remove('disabled');
+            drawBtn.innerHTML = originalContent;
+        }
+    } catch (error) {
+        console.error('Error in sendToDrawThings:', error);
+        showToast('An unexpected error occurred');
+    }
+}
+
+// Funkcja do sprawdzania połączenia z Draw Things
+async function checkDrawThingsConnection() {
+    try {
+        return await ipcRenderer.invoke('check-draw-things');
+    } catch (error) {
+        console.error('Error checking Draw Things connection:', error);
+        return false;
+    }
+}
+
+// Funkcja do zapisywania stanu stylu
+async function saveStyleState(styleId, active) {
+    try {
+        await ipcRenderer.invoke('save-style-state', { styleId, active });
+    } catch (error) {
+        console.error('Error saving style state:', error);
+    }
+}
+
+// Funkcja do wyświetlania powiadomień
+function showToast(message) {
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.classList.add('show');
+        setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => toast.remove(), 300);
+        }, 2000);
+    }, 100);
+}
+
+// Usuń poprzednie nasłuchiwacze DOMContentLoaded i zastąp jednym głównym
+document.addEventListener('DOMContentLoaded', async () => {
+    console.log('DOM Content Loaded - Initializing application...');
+
+    try {
+        await loadStyles();
+        initializeWindowControls();
+        initializeButtons();
+        initializePromptInput(); // Dodaj inicjalizację pola promptu
+        initializeTheme();
+        
+        // Initialize switch functionality
+        const switchBtns = document.querySelectorAll('.switch-btn');
+        switchBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const view = btn.dataset.view;
+                toggleStylesView(view);
+            });
+        });
+
+        // Initialize with active view
+        toggleStylesView('active');
+        updateStyleCounts();
+        updateGeneratePromptsButton();
+        
+    } catch (error) {
+        console.error('Error during initialization:', error);
+        showToast('Error initializing application');
+    }
+});
+
+// Funkcja do ładowania stylów
+async function loadStyles() {
+    try {
+        const styles = await ipcRenderer.invoke('get-styles');
+        console.log('Loaded styles:', styles);
+        
+        const stylesList = document.querySelector('.styles-list');
+        if (!stylesList) {
+            console.error('Styles list container not found');
+            return;
+        }
+
+        stylesList.innerHTML = '';
+
+        styles.forEach(style => {
+            const card = createStyleCard(style);
+            stylesList.appendChild(card);
+        });
+        
+        // Get current view
+        const currentView = document.querySelector('.switch-btn.active')?.dataset?.view || 'active';
+        
+        // Apply initial filtering
+        toggleStylesView(currentView);
+        
+        updateStyleCounts();
+        updateGeneratePromptsButton();
+    } catch (error) {
+        console.error('Error loading styles:', error);
+        showToast('Error loading styles');
+    }
+}
+
+// Funkcja do aktualizacji promptu w karcie stylu
+function updateStylePrompt(styleId, prompt) {
+    const card = document.querySelector(`.style-card[data-style-id="${styleId}"]`);
+    if (!card) return;
+
+    const promptText = card.querySelector('.prompt-text');
+    const drawBtn = card.querySelector('.draw-btn');
+    
+    if (promptText) {
+        promptText.textContent = prompt || 'Click Generate to create a prompt...';
+        
+        // Update button states
+        const hasPrompt = prompt && prompt.trim() !== '' && prompt !== 'Click Generate to create a prompt...';
+        
+        if (drawBtn) {
+            drawBtn.disabled = !hasPrompt;
+            drawBtn.classList.toggle('disabled', !hasPrompt);
+        }
+    }
+}
+
+// Funkcja do kopiowania promptu
+function copyStylePrompt(styleId) {
+    const card = document.querySelector(`[data-style-id="${styleId}"]`);
+    if (!card) return;
+    
+    const promptText = card.querySelector('.prompt-text');
+    if (promptText && promptText.textContent && promptText.textContent !== 'Click Generate to create a prompt...') {
+        navigator.clipboard.writeText(promptText.textContent);
+        showToast('Prompt copied to clipboard');
+    } else {
+        showToast('No prompt to copy');
+    }
+}
+
+// Funkcja do wysyłania do Draw Things
+async function sendToDrawThings(styleId) {
+    try {
+        const card = document.querySelector(`.style-card[data-style-id="${styleId}"]`);
+        if (!card) return;
+
+        const promptText = card.querySelector('.prompt-text');
+        const drawBtn = card.querySelector('.draw-btn');
+        
+        if (!promptText || !drawBtn) return;
+        
+        const prompt = promptText.textContent.trim();
+        if (!prompt || prompt === 'Click Generate to create a prompt...') {
+            showToast('No prompt to send to Draw Things');
+            return;
+        }
+
+        // Disable button and show loading state
+        drawBtn.disabled = true;
+        drawBtn.classList.add('disabled');
+        const originalContent = drawBtn.innerHTML;
+        drawBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+
+        try {
+            // Check Draw Things connection first
+            const isConnected = await ipcRenderer.invoke('check-draw-things-connection');
+            if (!isConnected) {
+                throw new Error('Draw Things is not connected. Please check if the app is running and API Server is enabled.');
+            }
+
+            // Send prompt to Draw Things
+            await ipcRenderer.invoke('send-to-draw-things', prompt);
+            showToast('Successfully sent to Draw Things! ');
+        } catch (error) {
+            console.error('Error sending to Draw Things:', error);
+            showToast(`Error: ${error.message}`);
+        } finally {
+            // Restore button state
+            drawBtn.disabled = false;
+            drawBtn.classList.remove('disabled');
+            drawBtn.innerHTML = originalContent;
+        }
+    } catch (error) {
+        console.error('Error in sendToDrawThings:', error);
+        showToast('An unexpected error occurred');
+    }
+}
+
+// Funkcja do sprawdzania połączenia z Draw Things
+async function checkDrawThingsConnection() {
+    try {
+        return await ipcRenderer.invoke('check-draw-things');
+    } catch (error) {
+        console.error('Error checking Draw Things connection:', error);
+        return false;
+    }
+}
+
+// Funkcja do zapisywania stanu stylu
+async function saveStyleState(styleId, active) {
+    try {
+        await ipcRenderer.invoke('save-style-state', { styleId, active });
+    } catch (error) {
+        console.error('Error saving style state:', error);
+    }
+}
+
+// Funkcja do wyświetlania powiadomień
+function showToast(message) {
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.classList.add('show');
+        setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => toast.remove(), 300);
+        }, 2000);
+    }, 100);
+}
+
+// Usuń poprzednie nasłuchiwacze DOMContentLoaded i zastąp jednym głównym
+document.addEventListener('DOMContentLoaded', async () => {
+    console.log('DOM Content Loaded - Initializing application...');
+
+    try {
+        await loadStyles();
+        initializeWindowControls();
+        initializeButtons();
+        initializePromptInput(); // Dodaj inicjalizację pola promptu
+        initializeTheme();
+        
+        // Initialize switch functionality
+        const switchBtns = document.querySelectorAll('.switch-btn');
+        switchBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const view = btn.dataset.view;
+                toggleStylesView(view);
+            });
+        });
+
+        // Initialize with active view
+        toggleStylesView('active');
+        updateStyleCounts();
+        updateGeneratePromptsButton();
+        
+    } catch (error) {
+        console.error('Error during initialization:', error);
+        showToast('Error initializing application');
+    }
+});
+
+// Funkcja do ładowania stylów
+async function loadStyles() {
+    try {
+        const styles = await ipcRenderer.invoke('get-styles');
+        console.log('Loaded styles:', styles);
+        
+        const stylesList = document.querySelector('.styles-list');
+        if (!stylesList) {
+            console.error('Styles list container not found');
+            return;
+        }
+
+        stylesList.innerHTML = '';
+
+        styles.forEach(style => {
+            const card = createStyleCard(style);
+            stylesList.appendChild(card);
+        });
+        
+        // Get current view
+        const currentView = document.querySelector('.switch-btn.active')?.dataset?.view || 'active';
+        
+        // Apply initial filtering
+        toggleStylesView(currentView);
+        
+        updateStyleCounts();
+        updateGeneratePromptsButton();
+    } catch (error) {
+        console.error('Error loading styles:', error);
+        showToast('Error loading styles');
+    }
+}
+
+// Funkcja do aktualizacji promptu w karcie stylu
+function updateStylePrompt(styleId, prompt) {
+    const card = document.querySelector(`.style-card[data-style-id="${styleId}"]`);
+    if (!card) return;
+
+    const promptText = card.querySelector('.prompt-text');
+    const drawBtn = card.querySelector('.draw-btn');
+    
+    if (promptText) {
+        promptText.textContent = prompt || 'Click Generate to create a prompt...';
+        
+        // Update button states
+        const hasPrompt = prompt && prompt.trim() !== '' && prompt !== 'Click Generate to create a prompt...';
+        
+        if (drawBtn) {
+            drawBtn.disabled = !hasPrompt;
+            drawBtn.classList.toggle('disabled', !hasPrompt);
+        }
+    }
+}
+
+// Funkcja do kopiowania promptu
+function copyStylePrompt(styleId) {
+    const card = document.querySelector(`[data-style-id="${styleId}"]`);
+    if (!card) return;
+    
+    const promptText = card.querySelector('.prompt-text');
+    if (promptText && promptText.textContent && promptText.textContent !== 'Click Generate to create a prompt...') {
+        navigator.clipboard.writeText(promptText.textContent);
+        showToast('Prompt copied to clipboard');
+    } else {
+        showToast('No prompt to copy');
+    }
+}
+
+// Funkcja do wysyłania do Draw Things
+async function sendToDrawThings(styleId) {
+    try {
+        const card = document.querySelector(`.style-card[data-style-id="${styleId}"]`);
+        if (!card) return;
+
+        const promptText = card.querySelector('.prompt-text');
+        const drawBtn = card.querySelector('.draw-btn');
+        
+        if (!promptText || !drawBtn) return;
+        
+        const prompt = promptText.textContent.trim();
+        if (!prompt || prompt === 'Click Generate to create a prompt...') {
+            showToast('No prompt to send to Draw Things');
+            return;
+        }
+
+        // Disable button and show loading state
+        drawBtn.disabled = true;
+        drawBtn.classList.add('disabled');
+        const originalContent = drawBtn.innerHTML;
+        drawBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+
+        try {
+            // Check Draw Things connection first
+            const isConnected = await ipcRenderer.invoke('check-draw-things-connection');
+            if (!isConnected) {
+                throw new Error('Draw Things is not connected. Please check if the app is running and API Server is enabled.');
+            }
+
+            // Send prompt to Draw Things
+            await ipcRenderer.invoke('send-to-draw-things', prompt);
+            showToast('Successfully sent to Draw Things! ');
         } catch (error) {
             console.error('Error sending to Draw Things:', error);
             showToast(`Error: ${error.message}`);
@@ -811,27 +1410,28 @@ document.addEventListener('DOMContentLoaded', async () => {
     const historyCloseBtn = document.querySelector('.history-close');
     const historyClearBtn = document.querySelector('.history-clear-all');
 
-    console.log('History elements:', { 
-        historyBtn: !!historyBtn, 
-        historyPanel: !!historyPanel, 
-        historyCloseBtn: !!historyCloseBtn,
-        historyClearBtn: !!historyClearBtn 
-    });
-
     if (historyBtn && historyPanel && historyCloseBtn && historyClearBtn) {
-        historyBtn.addEventListener('click', () => {
-            console.log('History button clicked');
+        // Remove any existing event listeners
+        historyBtn.replaceWith(historyBtn.cloneNode(true));
+        historyCloseBtn.replaceWith(historyCloseBtn.cloneNode(true));
+        historyClearBtn.replaceWith(historyClearBtn.cloneNode(true));
+
+        // Re-get elements after replacing
+        const newHistoryBtn = document.getElementById('history-btn');
+        const newHistoryCloseBtn = document.querySelector('.history-close');
+        const newHistoryClearBtn = document.querySelector('.history-clear-all');
+
+        // Add event listeners
+        newHistoryBtn.addEventListener('click', () => {
             historyPanel.classList.toggle('open');
             updateHistoryPanelContent();
         });
 
-        historyCloseBtn.addEventListener('click', () => {
-            console.log('History close button clicked');
+        newHistoryCloseBtn.addEventListener('click', () => {
             historyPanel.classList.remove('open');
         });
 
-        historyClearBtn.addEventListener('click', () => {
-            console.log('History clear button clicked');
+        newHistoryClearBtn.addEventListener('click', () => {
             clearAllHistory();
         });
     }
@@ -1096,7 +1696,7 @@ function initializeButtons() {
     }
 }
 
-// Funkcja debounce (jeśli jeszcze nie jest zdefiniowana)
+// Utility function to debounce frequent updates
 function debounce(func, wait) {
     let timeout;
     return function executedFunction(...args) {
@@ -1183,136 +1783,109 @@ async function generatePromptsSequentially(basePrompt, view = 'active') {
     }
 
     isSequentialGenerationInProgress = true;
+    const generateBtn = document.getElementById('generatePrompts');
+    if (generateBtn) {
+        generateBtn.disabled = true;
+        generateBtn.classList.add('loading');
+        generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+    }
 
     try {
-        // Get active model before starting
-        const { ipcRenderer } = require('electron');
-        const config = await ipcRenderer.invoke('get-config');
-        if (!config || !config.currentModel) {
-            showToast('Please select a text model in settings first');
-            return;
-        }
+        // Get current view from active switch button
+        const activeSwitch = document.querySelector('.switch-btn.active');
+        const currentView = activeSwitch ? activeSwitch.dataset.view : 'active';
+        console.log('Current view:', currentView);
 
-        // Get all styles
-        const styles = await ipcRenderer.invoke('get-styles');
-        console.log('All styles:', styles);
-
-        // Get all visible style cards
-        const styleCards = Array.from(document.querySelectorAll('.style-card'))
+        const cards = Array.from(document.querySelectorAll('.style-card'))
             .filter(card => {
-                // Only process cards that are currently visible
-                if (card.style.display === 'none') {
-                    return false;
+                if (!card.dataset.styleId) return false;
+                
+                const isActive = localStorage.getItem(`style_${card.dataset.styleId}_active`) === 'true';
+                const isFavorite = card.dataset.favorite === 'true';
+                
+                switch (currentView) {
+                    case 'active':
+                        return isActive;
+                    case 'inactive':
+                        return !isActive;
+                    case 'favorites':
+                        return isFavorite;
+                    default:
+                        return false;
                 }
-
-                const styleId = card.dataset.styleId;
-                const style = styles.find(s => s.id === styleId);
-                if (!style) {
-                    console.log('Style not found:', styleId);
-                    return false;
-                }
-
-                return true;
             });
 
-        console.log(`Found ${styleCards.length} visible style cards for view: ${view}`);
-        
-        if (styleCards.length === 0) {
-            if (view === 'favorites') {
-                showToast('No favorite styles found. Please add some styles to favorites first.');
-            } else {
-                showToast('No active styles found. Please activate some styles first.');
-            }
-            return;
-        }
+        console.log('Found cards to process:', cards.length);
 
-        let successCount = 0;
-        let errors = [];
-
-        for (const card of styleCards) {
-            const generateBtn = card.querySelector('.generate-btn');
+        for (const card of cards) {
+            const styleId = card.dataset.styleId;
             const promptContainer = card.querySelector('.prompt-container');
             const loadingContainer = card.querySelector('.generating-container');
             const promptDisplay = card.querySelector('.prompt-text');
-            const styleId = card.dataset.styleId;
 
-            if (!card || !promptContainer || !loadingContainer || !promptDisplay) {
+            if (!promptContainer || !loadingContainer || !promptDisplay) {
                 console.error('Missing required elements for card:', styleId);
-                errors.push(`Missing UI elements for style ${styleId}`);
                 continue;
             }
 
-            try {
-                // Show loading animation
-                promptDisplay.style.display = 'none';
-                loadingContainer.style.display = 'flex';
-                showLoadingAnimation(loadingContainer, 'Generating prompt...');
-                
-                if (generateBtn) {
-                    generateBtn.classList.add('disabled');
-                }
+            // Show loading animation
+            promptDisplay.style.display = 'none';
+            loadingContainer.style.display = 'flex';
+            showLoadingAnimation(loadingContainer, 'Generating prompt...');
 
-                // Get the latest style data
+            try {
                 const style = await ipcRenderer.invoke('get-style', styleId);
                 if (!style) {
-                    throw new Error(`Style not found: ${styleId}`);
+                    throw new Error('Style not found');
                 }
 
-                console.log(`Generating prompt for style ${styleId}:`, style);
-
-                // Build the complete prompt
-                let finalPrompt = basePrompt;
-                if (style.prefix) finalPrompt = `${style.prefix}${finalPrompt}`;
-                if (style.suffix) finalPrompt = `${finalPrompt}${style.suffix}`;
-
-                const result = await ipcRenderer.invoke('generate-prompt', {
-                    basePrompt: finalPrompt,
-                    styleId
-                });
+                // Get the selected prompt type from the main dropdown
+                const mainDropdown = document.getElementById('promptOptionsDropdown');
+                const selectedOption = mainDropdown.querySelector('.selected-option');
+                const promptType = selectedOption ? selectedOption.textContent.trim().toLowerCase().replace(/\s+/g, '') : 'standard';
                 
-                // Update UI with result
+                console.log('Generating prompt for style:', styleId, 'with type:', promptType);
+                
+                const result = await ipcRenderer.invoke('generate-prompt', {
+                    basePrompt: style.prefix ? `${style.prefix} ${basePrompt}` : basePrompt,
+                    styleId,
+                    style,
+                    promptType,
+                    markedWords: {
+                        positive: Array.from(markedWords.positive),
+                        negative: Array.from(markedWords.negative)
+                    }
+                });
+
                 if (result && result.prompt) {
-                    // Hide loading animation and show prompt container
                     loadingContainer.style.display = 'none';
                     promptContainer.style.display = 'block';
                     promptDisplay.style.display = 'block';
-                    
-                    // Clear existing content and add new prompt
                     promptDisplay.textContent = '';
                     await revealPrompt(result.prompt, promptDisplay);
-                    
                     addToStyleHistory(styleId, result.prompt);
                     updateHistoryButtons(styleId);
-                    successCount++;
                 } else {
                     throw new Error('Empty response from model');
                 }
             } catch (error) {
-                console.error(`Error generating prompt for style ${styleId}:`, error);
-                errors.push(`Error for style ${styleId}: ${error.message}`);
+                console.error('Error generating prompt for style:', styleId, error);
+                loadingContainer.style.display = 'none';
                 promptDisplay.textContent = `Error: ${error.message}`;
                 promptDisplay.style.display = 'block';
-            } finally {
-                // Restore UI state
-                loadingContainer.style.display = 'none';
-                promptContainer.style.display = 'block';
-                if (generateBtn) {
-                    generateBtn.classList.remove('disabled');
-                }
             }
-        }
 
-        if (successCount > 0) {
-            showToast(`Successfully generated ${successCount} prompts`);
-        } else {
-            console.error('Generation errors:', errors);
-            showToast(`Failed to generate prompts: ${errors[0]}`);
+            // Add a small delay between generations to avoid overwhelming the model
+            await new Promise(resolve => setTimeout(resolve, 500));
         }
-    } catch (error) {
-        console.error('Error in generatePromptsSequentially:', error);
-        showToast(`Error: ${error.message}`);
     } finally {
         isSequentialGenerationInProgress = false;
+        const generateBtn = document.getElementById('generatePrompts');
+        if (generateBtn) {
+            generateBtn.disabled = false;
+            generateBtn.classList.remove('loading');
+            generateBtn.innerHTML = 'Generate All';
+        }
     }
 }
 
@@ -1386,7 +1959,7 @@ function updateGeneratePromptsButton() {
             return false;
         }).length;
 
-        generatePromptsBtn.innerHTML = `<i class="fas fa-wand-magic-sparkles"></i><span>Generate Prompts (${visibleCards})</span>`;
+        generatePromptsBtn.innerHTML = `<span>Generate Prompts (${visibleCards})</span>`;
     } catch (err) {
         console.warn('Could not update generate button:', err);
     }
@@ -1480,6 +2053,93 @@ ipcRenderer.on('ollama-status', (event, isConnected) => {
     if (connectionStatus) {
         connectionStatus.classList.toggle('connected', isConnected);
         connectionStatus.classList.toggle('disconnected', !isConnected);
+    }
+});
+
+// Funkcja do generowania promptu (współdzielona)
+async function generateStyledPrompt(prompt, style) {
+    try {
+        const generatedPrompt = await ipcRenderer.invoke('generate-prompt', {
+            prompt: prompt,
+            style: style
+        });
+
+        // Aktualizuj wyświetlany prompt w karcie stylu
+        const styleCard = document.querySelector(`[data-style-id="${style.id}"]`);
+        if (styleCard) {
+            const promptDisplay = styleCard.querySelector('.style-prompt');
+            if (promptDisplay) {
+                promptDisplay.textContent = generatedPrompt;
+                
+                // Dodaj klasę dla animacji
+                promptDisplay.classList.add('prompt-updated');
+                setTimeout(() => {
+                    promptDisplay.classList.remove('prompt-updated');
+                }, 1000);
+
+                // Jeśli są słowa oznaczone jako negatywne, rozpocznij post-processing
+                if (markedWords.negative.size > 0) {
+                    // Pokaż animację "Finishing..."
+                    showLoadingAnimation(promptDisplay, 'Finishing...');
+
+                    // Wyślij prompt do post-processingu przez model LLM
+                    try {
+                        const processedPrompt = await ipcRenderer.invoke('post-process-prompt', {
+                            prompt: generatedPrompt,
+                            negativeWords: Array.from(markedWords.negative)
+                        });
+
+                        // Aktualizuj wyświetlany prompt
+                        promptDisplay.textContent = processedPrompt;
+                        
+                        // Usuń animację ładowania
+                        removeLoadingAnimation(promptDisplay);
+                        
+                        // Dodaj animację ukończenia
+                        promptDisplay.classList.add('prompt-updated');
+                        setTimeout(() => {
+                            promptDisplay.classList.remove('prompt-updated');
+                        }, 1000);
+
+                        return processedPrompt;
+                    } catch (error) {
+                        console.error('Error during post-processing:', error);
+                        removeLoadingAnimation(promptDisplay);
+                        throw error;
+                    }
+                }
+            }
+        }
+
+        return generatedPrompt;
+    } catch (error) {
+        console.error('Error generating prompt:', error);
+        throw error;
+    }
+}
+
+// Initialize history panel functionality
+document.addEventListener('DOMContentLoaded', () => {
+    const historyBtn = document.getElementById('history-btn');
+    const historyPanel = document.querySelector('.history-panel');
+    const historyCloseBtn = document.querySelector('.history-close');
+    const historyClearBtn = document.querySelector('.history-clear-all');
+
+    if (historyBtn && historyPanel) {
+        historyBtn.addEventListener('click', () => {
+            historyPanel.classList.toggle('open');
+            updateHistoryPanelContent();
+        });
+
+        historyCloseBtn.addEventListener('click', () => {
+            historyPanel.classList.remove('open');
+        });
+
+        historyClearBtn.addEventListener('click', () => {
+            localStorage.setItem('promptHistory', '[]');
+            updateHistoryPanelContent();
+            showToast('History cleared');
+        });
     }
 });
 
@@ -1760,20 +2420,6 @@ document.addEventListener('DOMContentLoaded', () => {
     initializeTheme();
 });
 
-// Funkcja do aktualizacji stanu połączenia
-function updateConnectionStatus(status) {
-    const statusElement = document.getElementById('connection-status');
-    if (statusElement) {
-        const ollamaStatus = status.ollama ? '🟢' : '🔴';
-        const drawThingsStatus = status.drawThings ? '🟢' : '🔴';
-        
-        statusElement.innerHTML = `
-            Ollama: ${ollamaStatus}
-            Draw Things: ${drawThingsStatus}
-        `;
-    }
-}
-
 // Funkcja do sprawdzania połączeń
 async function checkConnections() {
     try {
@@ -1791,197 +2437,6 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Sprawdzaj połączenia co 30 sekund
     setInterval(checkConnections, 30000);
-});
-
-// Funkcja do ulepszania promptu
-async function refinePrompt(styleId) {
-    try {
-        const card = document.querySelector(`[data-style-id="${styleId}"]`);
-        if (!card) {
-            console.error('Card not found for style:', styleId);
-            return;
-        }
-
-        const promptContainer = card.querySelector('.prompt-container');
-        const loadingContainer = card.querySelector('.generating-container');
-        const promptDisplay = card.querySelector('.prompt-text');
-        
-        if (!promptContainer || !loadingContainer || !promptDisplay) {
-            console.error('Missing required elements for card:', styleId);
-            return;
-        }
-
-        const currentPrompt = promptDisplay.textContent.trim();
-        if (!currentPrompt) {
-            showToast('No prompt to refine');
-            return;
-        }
-
-        // Get style data from main process
-        const style = await ipcRenderer.invoke('get-style', styleId);
-        if (!style) {
-            console.error('Style not found');
-            showToast('Style not found');
-            return;
-        }
-
-        // Show loading animation
-        promptDisplay.style.display = 'none';
-        loadingContainer.style.display = 'flex';
-        showLoadingAnimation(loadingContainer, 'Refining prompt...');
-
-        const refinedPrompt = await ipcRenderer.invoke('refine-prompt', {
-            prompt: currentPrompt,
-            style: style
-        });
-
-        if (refinedPrompt) {
-            // Hide loading animation
-            loadingContainer.style.display = 'none';
-            promptDisplay.style.display = 'block';
-            
-            // Dodaj ulepszony prompt do historii
-            addToStyleHistory(styleId, refinedPrompt);
-            // Zaktualizuj wyświetlany prompt
-            await revealPrompt(refinedPrompt, promptDisplay);
-            // Zaktualizuj przyciski historii
-            updateHistoryButtons(styleId);
-        } else {
-            throw new Error('Failed to refine prompt');
-        }
-    } catch (error) {
-        console.error('Error refining prompt:', error);
-        showToast('Failed to refine prompt: ' + error.message);
-        
-        // Restore original state in case of error
-        const card = document.querySelector(`[data-style-id="${styleId}"]`);
-        if (card) {
-            const promptContainer = card.querySelector('.prompt-container');
-            const loadingContainer = card.querySelector('.generating-container');
-            const promptDisplay = card.querySelector('.prompt-text');
-            if (promptContainer && loadingContainer && promptDisplay) {
-                loadingContainer.style.display = 'none';
-                promptDisplay.style.display = 'block';
-            }
-        }
-    }
-}
-
-// Funkcja do obsługi tłumaczenia
-async function handleTranslation(text) {
-    try {
-        // Najpierw sprawdź ustawienia
-        const settings = await ipcRenderer.invoke('get-settings');
-        console.log('Current settings:', settings);
-        
-        if (!settings.autoTranslate) {
-            console.log('Translation is disabled in settings');
-            return text;
-        }
-
-        // Pokaż overlay tłumaczenia
-        const overlay = document.getElementById('translation-overlay');
-        const statusText = document.getElementById('translation-status-text');
-        const progressFill = document.querySelector('.translation-progress .progress-fill');
-        
-        if (overlay && statusText) {
-            overlay.style.display = 'block';
-            statusText.textContent = 'Checking language...';
-            if (progressFill) {
-                progressFill.style.width = '50%';
-            }
-        }
-        
-        // Wyślij tekst do tłumaczenia
-        const translationResult = await ipcRenderer.invoke('detect-and-translate', text);
-        console.log('Translation result:', translationResult);
-
-        if (translationResult.isTranslated) {
-            // Aktualizuj status tłumaczenia
-            if (statusText) {
-                statusText.textContent = `Translating from ${translationResult.originalLanguage.toUpperCase()}...`;
-            }
-            
-            // Aktualizuj pasek postępu
-            if (progressFill) {
-                progressFill.style.width = '100%';
-            }
-            
-            // Pokaż powiadomienie
-            showToast(`Translated from ${translationResult.originalLanguage.toUpperCase()} to English`);
-            
-            // Ukryj overlay po krótkim opóźnieniu
-            setTimeout(() => {
-                if (overlay) {
-                    overlay.style.display = 'none';
-                }
-                if (progressFill) {
-                    progressFill.style.width = '0%';
-                }
-            }, 2000);
-            
-            return translationResult.translatedText;
-        }
-
-        // Jeśli nie było tłumaczenia, ukryj overlay
-        if (overlay) {
-            overlay.style.display = 'none';
-        }
-        return text;
-
-    } catch (error) {
-        console.error('Translation error:', error);
-        const overlay = document.getElementById('translation-overlay');
-        if (overlay) {
-            overlay.style.display = 'none';
-        }
-        showToast('Translation error: ' + error.message);
-        return text;
-    }
-}
-
-// Nasłuchuj na zmiany statusu
-ipcRenderer.on('ollama-status', (event, status) => {
-    console.log('Received ollama status update:', status);
-    updateConnectionStatus(status);
-});
-
-// Nasłuchuj na aktualizacje stylu
-ipcRenderer.on('style-updated', (event, updatedStyle) => {
-    const card = document.querySelector(`.style-card[data-style-id="${updatedStyle.id}"]`);
-    if (card) {
-        const titleEl = card.querySelector('.style-card-title');
-        const descriptionEl = card.querySelector('.style-card-description');
-        
-        titleEl.innerHTML = `<i class="fas fa-${updatedStyle.icon}"></i> ${updatedStyle.name}`;
-        descriptionEl.textContent = updatedStyle.description || 'No description available';
-    }
-});
-
-// Startup progress handling
-function updateStartupUI(progress, status, message) {
-    const progressBar = document.getElementById('startup-progress-bar');
-    const statusEl = document.getElementById('startup-status');
-    const messageEl = document.getElementById('startup-message');
-    
-    if (progressBar) progressBar.style.width = `${progress}%`;
-    if (statusEl) statusEl.textContent = status;
-    if (messageEl) messageEl.textContent = message;
-}
-
-ipcRenderer.on('startup-progress', (event, data) => {
-    updateStartupUI(data.progress, data.status, data.message);
-});
-
-ipcRenderer.on('initialization-complete', () => {
-    const startupScreen = document.getElementById('startup-screen');
-    if (startupScreen) {
-        startupScreen.style.opacity = '0';
-        startupScreen.style.transition = 'opacity 0.5s ease';
-        setTimeout(() => {
-            startupScreen.style.display = 'none';
-        }, 500);
-    }
 });
 
 // Virtual scrolling implementation
@@ -2098,8 +2553,8 @@ function createStyleCards(styles) {
     const container = document.querySelector('.styles-container');
     
     styles.forEach(style => {
-        const card = createStyleCard(style);
-        fragment.appendChild(card);
+        const styleCard = createStyleCard(style);
+        fragment.appendChild(styleCard);
     });
     
     container.appendChild(fragment);
@@ -2172,78 +2627,804 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Funkcja do wyświetlania animacji ładowania
 function showLoadingAnimation(container, text) {
-    // Remove any existing loading animations first
-    const existingAnimation = container.querySelector('.loading-animation');
-    if (existingAnimation) {
-        existingAnimation.remove();
-    }
+    // Preserve the original content
+    const originalContent = container.textContent;
+    container.setAttribute('data-original-content', originalContent);
+    
+    // Clear the container
+    container.textContent = '';
 
     // Create new loading animation
     const loadingAnimation = document.createElement('div');
     loadingAnimation.className = 'loading-animation';
     loadingAnimation.innerHTML = `
         <i class="fas fa-spinner fa-spin"></i>
-        <span>${text}</span>
+        <span class="loading-text">${text}</span>
     `;
     container.appendChild(loadingAnimation);
+    container.classList.add('loading');
 }
 
 // Funkcja do usuwania animacji ładowania
 function removeLoadingAnimation(container) {
     const loadingAnimation = container.querySelector('.loading-animation');
     if (loadingAnimation) {
+        // Restore the original content
+        const originalContent = container.getAttribute('data-original-content');
+        container.classList.remove('loading');
         loadingAnimation.remove();
+        if (originalContent) {
+            container.textContent = originalContent;
+            container.removeAttribute('data-original-content');
+        }
     }
 }
 
-// Update version displays when received
-ipcRenderer.on('app-version', (event, version) => {
-    const versionElements = [
-        document.getElementById('version'),
-        document.getElementById('titlebar-version')
-    ];
-    
-    versionElements.forEach(element => {
-        if (element) {
-            element.textContent = version;
-        }
-    });
+// Dropdown menu functionality
+const promptOptionsDropdown = document.getElementById('promptOptionsDropdown');
+const dropdownMenu = document.querySelector('.prompt-options-dropdown');
+const selectedOptionDisplay = promptOptionsDropdown.querySelector('.selected-option');
+let selectedOption = 'standard'; // default option
+
+function updateSelectedOption(option) {
+    selectedOption = option;
+    const optionDisplayText = {
+        'simple': 'Simple',
+        'standard': 'Standard',
+        'detailed': 'Long and Detailed'
+    };
+    selectedOptionDisplay.textContent = optionDisplayText[option];
+}
+
+promptOptionsDropdown.addEventListener('click', (e) => {
+    e.stopPropagation();
+    dropdownMenu.classList.toggle('show');
 });
 
-// Request version on load
-document.addEventListener('DOMContentLoaded', async () => {
-    const version = await ipcRenderer.invoke('get-version');
-    const versionElements = [
-        document.getElementById('version'),
-        document.getElementById('titlebar-version')
-    ];
-    
-    versionElements.forEach(element => {
-        if (element) {
-            element.textContent = version;
-        }
-    });
+document.addEventListener('click', (e) => {
+    if (!dropdownMenu.contains(e.target) && !promptOptionsDropdown.contains(e.target)) {
+        dropdownMenu.classList.remove('show');
+    }
 });
 
-// Handle update notifications
-ipcRenderer.on('update-available', (event, updateInfo) => {
-    const updateBanner = document.getElementById('update-banner');
-    const updateMessage = updateBanner.querySelector('.update-message');
-    const updateLink = document.getElementById('update-link');
-    const closeButton = document.getElementById('close-update-banner');
+dropdownMenu.addEventListener('click', (e) => {
+    if (e.target.classList.contains('dropdown-item')) {
+        updateSelectedOption(e.target.dataset.option);
+        dropdownMenu.classList.remove('show');
+    }
+});
 
-    updateMessage.textContent = `New version ${updateInfo.remoteVersion} is available!`;
-    updateLink.href = updateInfo.releasesUrl;
-    updateBanner.style.display = 'flex';
+// Set default option
+updateSelectedOption('standard');
 
-    // Handle download link click
-    updateLink.onclick = (e) => {
+// Add new function for handling word marking
+function initializeWordMarking() {
+    const promptInput = document.getElementById('promptInput');
+    const contextMenu = document.getElementById('wordContextMenu');
+    const markedWordsPanel = document.getElementById('markedWordsPanel');
+    const closeMarkedWords = document.getElementById('closeMarkedWords');
+    
+    // Add Clear All button next to close button in panel header
+    // Add Clear All button functionality
+    const headerButtons = document.createElement('div');
+    headerButtons.className = 'panel-header-buttons';
+    const clearAllBtn = document.createElement('button');
+    clearAllBtn.className = 'clear-all-btn';
+    clearAllBtn.innerHTML = '<i class="fas fa-eraser"></i> Clear All';
+    clearAllBtn.onclick = () => {
+        markedWords.positive.clear();
+        markedWords.negative.clear();
+        updateMarkedWordsList();
+        updatePromptHighlighting();
+        showToast('All marked words cleared');
+    };
+    headerButtons.appendChild(clearAllBtn);
+    headerButtons.appendChild(closeMarkedWords);
+    markedWordsPanel.querySelector('.panel-header').appendChild(headerButtons);
+    let selectedText = '';
+    let selectedRange = null;
+
+    // Handle input changes for highlighting
+    promptInput.addEventListener('input', updatePromptHighlighting);
+    promptInput.addEventListener('scroll', () => {
+        document.getElementById('promptHighlight').scrollTop = promptInput.scrollTop;
+    });
+
+    // Handle right click on prompt input
+    promptInput.addEventListener('contextmenu', (e) => {
+        const selection = window.getSelection();
+        const text = selection.toString().trim();
+
+        // Show menu if text is selected
+        if (text) {
+            e.preventDefault();
+            selectedText = text;
+            selectedRange = selection.getRangeAt(0);
+
+            // Position context menu
+            contextMenu.style.left = e.pageX + 'px';
+            contextMenu.style.top = e.pageY + 'px';
+            contextMenu.style.display = 'block';
+        }
+    });
+
+    // Handle menu item clicks
+    contextMenu.addEventListener('click', (e) => {
+        const menuItem = e.target.closest('.menu-item');
+        if (!menuItem) return;
+
+        const action = menuItem.dataset.action;
+        markWord(selectedText, action);
+        updateMarkedWordsList();
+        contextMenu.style.display = 'none';
+        
+        // Show panel when adding new word/phrase
+        markedWordsPanel.classList.add('visible');
+    });
+
+    // Close context menu when clicking outside
+    document.addEventListener('click', (e) => {
+        if (!e.target.closest('.word-context-menu')) {
+            contextMenu.style.display = 'none';
+        }
+    });
+
+    // Close marked words panel
+    closeMarkedWords.addEventListener('click', () => {
+        markedWordsPanel.classList.remove('visible');
+    });
+
+    // Show marked words panel button
+    const showMarkedWordsBtn = document.createElement('button');
+    showMarkedWordsBtn.className = 'tool-button';
+    showMarkedWordsBtn.title = 'Show Marked Words';
+    showMarkedWordsBtn.innerHTML = '<i class="fas fa-tags"></i><span>Marked Words</span>';
+    showMarkedWordsBtn.onclick = () => {
+        markedWordsPanel.classList.toggle('visible');
+        updateMarkedWordsList();
+    };
+
+    // Add button to tools
+    document.querySelector('.input-buttons').appendChild(showMarkedWordsBtn);
+}
+
+// Function to mark/unmark a word
+function markWord(text, type) {
+    if (markedWords[type].has(text)) {
+        markedWords[type].delete(text);
+    } else {
+        // Remove from opposite list if present
+        const oppositeType = type === 'positive' ? 'negative' : 'positive';
+        markedWords[oppositeType].delete(text);
+        markedWords[type].add(text);
+    }
+    
+    // Update highlighting
+    updatePromptHighlighting();
+}
+
+// Function to update marked words list
+function updateMarkedWordsList() {
+    const list = document.getElementById('markedWordsList');
+    list.innerHTML = '';
+
+    const hasPositive = markedWords.positive.size > 0;
+    const hasNegative = markedWords.negative.size > 0;
+
+    const showMarkedWordsBtn = document.querySelector('.tool-button[title="Show Marked Words"]');
+    showMarkedWordsBtn.classList.toggle('has-marked-words', hasPositive || hasNegative);
+    showMarkedWordsBtn.classList.toggle('has-negative', !hasPositive && hasNegative);
+    showMarkedWordsBtn.classList.toggle('has-both', hasPositive && hasNegative);
+
+    // Add positive words/phrases
+    markedWords.positive.forEach(text => {
+        const li = document.createElement('li');
+        li.innerHTML = `
+            <span class="marked-positive">${text}</span>
+            <i class="fas fa-times remove-mark"></i>
+        `;
+        li.querySelector('.remove-mark').onclick = () => {
+            markWord(text, 'positive');
+            updateMarkedWordsList();
+        };
+        list.appendChild(li);
+    });
+
+    // Add negative words/phrases
+    markedWords.negative.forEach(text => {
+        const li = document.createElement('li');
+        li.innerHTML = `
+            <span class="marked-negative">${text}</span>
+            <i class="fas fa-times remove-mark"></i>
+        `;
+        li.querySelector('.remove-mark').onclick = () => {
+            markWord(text, 'negative');
+            updateMarkedWordsList();
+        };
+        list.appendChild(li);
+    });
+}
+
+// Add to DOMContentLoaded
+document.addEventListener('DOMContentLoaded', () => {
+    initializeWordMarking();
+});
+
+// Function to escape text for safe HTML insertion
+function escapeHtml(text) {
+    return text
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+}
+
+// Function to highlight marked words in the prompt input
+function updatePromptHighlighting() {
+    const promptInput = document.getElementById('promptInput');
+    const highlightDiv = document.getElementById('promptHighlight');
+    const text = promptInput.value;
+    
+    // Ensure exact whitespace preservation
+    if (!text) {
+        highlightDiv.innerHTML = '';
+        return;
+    }
+    
+    // First escape HTML to prevent XSS
+    let highlightedText = escapeHtml(text);
+    
+    // Create a regex pattern for all marked words
+    const allMarkedWords = [];
+    
+    // Add positive words/phrases
+    markedWords.positive.forEach(phrase => {
+        if (phrase.trim()) {
+            allMarkedWords.push({
+                phrase: phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), // Escape regex special chars
+                type: 'positive'
+            });
+        }
+    });
+    
+    // Add negative words/phrases
+    markedWords.negative.forEach(phrase => {
+        if (phrase.trim()) {
+            allMarkedWords.push({
+                phrase: phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'),
+                type: 'negative'
+            });
+        }
+    });
+    
+    // Sort by length (longest first) to handle overlapping matches correctly
+    allMarkedWords.sort((a, b) => b.phrase.length - a.phrase.length);
+    
+    // Create an array of text parts and their types
+    const parts = [];
+    let lastIndex = 0;
+    
+    // Find all matches and their positions
+    const matches = [];
+    allMarkedWords.forEach(({ phrase, type }) => {
+        const regex = new RegExp(phrase, 'gi');
+        let match;
+        while ((match = regex.exec(text)) !== null) {
+            matches.push({
+                start: match.index,
+                end: match.index + match[0].length,
+                text: match[0],
+                type
+            });
+        }
+    });
+    
+    // Sort matches by start position
+    matches.sort((a, b) => a.start - b.start);
+    
+    // Build highlighted text
+    matches.forEach(match => {
+        if (match.start > lastIndex) {
+            // Add non-highlighted text before this match
+            parts.push(escapeHtml(text.substring(lastIndex, match.start)));
+        }
+        // Add highlighted text
+        parts.push(`<span class="highlight-${match.type}">${escapeHtml(match.text)}</span>`);
+        lastIndex = match.end;
+    });
+    
+    // Add any remaining text
+    if (lastIndex < text.length) {
+        parts.push(escapeHtml(text.substring(lastIndex)));
+    }
+    
+    // Join all parts
+    highlightedText = parts.join('');
+    
+    // Replace newlines with <br> for proper display
+    highlightedText = highlightedText.replace(/\n/g, '<br>');
+    
+    // Add a space at the end to ensure proper text wrapping
+    highlightedText += '&nbsp;';
+    
+    // Update the highlight div
+    highlightDiv.innerHTML = highlightedText;
+    
+    // Sync scroll position
+    highlightDiv.scrollTop = promptInput.scrollTop;
+}
+
+ipcRenderer.on('styles-refresh-needed', async () => {
+    try {
+        const styles = await ipcRenderer.invoke('get-styles');
+        updateStylesList(styles);
+    } catch (error) {
+        console.error('Error refreshing styles:', error);
+    }
+});
+
+function updateStylesList(styles) {
+    const stylesContainer = document.getElementById('styles-container');
+    if (!stylesContainer) return;
+
+    // Zachowaj scroll position
+    const scrollPosition = stylesContainer.scrollTop;
+
+    // Wyczyść kontener
+    stylesContainer.innerHTML = '';
+
+    // Dodaj style z powrotem
+    styles.forEach(style => {
+        const styleCard = createStyleCard(style);
+        stylesContainer.appendChild(styleCard);
+    });
+
+    // Przywróć scroll position
+    stylesContainer.scrollTop = scrollPosition;
+}
+
+// Funkcja do generowania promptu (współdzielona)
+async function generateStyledPrompt(prompt, style) {
+    try {
+        const generatedPrompt = await ipcRenderer.invoke('generate-prompt', {
+            prompt: prompt,
+            style: style
+        });
+
+        // Aktualizuj wyświetlany prompt w karcie stylu
+        const styleCard = document.querySelector(`[data-style-id="${style.id}"]`);
+        if (styleCard) {
+            const promptDisplay = styleCard.querySelector('.style-prompt');
+            if (promptDisplay) {
+                promptDisplay.textContent = generatedPrompt;
+                
+                // Dodaj klasę dla animacji
+                promptDisplay.classList.add('prompt-updated');
+                setTimeout(() => {
+                    promptDisplay.classList.remove('prompt-updated');
+                }, 1000);
+
+                // Jeśli są słowa oznaczone jako negatywne, rozpocznij post-processing
+                if (markedWords.negative.size > 0) {
+                    // Pokaż animację "Finishing..."
+                    showLoadingAnimation(promptDisplay, 'Finishing...');
+
+                    // Wyślij prompt do post-processingu przez model LLM
+                    try {
+                        const processedPrompt = await ipcRenderer.invoke('post-process-prompt', {
+                            prompt: generatedPrompt,
+                            negativeWords: Array.from(markedWords.negative)
+                        });
+
+                        // Aktualizuj wyświetlany prompt
+                        promptDisplay.textContent = processedPrompt;
+                        
+                        // Usuń animację ładowania
+                        removeLoadingAnimation(promptDisplay);
+                        
+                        // Dodaj animację ukończenia
+                        promptDisplay.classList.add('prompt-updated');
+                        setTimeout(() => {
+                            promptDisplay.classList.remove('prompt-updated');
+                        }, 1000);
+
+                        return processedPrompt;
+                    } catch (error) {
+                        console.error('Error during post-processing:', error);
+                        removeLoadingAnimation(promptDisplay);
+                        throw error;
+                    }
+                }
+            }
+        }
+
+        return generatedPrompt;
+    } catch (error) {
+        console.error('Error generating prompt:', error);
+        throw error;
+    }
+}
+
+// Funkcja tworząca kartę stylu
+function createStyleCard(style) {
+    const card = document.createElement('div');
+    card.className = 'style-card';
+    card.dataset.styleId = style.id;
+    card.dataset.favorite = localStorage.getItem(`style_${style.id}_favorite`) === 'true' ? 'true' : 'false';
+
+    // Create header
+    const header = document.createElement('div');
+    header.className = 'style-header';
+
+    const headerLeft = document.createElement('div');
+    headerLeft.className = 'style-header-left';
+
+    const headerRight = document.createElement('div');
+    headerRight.className = 'style-header-right';
+
+    const titleContainer = document.createElement('div');
+    titleContainer.className = 'style-card-title-container';
+
+    const icon = document.createElement('i');
+    icon.className = `fas fa-${style.icon || 'paint-brush'}`;
+    titleContainer.appendChild(icon);
+
+    const title = document.createElement('span');
+    title.className = 'style-card-title';
+    title.textContent = style.name;
+    titleContainer.appendChild(title);
+
+    // Create favorite button
+    const favoriteBtn = document.createElement('button');
+    favoriteBtn.className = 'favorite-btn';
+    favoriteBtn.innerHTML = '<i class="fas fa-star"></i>';
+    favoriteBtn.title = 'Add to favorites';
+    
+    // Set initial favorite state
+    const isFavorite = localStorage.getItem(`style_${style.id}_favorite`) === 'true';
+    card.dataset.favorite = isFavorite;
+    
+    favoriteBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const currentFavorite = card.dataset.favorite === 'true';
+        const newFavorite = !currentFavorite;
+        card.dataset.favorite = newFavorite;
+        localStorage.setItem(`style_${style.id}_favorite`, newFavorite);
+    });
+    
+    titleContainer.appendChild(favoriteBtn);
+
+    const description = document.createElement('div');
+    description.className = 'style-card-description';
+    description.textContent = style.description || 'No description available';
+
+    headerLeft.appendChild(titleContainer);
+    headerLeft.appendChild(description);
+
+    // Controls container (switch and generate button)
+    const controls = document.createElement('div');
+    controls.className = 'style-card-controls';
+
+    const generateButtonGroup = document.createElement('div');
+    generateButtonGroup.className = 'generate-button-group';
+
+    const generateButton = document.createElement('button');
+    generateButton.className = 'style-card-button';
+    generateButton.innerHTML = '<span>Generate</span>';
+
+    const dropdownButton = document.createElement('button');
+    dropdownButton.className = 'style-card-button dropdown-toggle';
+    dropdownButton.innerHTML = '<span class="selected-option">Standard</span><i class="fas fa-chevron-down"></i>';
+
+    const dropdownMenu = document.createElement('div');
+    dropdownMenu.className = 'prompt-options-dropdown';
+    dropdownMenu.innerHTML = `
+        <div class="dropdown-item" data-option="simple">Simple</div>
+        <div class="dropdown-item" data-option="standard">Standard</div>
+        <div class="dropdown-item" data-option="detailed">Long and Detailed</div>
+    `;
+
+    dropdownButton.addEventListener('click', (e) => {
+        e.stopPropagation();
+        dropdownMenu.classList.toggle('show');
+    });
+
+    dropdownMenu.querySelectorAll('.dropdown-item').forEach(item => {
+        item.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const selectedOption = e.target.dataset.option;
+            dropdownButton.querySelector('.selected-option').textContent = e.target.textContent;
+            dropdownMenu.classList.remove('show');
+        });
+    });
+
+    document.addEventListener('click', () => {
+        dropdownMenu.classList.remove('show');
+    });
+
+    generateButtonGroup.appendChild(generateButton);
+    generateButtonGroup.appendChild(dropdownButton);
+    generateButtonGroup.appendChild(dropdownMenu);
+
+    const toggle = document.createElement('div');
+    toggle.className = 'style-toggle';
+    const toggleInput = document.createElement('input');
+    toggleInput.type = 'checkbox';
+    toggleInput.checked = localStorage.getItem(`style_${style.id}_active`) === 'true';
+    toggle.appendChild(toggleInput);
+
+    toggleInput.addEventListener('change', () => {
+        toggleStyle(style.id, toggleInput.checked);
+    });
+
+    controls.appendChild(generateButtonGroup);
+    controls.appendChild(toggle);
+
+    headerRight.appendChild(controls);
+
+    header.appendChild(headerLeft);
+    header.appendChild(headerRight);
+    card.appendChild(header);
+
+    // Create prompt container
+    const promptContainer = document.createElement('div');
+    promptContainer.className = 'prompt-container';
+    
+    // Create loading container
+    const loadingContainer = document.createElement('div');
+    loadingContainer.className = 'generating-container';
+    loadingContainer.style.display = 'none';
+    
+    // Create prompt text container
+    const promptText = document.createElement('div');
+    promptText.className = 'prompt-text';
+    promptText.id = `prompt-${style.id}`;  // Add ID for easier reference
+    promptText.textContent = 'Click Generate to create a prompt...';
+    
+    promptContainer.appendChild(promptText);
+    promptContainer.appendChild(loadingContainer);
+    
+    card.appendChild(promptContainer);
+    
+    // Create prompt actions container
+    const promptActions = document.createElement('div');
+    promptActions.className = 'prompt-actions';
+
+    // Create history buttons container
+    const historyButtons = document.createElement('div');
+    historyButtons.className = 'history-buttons';
+
+    // Create previous button
+    const prevButton = document.createElement('button');
+    prevButton.className = 'prompt-action-btn prev-btn disabled';
+    prevButton.title = 'Previous prompt';
+    prevButton.innerHTML = '<i class="fas fa-chevron-left"></i>';
+    prevButton.onclick = (e) => {
+        e.stopPropagation();
+        navigateHistory(style.id, 'prev');
+    };
+
+    // Create next button
+    const nextButton = document.createElement('button');
+    nextButton.className = 'prompt-action-btn next-btn disabled';
+    nextButton.title = 'Next prompt';
+    nextButton.innerHTML = '<i class="fas fa-chevron-right"></i>';
+    nextButton.onclick = (e) => {
+        e.stopPropagation();
+        navigateHistory(style.id, 'next');
+    };
+
+    // Create copy button
+    const copyButton = document.createElement('button');
+    copyButton.className = 'prompt-action-btn copy-btn disabled';
+    copyButton.title = 'Copy prompt';
+    copyButton.innerHTML = '<i class="fas fa-copy"></i>';
+    copyButton.onclick = (e) => {
+        e.stopPropagation();
+        copyStylePrompt(style.id);
+    };
+
+    // Create Draw Things button
+    const drawBtn = document.createElement('button');
+    drawBtn.className = 'prompt-action-btn draw-btn disabled';
+    drawBtn.innerHTML = '<i class="fas fa-arrow-right"></i> Send to Draw Things';
+    drawBtn.title = 'Send to Draw Things';
+    drawBtn.disabled = true;
+    drawBtn.onclick = () => sendToDrawThings(style.id);
+
+    // Add tooltip functionality to Draw Things button
+    function createDrawThingsTooltip() {
+        const tooltip = document.createElement('div');
+        tooltip.className = 'custom-tooltip';
+        tooltip.innerHTML = `
+            <div class="custom-tooltip-title">Draw Things Integration Setup</div>
+            <p>PROMPTR integrates seamlessly with the Draw Things app. To activate the integration, follow these steps:</p>
+            <ol>
+                <li>Open the Draw Things app.</li>
+                <li>Switch the settings tab to 'Advanced' or 'All'.</li>
+                <li>Locate the 'API Server' option and enable it.</li>
+                <li>Ensure the settings are configured as follows:</li>
+            </ol>
+            <ul>
+                <li>Protocol: HTTP</li>
+                <li>Port: 3333</li>
+                <li>IP: 127.0.0.1</li>
+            </ul>
+            <div class="custom-tooltip-footer">Once these steps are completed, PROMPTR will be ready to interact with Draw Things! </div>
+        `;
+        document.body.appendChild(tooltip);
+        return tooltip;
+    }
+
+    function addDrawThingsTooltip(drawBtn) {
+        const tooltip = createDrawThingsTooltip();
+        let timeout;
+
+        drawBtn.addEventListener('mouseenter', () => {
+            const rect = drawBtn.getBoundingClientRect();
+            tooltip.style.left = `${rect.left}px`;
+            tooltip.style.top = `${rect.bottom + 10}px`;
+            
+            clearTimeout(timeout);
+            tooltip.classList.add('visible');
+            
+            const tooltipRect = tooltip.getBoundingClientRect();
+            const viewportWidth = window.innerWidth;
+            const viewportHeight = window.innerHeight;
+            
+            if (tooltipRect.right > viewportWidth) {
+                tooltip.style.left = `${viewportWidth - tooltipRect.width - 10}px`;
+            }
+            
+            if (tooltipRect.bottom > viewportHeight) {
+                tooltip.style.top = `${rect.top - tooltipRect.height - 10}px`;
+            }
+        });
+
+        drawBtn.addEventListener('mouseleave', () => {
+            timeout = setTimeout(() => {
+                tooltip.classList.remove('visible');
+            }, 200);
+        });
+
+        tooltip.addEventListener('mouseenter', () => {
+            clearTimeout(timeout);
+        });
+
+        tooltip.addEventListener('mouseleave', () => {
+            tooltip.classList.remove('visible');
+        });
+    }
+
+    addDrawThingsTooltip(drawBtn);
+
+    // Observe prompt text changes
+    const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+            if (mutation.type === 'characterData' || mutation.type === 'childList') {
+                const promptContent = promptText.textContent.trim();
+                const hasPrompt = promptContent && promptContent !== 'Click Generate to create a prompt...';
+                
+                drawBtn.disabled = !hasPrompt;
+                drawBtn.classList.toggle('disabled', !hasPrompt);
+                
+                prevButton.disabled = !hasPrompt;
+                prevButton.classList.toggle('disabled', !hasPrompt);
+                
+                nextButton.disabled = !hasPrompt;
+                nextButton.classList.toggle('disabled', !hasPrompt);
+                
+                copyButton.disabled = !hasPrompt;
+                copyButton.classList.toggle('disabled', !hasPrompt);
+            }
+        });
+    });
+
+    observer.observe(promptText, { 
+        characterData: true, 
+        childList: true,
+        subtree: true
+    });
+
+    // Add buttons to history buttons container
+    historyButtons.appendChild(prevButton);
+    historyButtons.appendChild(nextButton);
+    historyButtons.appendChild(copyButton);
+
+    // Create container for Magic Refiner and Draw Things buttons
+    const actionButtons = document.createElement('div');
+    actionButtons.className = 'action-buttons';
+    actionButtons.appendChild(drawBtn);
+
+    // Add all elements to prompt actions
+    promptActions.appendChild(historyButtons);
+    promptActions.appendChild(actionButtons);
+
+    // Add prompt actions to card
+    card.appendChild(promptActions);
+    
+    // Generate button click handler
+    generateButton.addEventListener('click', async (e) => {
+        e.stopPropagation();
         e.preventDefault();
-        shell.openExternal(updateInfo.releasesUrl);
-    };
 
-    // Handle close button
-    closeButton.onclick = () => {
-        updateBanner.style.display = 'none';
-    };
-});
+        // Check if already generating
+        if (activeGenerations.has(style.id)) {
+            return;
+        }
+
+        const promptInput = document.getElementById('promptInput');
+        const basePrompt = promptInput.value.trim();
+        
+        if (!basePrompt) {
+            showToast('Please enter a prompt first');
+            return;
+        }
+
+        try {
+            const promptContainer = card.querySelector('.prompt-container');
+            const loadingContainer = card.querySelector('.generating-container');
+            const promptDisplay = card.querySelector('.prompt-text');
+            
+            if (!promptContainer || !loadingContainer || !promptDisplay) {
+                console.error('Missing required elements for card:', style.id);
+                return;
+            }
+
+            // Mark as generating
+            activeGenerations.set(style.id, true);
+
+            // Show loading animation
+            promptDisplay.style.display = 'none';
+            loadingContainer.style.display = 'flex';
+            showLoadingAnimation(loadingContainer, 'Generating prompt...');
+            generateButton.classList.add('disabled', 'loading');
+            generateButton.disabled = true;
+
+            // Get selected prompt type from dropdown
+            const promptType = dropdownButton.querySelector('.selected-option').textContent.toLowerCase().replace(/\s+/g, '');
+            
+            const result = await ipcRenderer.invoke('generate-prompt', {
+                basePrompt: style.prefix ? `${style.prefix}${basePrompt}` : basePrompt,
+                styleId: style.id,
+                promptType,
+                style,
+                markedWords: {
+                    positive: Array.from(markedWords.positive),
+                    negative: Array.from(markedWords.negative)
+                }
+            });
+
+            if (result && result.prompt) {
+                // Hide loading animation
+                loadingContainer.style.display = 'none';
+                promptContainer.style.display = 'block';
+                promptDisplay.style.display = 'block';
+                promptDisplay.textContent = '';
+                await revealPrompt(result.prompt, promptDisplay);
+                addToStyleHistory(style.id, result.prompt);
+                updateHistoryButtons(style.id);
+            } else {
+                throw new Error('Empty response from model');
+            }
+        } catch (error) {
+            console.error('Error generating prompt:', error);
+            promptDisplay.textContent = `Error: ${error.message}`;
+            promptDisplay.style.display = 'block';
+        }
+        finally {
+            // Restore UI state
+            const loadingContainer = card.querySelector('.generating-container');
+            if (loadingContainer) {
+                loadingContainer.style.display = 'none';
+            }
+            generateButton.classList.remove('disabled', 'loading');
+            generateButton.disabled = false;
+            // Clear generating flag
+            activeGenerations.delete(style.id);
+        }
+    });
+
+    return card;
+}

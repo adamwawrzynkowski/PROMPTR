@@ -1,0 +1,57 @@
+@import 'variables.css';
+
+.tooltip {
+    position: absolute;
+    top: calc(100% + 5px);
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--card-background);
+    color: var(--text);
+    padding: 6px 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    white-space: nowrap;
+    opacity: 0;
+    visibility: hidden;
+    transition: all 0.2s ease;
+    border: 1px solid transparent;
+    pointer-events: none;
+    z-index: 1000;
+}
+
+.title-bar-item:hover .tooltip {
+    opacity: 1;
+    visibility: visible;
+    border: 1px solid var(--theme-color);
+}
+
+/* Loading states */
+.loading {
+    color: var(--text-secondary);
+    font-style: italic;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    position: relative;
+}
+
+.loading::after {
+    content: '';
+    display: block;
+    width: 14px;
+    height: 14px;
+    border: 2px solid transparent;
+    border-top-color: var(--theme-color-transparent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    position: absolute;
+    right: -20px;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+.error {
+    color: var(--error);
+    font-style: italic;
+}
+

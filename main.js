@@ -2,7 +2,6 @@ const electron = require('electron');
 const { BrowserWindow, ipcMain, dialog, shell, protocol } = electron;
 const app = electron.app;
 const creditsWindow = require('./credits-window');
-const versionManager = require('./version-manager');
 
 // Optimize GPU usage while keeping hardware acceleration
 app.commandLine.appendSwitch('ignore-gpu-blacklist');
@@ -43,7 +42,7 @@ let onboardingWindow = null;
 let visionWindow = null;
 
 // Constants
-const APP_VERSION = versionManager.getVersion();
+const APP_VERSION = 'v1.0';
 const DRAW_THINGS_PATH = '/Applications/Draw Things.app';
 const DRAW_THINGS_PORT = 3333;
 let SAFETENSORS_MODELS_PATH;
@@ -445,24 +444,7 @@ async function createWindow() {
         store.set('settings.windowSize', { width, height });
     });
 
-    sendVersionToWindow(mainWindow);
-
-    // Check for updates after a short delay
-    setTimeout(checkForUpdates, 3000);
-
     return mainWindow;
-}
-
-// Send version to renderer when requested
-ipcMain.handle('get-version', () => {
-    return APP_VERSION;
-});
-
-// Send version to window when it's created
-function sendVersionToWindow(window) {
-    if (window && !window.isDestroyed()) {
-        window.webContents.send('app-version', APP_VERSION);
-    }
 }
 
 // Create startup window
@@ -896,16 +878,24 @@ ipcMain.handle('detect-and-translate', async (event, text) => {
     }
 });
 
-ipcMain.handle('generate-prompt', async (event, { basePrompt, styleId }) => {
+ipcMain.handle('generate-prompt', async (event, { basePrompt, styleId, style, promptType, markedWords }) => {
     try {
-        // Get the style from the styles manager
-        const style = await stylesManager.getStyle(styleId);
+        // Get the style from the styles manager if not provided
         if (!style) {
-            throw new Error('Style not found');
+            style = await stylesManager.getStyle(styleId);
+            if (!style) {
+                throw new Error('Style not found');
+            }
         }
 
-        // Generate the prompt using the style
-        const result = await ollamaManager.generatePrompt(basePrompt, styleId, style);
+        // Generate the prompt using the style and prompt type
+        const result = await ollamaManager.generatePrompt({ 
+            basePrompt, 
+            styleId, 
+            style, 
+            promptType,
+            markedWords
+        });
         return result;
     } catch (error) {
         console.error('Error generating prompt:', error);
@@ -1302,16 +1292,79 @@ ipcMain.on('minimize-vision-window', () => {
     }
 });
 
-ipcMain.handle('analyze-image', async (event, base64Image) => {
+ipcMain.removeHandler('analyze-image');
+ipcMain.handle('analyze-image', async (event, payload) => {
     try {
-        // Here you would implement the actual image analysis
-        // For now, we'll just return a mock result
-        return {
-            description: "A sample image analysis result"
-        };
+        // Handle both old and new formats
+        let image, instructions, feature;
+        
+        if (typeof payload === 'string') {
+            // Old format: just base64 image
+            image = payload;
+            instructions = "Analyze this image and provide a detailed description.";
+            feature = "description";
+        } else {
+            // New format: { image, instructions, feature }
+            ({ image, instructions, feature } = payload);
+        }
+
+        // Convert base64 image to buffer
+        const base64Data = image.replace(/^data:image\/\w+;base64,/, '');
+        const imageBuffer = Buffer.from(base64Data, 'base64');
+
+        // Create a temporary file for the image
+        const tempImagePath = path.join(app.getPath('temp'), 'temp_vision_image.jpg');
+        await fs.writeFile(tempImagePath, imageBuffer);
+
+        // Prepare the prompt based on the feature
+        let prompt = instructions;
+        switch (feature) {
+            case 'description':
+                // Use the provided instructions directly
+                break;
+            case 'interpreter':
+                prompt = 'Analyze this image using the following style: ' + instructions;
+                break;
+            case 'object-detection':
+                prompt = 'List and describe all objects you can identify in this image, including their locations and relationships to each other.';
+                break;
+            case 'style-detection':
+                prompt = 'Analyze and describe the artistic and visual style of this image, including techniques, composition, and aesthetic elements.';
+                break;
+            case 'style-maker':
+                prompt = 'Create a detailed style description based on this image that could be used to generate similar images. Include artistic techniques, composition, lighting, and mood.';
+                break;
+            case 'object-coordinates':
+                prompt = 'Provide coordinates and dimensions for all major objects in this image, using a normalized coordinate system (0-1 for both x and y axes).';
+                break;
+            default:
+                prompt = instructions;
+        }
+
+        // Read the image file
+        const imageContent = await fs.readFile(tempImagePath, { encoding: 'base64' });
+
+        // Prepare the request to Ollama
+        const response = await fetch('http://127.0.0.1:11434/api/generate', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                model: 'llama3.2-vision:11b',
+                prompt: prompt,
+                images: [imageContent],
+                stream: false
+            })
+        });
+
+        const result = await response.json();
+        
+        // Clean up the temporary file
+        await fs.unlink(tempImagePath);
+
+        return result.response;
     } catch (error) {
         console.error('Error analyzing image:', error);
-        throw error;
+        throw new Error('Failed to analyze image: ' + error.message);
     }
 });
 
@@ -1978,7 +2031,10 @@ ipcMain.handle('send-to-draw-things', async (event, prompt) => {
         ];
 
         const requestBody = {
-            prompt: prompt
+            prompt: prompt,
+            steps: 20,
+            width: 512,
+            height: 512
         };
 
         console.log('Trying request body:', JSON.stringify(requestBody, null, 2));
@@ -2072,14 +2128,346 @@ app.whenReady().then(() => {
     });
 });
 
-// Check for updates
-async function checkForUpdates() {
+// Vision model handlers
+ipcMain.handle('check-vision-model', async () => {
     try {
-        const updateInfo = await versionManager.checkForUpdates();
-        if (updateInfo.hasUpdate && mainWindow && !mainWindow.isDestroyed()) {
-            mainWindow.webContents.send('update-available', updateInfo);
-        }
+        const response = await fetch('http://127.0.0.1:11434/api/tags');
+        const data = await response.json();
+        return data.models.some(model => model.name.includes('llama3.2-vision'));
     } catch (error) {
-        console.error('Error checking for updates:', error);
+        console.error('Error checking vision model:', error);
+        return false;
+    }
+});
+
+ipcMain.handle('install-vision-model', async (event) => {
+    try {
+        const modelName = 'llama3.2-vision:11b';
+        console.log('Installing vision model:', modelName);
+        
+        const response = await fetch('http://127.0.0.1:11434/api/pull', {
+            method: 'POST',
+            body: JSON.stringify({ name: modelName }),
+            headers: { 'Content-Type': 'application/json' }
+        });
+
+        const reader = response.body.getReader();
+        let downloadProgress = 0;
+
+        while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            const chunk = new TextDecoder().decode(value);
+            const lines = chunk.split('\n').filter(Boolean);
+
+            for (const line of lines) {
+                const data = JSON.parse(line);
+                if (data.status === 'downloading' && data.completed && data.total) {
+                    downloadProgress = (data.completed / data.total) * 100;
+                    event.sender.send('model-download-progress', downloadProgress);
+                }
+            }
+        }
+
+        console.log('Vision model installation complete');
+        return true;
+    } catch (error) {
+        console.error('Error installing vision model:', error);
+        throw error;
+    }
+});
+
+// Style selector window
+let styleSelectorWindow = null;
+
+function createStyleSelectorWindow(parentWindow) {
+    if (styleSelectorWindow) {
+        styleSelectorWindow.focus();
+        return styleSelectorWindow;
+    }
+
+    styleSelectorWindow = new BrowserWindow({
+        width: 600,
+        height: 400,
+        parent: parentWindow,
+        modal: true,
+        frame: false,
+        webPreferences: {
+            nodeIntegration: true,
+            contextIsolation: false
+        }
+    });
+
+    styleSelectorWindow.loadFile('style-selector.html');
+
+    styleSelectorWindow.on('closed', () => {
+        styleSelectorWindow = null;
+    });
+
+    return styleSelectorWindow;
+}
+
+// Handle opening style selector window
+ipcMain.on('open-style-selector', (event) => {
+    console.log('Opening style selector window');
+    const parentWindow = BrowserWindow.fromWebContents(event.sender);
+    const selectorWindow = createStyleSelectorWindow(parentWindow);
+    
+    // Store the parent window's webContents to send the selected style back
+    selectorWindow.parentWebContents = event.sender;
+});
+
+// Handle style selection
+ipcMain.on('style-selected', (event, style) => {
+    console.log('Style selected:', style);
+    // Get the parent window's webContents that we stored earlier
+    const parentWebContents = styleSelectorWindow.parentWebContents;
+    if (parentWebContents) {
+        // Send the selected style back to the vision window
+        parentWebContents.send('style-selected-for-interpreter', style);
+    }
+});
+
+// Handle getting styles
+ipcMain.on('get-styles', async (event) => {
+    try {
+        let styles = [];
+        if (stylesManager) {
+            styles = await stylesManager.getAllStyles();
+        }
+        event.sender.send('load-styles', styles);
+    } catch (error) {
+        console.error('Error loading styles:', error);
+        event.sender.send('load-styles', []);
+    }
+});
+
+// Handle closing style selector
+ipcMain.on('close-style-selector', () => {
+    if (styleSelectorWindow) {
+        styleSelectorWindow.close();
+    }
+});
+
+// Nasłuchuj na żądanie odświeżenia listy stylów
+ipcMain.on('refresh-styles-list', () => {
+    // Znajdź okno zarządzania stylami i wyślij do niego sygnał odświeżenia
+    const manageStylesWindow = BrowserWindow.getAllWindows().find(window => 
+        window.getTitle() === 'Manage Styles'
+    );
+    
+    if (manageStylesWindow) {
+        manageStylesWindow.webContents.send('styles-refresh-needed');
+    }
+});
+
+// Generate prompt
+async function generatePrompt(prompt, style, detailLevel = 'standard') {
+    try {
+        const systemInstructions = style.systemInstructions || defaultSystemInstructions;
+        
+        // Detail level specific instructions
+        let detailInstructions = '';
+        if (detailLevel === 'simple') {
+            detailInstructions = 'Create a concise and focused description using essential elements only. Keep it brief but impactful.';
+        } else if (detailLevel === 'detailed') {
+            detailInstructions = `Create an extensive and rich description with:
+- Comprehensive technical specifications
+- Detailed artistic elements and techniques
+- Rich visual and sensory details
+- Specific materials and textures
+- Precise compositional elements
+- Elaborate environmental context
+- Nuanced lighting and atmosphere details
+- Complex emotional and thematic layers
+Ensure the description is thorough and sophisticated while maintaining coherence.`;
+        } else {
+            detailInstructions = 'Create a balanced description with key details and artistic elements while maintaining clarity and focus.';
+        }
+
+        // Przygotuj kontekst dla modelu
+        const messages = [
+            {
+                role: "system",
+                content: `You are an artistic style expert. Your ONLY task is to transform the given text into artistic descriptions.
+
+CRITICAL RULES - VIOLATIONS WILL RESULT IN REJECTION:
+1. Start DIRECTLY with descriptive words - NO introductory phrases
+2. NO phrases like:
+   - "An image of..."
+   - "A picture of..."
+   - "A scene with..."
+   - "A photo of..."
+   - "A rendering of..."
+   - "A visualization of..."
+   - "In the style of..."
+   - "Using the style of..."
+   - "With the style of..."
+3. Output ONLY the artistic description
+4. NO explanations or metadata
+5. NO quotes or special characters at start/end
+6. Focus on describing the subject and artistic elements
+
+Detail Level Instructions:
+${detailInstructions}
+
+Style to match: "${style.description}"
+${systemInstructions}`
+            },
+            {
+                role: "user",
+                content: `Transform: "${prompt}". Remember - output ONLY the transformed prompt, starting directly with the content.`
+            }
+        ];
+
+        // Dla custom styli dodaj przykłady
+        if (style.custom) {
+            messages.splice(1, 0, {
+                role: "system",
+                content: `Examples of CORRECT and INCORRECT outputs:
+
+❌ WRONG: "Stable Diffusion prompt for a landscape"
+❌ WRONG: "An image of a landscape"
+❌ WRONG: "Create a landscape"
+❌ WRONG: "This prompt shows a landscape"
+❌ WRONG: "In the style of ${style.description}, a landscape"
+✅ CORRECT: "majestic mountain landscape, ${style.description}, dramatic lighting"
+
+❌ WRONG: "A prompt for a portrait"
+❌ WRONG: "Generate a portrait"
+❌ WRONG: "This image depicts a portrait"
+✅ CORRECT: "elegant portrait, ${style.description}, detailed features"
+
+Your output must follow the CORRECT format. Start directly with the content.`
+            });
+        }
+
+        const completion = await openai.chat.completions.create({
+            model: "gpt-3.5-turbo",
+            messages: messages,
+            max_tokens: 500,
+            temperature: 0.7,
+            presence_penalty: 0.1,
+            frequency_penalty: 0.1
+        });
+
+        let generatedPrompt = completion.choices[0].message.content;
+
+        // Lista zabronionych fraz - rozszerzona
+        const phrasesToRemove = [
+            "stable diffusion prompt for",
+            "stable diffusion prompt of",
+            "a prompt for",
+            "a prompt of",
+            "an image of",
+            "generate an image of",
+            "create an image of",
+            "a picture of",
+            "an illustration of",
+            "a rendering of",
+            "a visualization of",
+            "this image shows",
+            "this prompt creates",
+            "this prompt generates",
+            "this image depicts",
+            "this picture shows",
+            "in this image",
+            "in this prompt",
+            "the image shows",
+            "the prompt creates",
+            "generate a",
+            "create a",
+            "make a",
+            "produce a",
+            "design a",
+            "in the style of",
+            "using the style of",
+            "with the style of",
+            "this is a",
+            "this will be",
+            "prompt:",
+            "output:",
+            "result:"
+        ];
+
+        // Usuń wszystkie zabronione frazy z początku (case insensitive)
+        phrasesToRemove.forEach(phrase => {
+            const regex = new RegExp(`^${phrase}\\s*`, 'i');
+            while (regex.test(generatedPrompt)) {
+                generatedPrompt = generatedPrompt.replace(regex, '');
+            }
+        });
+
+        // Usuń cudzysłowy i inne znaki specjalne z początku i końca
+        generatedPrompt = generatedPrompt.replace(/^["'`]|["'`]$/g, '');
+        
+        // Usuń wielokrotne spacje
+        generatedPrompt = generatedPrompt.replace(/\s+/g, ' ');
+
+        // Jeśli prompt nadal zaczyna się od zabronionej frazy, spróbuj jeszcze raz
+        const hasUnwantedStart = phrasesToRemove.some(phrase => 
+            generatedPrompt.toLowerCase().startsWith(phrase)
+        );
+
+        if (hasUnwantedStart) {
+            // Rekurencyjne wywołanie z dodatkowym ostrzeżeniem
+            messages.unshift({
+                role: "system",
+                content: "WARNING: Previous output was incorrect. Remember to start DIRECTLY with the content, without any introductory phrases."
+            });
+            return generatePrompt(prompt, style);
+        }
+
+        return generatedPrompt.trim();
+    } catch (error) {
+        console.error('Error generating prompt:', error);
+        throw error;
     }
 }
+
+// Add post-processing handler
+ipcMain.handle('post-process-prompt', async (event, { prompt, negativeWords }) => {
+    try {
+        const systemMessage = `You are a prompt refiner. Your task is to modify the given prompt by removing or rephrasing parts that contain any of the specified negative words/phrases, while maintaining the overall meaning and style of the prompt. The output should be a coherent, flowing prompt without the negative elements.
+
+Rules:
+1. Remove or rephrase parts containing the negative words/phrases
+2. Maintain the overall meaning and style
+3. Keep the output concise and natural
+4. Return ONLY the modified prompt, without any explanations
+
+Example:
+Input prompt: "beautiful landscape with mountains and ugly rocks in the foreground"
+Negative words: ["ugly"]
+Output: "beautiful landscape with mountains and weathered rocks in the foreground"`;
+
+        const messages = [
+            { role: "system", content: systemMessage },
+            { role: "user", content: `Prompt: "${prompt}"
+Negative words/phrases: ${JSON.stringify(negativeWords)}` }
+        ];
+
+        const response = await fetch('http://127.0.0.1:11434/api/chat', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                model: currentModel,
+                messages: messages,
+                stream: false
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to post-process prompt');
+        }
+
+        const data = await response.json();
+        return data.message.content.trim();
+    } catch (error) {
+        console.error('Error in post-processing:', error);
+        throw error;
+    }
+});

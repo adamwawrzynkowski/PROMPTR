@@ -1,20 +1,22 @@
 .history-panel {
     position: fixed;
-    top: 30px; /* Leave space for title bar */
-    right: -400px;
+    top: 0;
+    right: -400px; /* Initial position off-screen */
     width: 400px;
-    height: calc(100vh - 30px); /* Adjust for title bar */
+    height: 100vh;
     background: var(--background);
     box-shadow: -2px 0 10px rgba(0, 0, 0, 0.2);
-    transition: right 0.3s ease;
-    z-index: 1000;
+    transition: transform 0.3s ease; /* Change to transform for better performance */
+    z-index: 999999;
     display: flex;
     flex-direction: column;
     border-left: 1px solid var(--border);
+    pointer-events: none; /* Prevent interaction when hidden */
 }
 
 .history-panel.open {
-    right: 0;
+    transform: translateX(-400px); /* Slide in from the right */
+    pointer-events: auto; /* Enable interaction when visible */
 }
 
 .history-header {

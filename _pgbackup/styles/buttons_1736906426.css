@@ -1,0 +1,79 @@
+@import 'variables.css';
+
+/* General button styles */
+button, .button {
+    background: var(--button-background);
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    color: var(--text);
+    cursor: pointer;
+    -webkit-app-region: no-drag;
+    transition: all 0.3s ease;
+}
+
+button:hover, .button:hover {
+    background: var(--button-hover);
+}
+
+/* Input buttons */
+.input-btn {
+    background: var(--button-background);
+    border: none;
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    color: var(--text);
+}
+
+/* Refresh button */
+.refresh-btn {
+    background: var(--button-background);
+    border: none;
+    width: 28px;
+    height: 28px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+/* Draw things button */
+.draw-things-btn {
+    background: var(--theme-color-transparent);
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text);
+}
+
+.draw-things-btn:hover {
+    background: var(--theme-color-hover) !important;
+}
+
+/* History action button */
+.history-action-btn {
+    background: var(--button-background);
+    border: none;
+    padding: 6px;
+    border-radius: 4px;
+    color: var(--text);
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.history-action-btn:hover {
+    background: var(--button-hover);
+}

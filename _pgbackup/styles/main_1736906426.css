@@ -1,0 +1,48 @@
+@import 'themes.css';
+@import 'variables.css';
+@import 'base.css';
+@import 'layout.css';
+@import 'components.css';
+@import 'animations.css';
+@import 'titlebar.css';
+@import 'forms.css';
+@import 'utilities.css';
+@import 'cards.css';
+@import 'input.css';
+@import 'buttons.css';
+@import 'windows.css';
+@import 'tooltips.css';
+@import 'tags.css';
+@import 'vision.css';
+
+/* Button states */
+.disabled {
+    opacity: 0.5;
+    cursor: not-allowed !important;
+    pointer-events: none;
+}
+
+.loading {
+    opacity: 0.7;
+    cursor: wait !important;
+    pointer-events: none;
+}
+
+/* History buttons */
+.history-btn.disabled {
+    opacity: 0.3;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.style-card-button.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    pointer-events: none;
+}
+
+.style-card-button.loading {
+    opacity: 0.7;
+    cursor: wait;
+    pointer-events: none;
+}

@@ -1,0 +1,212 @@
+@import 'variables.css';
+
+.input-section {
+    position: sticky;
+    bottom: 20px;
+    margin-top: 30px;
+    margin-bottom: 0;
+    z-index: 10;
+    flex-shrink: 0;
+    height: 120px;
+    position: relative;
+    border-radius: 10px;
+    padding: 1px;
+    color: var(--text);
+    border: 1px solid transparent;
+    background: var(--card-background);
+}
+
+.input-section:hover {
+    border: 1px solid var(--theme-color-transparent);
+}
+
+.input-section:focus-within {
+    border: 1px solid var(--theme-color);
+}
+
+.input-section.generating {
+    border: 1px solid var(--theme-color-back);
+}
+
+.input-section.generating::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    background: linear-gradient(90deg, 
+        var(--accent-color-1, #ff0000), 
+        var(--accent-color-2, #00ff00), 
+        var(--accent-color-1, #ff0000)
+    );
+    background-size: 200% 100%;
+    animation: borderMove 2s linear infinite;
+    z-index: -1;
+    border-radius: 10px;
+    -webkit-mask: 
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+}
+
+.prompt-input-container {
+    width: 100%;
+    margin: 20px 0;
+    background: var(--card-background);
+    overflow: hidden;
+    transition: all 0.3s ease;
+}
+
+.prompt-input-wrapper {
+    display: flex;
+    align-items: stretch;
+    min-height: 180px;
+    position: relative;
+}
+
+.prompt-textarea-container {
+    flex: 1;
+    position: relative;
+}
+
+#promptInput {
+    width: 100%;
+    height: 100%;
+    min-height: 90px;
+    padding: 30px;
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text);
+    font-size: 16px;
+    line-height: 1.5;
+    resize: none;
+    outline: none;
+    font-family: inherit;
+}
+
+#promptInput:hover {
+    border: 1px solid var(--theme-color-transparent);
+}
+
+#promptInput:focus {
+    border: 1px solid var(--theme-color);
+}
+
+#promptInput::placeholder {
+    color: var(--text-secondary);
+    opacity: 0.6;
+}
+
+#promptInput::selection {
+    background: var(--theme-color-transparent);
+    color: var(--text);
+}
+
+.input-buttons {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px;
+    border-left: 1px solid transparent;
+    background: var(--card-background);
+}
+
+.input-buttons:hover {
+    border-left: 1px solid var(--theme-color-transparent);
+}
+
+.tool-button {
+    background: transparent;
+    border: 1px solid transparent;
+    color: var(--text-secondary);
+    width: 160px;
+    height: 32px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.tool-button:hover {
+    background: var(--button-hover);
+    color: var(--text);
+    border: 1px solid var(--theme-color);
+}
+
+.tool-button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.tool-button:disabled:hover {
+    background: transparent;
+    border: 1px solid transparent;
+    transform: none;
+}
+
+.tool-button i {
+    font-size: 16px;
+    width: 20px;
+    text-align: center;
+}
+
+.tool-button span {
+    flex: 1;
+}
+
+.tags-container {
+    padding: 10px 15px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    border-top: 1px solid var(--theme-color-back);
+    align-items: center;
+}
+
+.prompt-input-container:focus-within {
+    border-color: var(--theme-color);
+    box-shadow: 0 0 0 1px var(--theme-color-transparent);
+}
+
+/* Scrollbar customization */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(128, 128, 128, 0.5);
+    border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(128, 128, 128, 0.7);
+}
+
+#promptInput::-webkit-scrollbar {
+    width: 8px;
+}
+
+#promptInput::-webkit-scrollbar-track {
+    background: var(--background);
+    border-radius: 4px;
+}
+
+#promptInput::-webkit-scrollbar-thumb {
+    background: var(--theme-color-transparent);
+    border-radius: 4px;
+}
+
+#promptInput::-webkit-scrollbar-thumb:hover {
+    background: var(--theme-color-hover);
+}
+
+/* Elements that shouldn't respond to window dragging */
+input, button, textarea, [role="button"] {
+    -webkit-app-region: no-drag;
+}

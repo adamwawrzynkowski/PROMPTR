@@ -392,4 +392,91 @@ body {
 .style-action-btn.delete:hover {
     background: rgba(255, 59, 48, 0.2);
     color: rgb(255, 59, 48);
-} 
+}
+
+.style-card-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 16px;
+}
+
+.prompt-type-selector {
+    position: relative;
+    flex: 1;
+}
+
+.prompt-type-button {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background-color: var(--background-color);
+    color: var(--text-color);
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    transition: all 0.2s ease;
+}
+
+.prompt-type-button:hover {
+    border-color: var(--accent-color);
+    background-color: rgba(var(--accent-color-rgb), 0.1);
+}
+
+.prompt-type-button .fa-chevron-down {
+    margin-left: 8px;
+    font-size: 12px;
+    opacity: 0.7;
+}
+
+.prompt-type {
+    display: none;
+    position: absolute;
+    top: 100%;
+    left: 0;
+    right: 0;
+    margin-top: 4px;
+    border: 1px solid var(--border-color);
+    border-radius: 4px;
+    background-color: var(--background-color);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+    z-index: 100;
+}
+
+.prompt-type option {
+    padding: 8px 12px;
+    cursor: pointer;
+}
+
+.prompt-type option:hover {
+    background-color: rgba(var(--accent-color-rgb), 0.1);
+}
+
+.generate-btn {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 4px;
+    background-color: var(--accent-color);
+    color: white;
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    transition: all 0.2s ease;
+}
+
+.generate-btn:hover {
+    background-color: var(--accent-color-hover);
+}
+
+.generate-btn i {
+    font-size: 14px;
+}
+
+.generate-btn.disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}

@@ -18,46 +18,35 @@
     <div class="styles-window">
         <div class="style-edit-form">
             <div class="form-group">
-                <label for="style-name">Name</label>
-                <input type="text" id="style-name" placeholder="Enter style name">
+                <label for="style-name">Name <span class="required">*</span></label>
+                <input type="text" id="style-name" placeholder="Enter style name" required>
+                <div class="error-message" id="name-error"></div>
             </div>
             <div class="form-group">
-                <label>Icon</label>
+                <label>Icon <span class="required">*</span></label>
                 <div class="icons-grid" id="icons-grid">
                     <!-- Icons will be added dynamically -->
                 </div>
+                <div class="error-message" id="icon-error"></div>
             </div>
             <div class="form-group">
-                <label for="style-description">Description</label>
-                <textarea id="style-description" placeholder="Enter style description"></textarea>
-            </div>
-            <div class="form-group">
-                <label for="style-prefix">Prompt Prefix</label>
-                <input type="text" id="style-prefix" placeholder="e.g., Generate a Stable Diffusion prompt for a funny image of: ">
-            </div>
-            <div class="form-group">
-                <label for="style-suffix">Prompt Suffix</label>
-                <textarea id="style-suffix" placeholder="e.g., Include: cartoonish style, exaggerated features, vibrant colors, humorous elements, funny expressions, comical situation."></textarea>
-            </div>
-            <div class="form-group">
-                <div class="system-instructions-header">
-                    <label for="system-instructions">System Instructions</label>
-                    <div class="generate-controls">
-                        <button class="generate-instructions-btn" id="generate-instructions-btn" title="Generate instructions from description">
-                            <i class="fas fa-magic"></i>
-                            <span>Generate from Description</span>
-                        </button>
-                        <div class="loading-circle" id="generate-loading">
-                            <div class="loading-spinner"></div>
-                            <span>Generating...</span>
-                        </div>
-                    </div>
+                <div class="description-header">
+                    <label for="style-description">Description <span class="required">*</span></label>
+                    <span class="char-counter"><span id="char-count">0</span>/200</span>
                 </div>
-                <textarea id="system-instructions" placeholder="Enter system instructions"></textarea>
+                <textarea id="style-description" maxlength="200" placeholder="Enter style description" required></textarea>
+                <div class="error-message" id="description-error"></div>
             </div>
             <div class="form-group">
-                <label for="style-tags">Fixed Tags (separated by commas)</label>
-                <input type="text" id="style-tags" placeholder="tag1, tag2, tag3">
+                <div class="instructions-header">
+                    <label for="system-instructions">System Instructions <span class="required">*</span></label>
+                    <button id="generate-btn" class="generate-btn">
+                        <i class="fas fa-magic"></i>
+                        Generate
+                    </button>
+                </div>
+                <textarea id="system-instructions" placeholder="Enter system instructions that will be used to process user's prompts. Use {prompt} as a placeholder for the user's input." required></textarea>
+                <div class="error-message" id="instructions-error"></div>
             </div>
             <button class="save-btn" id="save-btn">
                 <i class="fas fa-save"></i>

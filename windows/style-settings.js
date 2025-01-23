@@ -28,10 +28,6 @@ document.addEventListener('DOMContentLoaded', () => {
     const temperatureValue = document.getElementById('temperature-value');
     const topPInput = document.getElementById('top-p');
     const topPValue = document.getElementById('top-p-value');
-    const topKInput = document.getElementById('top-k');
-    const topKValue = document.getElementById('top-k-value');
-    const repeatPenaltyInput = document.getElementById('repeat-penalty');
-    const repeatPenaltyValue = document.getElementById('repeat-penalty-value');
 
     // Aktualizacja wartości parametrów
     function updateParameterValue(input, valueDisplay) {
@@ -42,8 +38,6 @@ document.addEventListener('DOMContentLoaded', () => {
 
     updateParameterValue(temperatureInput, temperatureValue);
     updateParameterValue(topPInput, topPValue);
-    updateParameterValue(topKInput, topKValue);
-    updateParameterValue(repeatPenaltyInput, repeatPenaltyValue);
 
     // Wypełnij dropdown z ikonami
     availableIcons.forEach(iconName => {
@@ -84,12 +78,10 @@ document.addEventListener('DOMContentLoaded', () => {
             ...currentStyle,
             name: nameInput.value,
             description: descriptionInput.value,
-            prefix: promptInput.value,
+            template: promptInput.value,
             modelParameters: {
                 temperature: parseFloat(temperatureInput.value),
-                top_p: parseFloat(topPInput.value),
-                top_k: parseInt(topKInput.value),
-                repeat_penalty: parseFloat(repeatPenaltyInput.value)
+                top_p: parseFloat(topPInput.value)
             }
         };
         console.log('Saving updated style:', updatedStyle);
@@ -100,24 +92,23 @@ document.addEventListener('DOMContentLoaded', () => {
     ipcRenderer.on('style-data', (event, style) => {
         console.log('Received style data:', style);
         currentStyle = style;
-        nameInput.value = style.name;
-        descriptionInput.value = style.description || '';
-        promptInput.value = style.prefix || '';
-        currentIconBtn.innerHTML = `<i class="fas fa-${style.icon}"></i>`;
 
-        // Ustaw wartości parametrów modelu
+        // Wypełnij formularz danymi
+        nameInput.value = style.name || '';
+        descriptionInput.value = style.description || '';
+        promptInput.value = style.template || '';
+        
+        // Ustaw ikonę
+        if (style.icon) {
+            currentIconBtn.innerHTML = `<i class="fas fa-${style.icon}"></i>`;
+        }
+
+        // Ustaw parametry modelu
         if (style.modelParameters) {
             temperatureInput.value = style.modelParameters.temperature || 0.7;
             temperatureValue.textContent = temperatureInput.value;
-            
             topPInput.value = style.modelParameters.top_p || 0.9;
             topPValue.textContent = topPInput.value;
-            
-            topKInput.value = style.modelParameters.top_k || 40;
-            topKValue.textContent = topKInput.value;
-            
-            repeatPenaltyInput.value = style.modelParameters.repeat_penalty || 1.1;
-            repeatPenaltyValue.textContent = repeatPenaltyInput.value;
         }
     });
 });

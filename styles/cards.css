@@ -162,6 +162,117 @@
     position: relative;
     overflow: hidden;
     min-height: 400px;
+    transform: translateY(0);
+    transition: all 0.3s ease;
+    box-shadow:
+        0 4px 6px -1px rgba(0, 0, 0, 0.1),
+        0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
+
+.style-card::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+        160deg,
+        transparent 0%,
+        rgba(var(--theme-color-rgb), 0.05) 100%
+    );
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+}
+
+.style-card:hover {
+    transform: translateY(-8px);
+    box-shadow:
+        0 20px 25px -5px rgba(0, 0, 0, 0.2),
+        0 10px 10px -5px rgba(0, 0, 0, 0.1);
+    border-color: var(--theme-color);
+}
+
+.style-card:hover::after {
+    opacity: 1;
+}
+
+.style-card .style-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.style-card .style-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.style-card .style-title i {
+    font-size: 16px;
+    color: var(--theme-color);
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.style-card .style-name {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text);
+    margin: 0;
+}
+
+/* Ensure proper interaction */
+.style-card .style-header,
+.style-card .prompt-container,
+.style-card .prompt-text,
+.style-card .prompt-actions,
+.style-card button,
+.style-card input {
+    position: relative;
+    z-index: 1;
+}
+
+.style-card-controls {
+    position: relative;
+    z-index: 2;
+}
+
+.style-card:hover::before {
+    opacity: 1;
+}
+
+/* Enhanced interactivity */
+.style-card {
+    transform-origin: center bottom;
+}
+
+.style-card .style-header {
+    transition: transform 0.3s ease;
+}
+
+.style-card:hover .style-header {
+    transform: translateY(-2px);
+}
+
+.style-card button,
+.style-card .action-btn,
+.style-card .favorite-btn,
+.style-card input[type="checkbox"] {
+    transition: transform 0.2s ease;
+}
+
+.style-card button:hover,
+.style-card .action-btn:hover,
+.style-card .favorite-btn:hover {
+    transform: translateY(-1px);
+}
+
+.style-card input[type="checkbox"]:hover {
+    transform: scale(1.05);
 }
 
 .style-card input[type="checkbox"] {
@@ -250,98 +361,79 @@
     gap: 10px;
     padding: 0 10px;
     margin-top: auto;
+    position: relative;
+    z-index: 3;
+    isolation: isolate;
 }
 
 .style-card .action-btn {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 16px;
-    background: transparent;
-    border: none;
-    border-radius: 8px;
-    color: var(--text-secondary);
-    cursor: pointer;
-    transition: all 0.2s ease;
-    font-size: 14px;
+    position: relative;
+    z-index: 3;
 }
 
-.draw-things-btn {
-    background: rgba(147, 51, 234, 0.2) !important;
-    color: rgb(216, 180, 254) !important;
+/* Ensure proper layering in style cards */
+.style-card {
+    isolation: isolate;
+    position: relative;
+    z-index: 1;
 }
 
-.draw-things-btn:hover {
-    background: rgba(147, 51, 234, 0.3) !important;
+.style-card .button-group,
+.style-card .action-btn,
+.style-card .style-header {
+    position: relative;
+    z-index: 3;
 }
 
-.draw-things-btn span {
-    background: linear-gradient(90deg, #f0abfc, #c084fc);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
+.style-card .prompt-container {
+    position: relative;
+    z-index: 2;
+    isolation: isolate;
 }
 
-.style-card.generating::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(90deg,
-        transparent,
-        rgba(255, 255, 255, 0.1),
-        transparent
-    );
-    transform: translateX(-100%);
-    animation: shimmer 2s infinite;
+.style-card .prompt-text {
+    position: relative;
+    z-index: 1;
+    pointer-events: auto;
 }
 
-.style-card-title-container {
-    display: flex;
-    align-items: center;
-    gap: 10px;
+.style-card .prompt-output {
+    position: relative;
+    z-index: 1;
 }
 
-.favorite-btn {
-    background: none;
-    border: none;
-    color: var(--text-secondary);
-    cursor: pointer;
-    padding: 4px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s ease;
-    border-radius: 4px;
-}
-
-.favorite-btn:hover {
-    background: rgba(255, 255, 255, 0.1);
-}
-
-.favorite-btn.active {
-    color: #ffd700;
-}
-
-.favorite-btn.active:hover {
-    color: #ffc800;
-}
-
-/* Prompt container styles */
-.prompt-container {
+.style-card .prompt-container {
     position: relative;
     flex: 1;
     min-height: 100px;
     max-height: 400px;
-    overflow: hidden;
+    overflow: visible;
     margin: 10px 0;
+    pointer-events: auto;
+}
+
+.style-card .prompt-container > * {
+    pointer-events: auto;
+}
+
+.style-card .prompt-text {
+    position: relative;
+    z-index: 1;
+    pointer-events: auto;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+    user-select: text;
 }
 
 .prompt-text {
     font-family: var(--font-mono);
     font-size: 14px;
-    line-height: 1;
+    line-height: 1.6;
     color: var(--text);
     background: var(--card-background-secondary);
     border-radius: 8px;
+    padding: 15px;
     overflow-y: auto;
     height: 100%;
     min-height: 100px;
@@ -349,11 +441,11 @@
     white-space: normal;
     word-break: break-word;
     mask-image: linear-gradient(to bottom, 
-        black calc(100% - 40px),
+        black calc(100% - 32px),
         transparent 100%
     );
     -webkit-mask-image: linear-gradient(to bottom, 
-        black calc(100% - 40px),
+        black calc(100% - 32px),
         transparent 100%
     );
 }
@@ -373,6 +465,16 @@
 
 .prompt-text::-webkit-scrollbar-thumb:hover {
     background: rgba(255, 255, 255, 0.2);
+}
+
+.style-card .prompt-text {
+    position: relative;
+    z-index: 1;
+    pointer-events: auto !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+    user-select: text;
 }
 
 .prompt-text.error {
