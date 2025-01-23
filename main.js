@@ -2262,105 +2262,196 @@ ipcMain.on('refresh-styles-list', () => {
     }
 });
 
-// Funkcja do czyszczenia promptu przez Ollama
-async function cleanPrompt(prompt) {
-    try {
-        const cleaningSystemPrompt = `You are a prompt cleaner. Your ONLY task is to remove any introductory phrases and output a clean prompt.
-
-REMOVE all variations of these phrases from the start of the prompt:
-- "Stable Diffusion prompt for/of"
-- "A prompt for/of"
-- "An image of/showing"
-- "Create/Generate/Make/Design"
-- "Picture/Illustration/Visualization of"
-- "In the style of"
-- "This image shows/depicts"
-- "This prompt creates/generates"
-
-Rules:
-1. Start DIRECTLY with the subject/content
-2. Keep all style descriptions and details
-3. Maintain the original artistic intent
-4. Do not add any new phrases or words
-5. Do not explain or add metadata
-
-Example input: "Stable Diffusion prompt for a serene landscape with mountains"
-Correct output: "serene landscape with mountains"
-
-Example input: "Create an image of a portrait in cyberpunk style"
-Correct output: "portrait in cyberpunk style"
-
-Clean this prompt by removing any introductory phrases: "${prompt}"
-Output ONLY the cleaned prompt.`;
-
-        const response = await ollama.generate({
-            model: "mistral",
-            prompt: cleaningSystemPrompt,
-            stream: false
-        });
-
-        return response.response.trim();
-    } catch (error) {
-        console.error('Error cleaning prompt:', error);
-        throw error;
-    }
-}
-
-// Główna funkcja generowania promptu
+// Generate prompt
 async function generatePrompt(prompt, style) {
     try {
         const systemInstructions = style.systemInstructions || defaultSystemInstructions;
         
-        // Pierwszy etap - generowanie promptu
-        const generationPrompt = `You are transforming prompts to match a specific style: "${style.description}".
-Your task is to enhance the prompt while maintaining its core intent.
+        // Przygotuj kontekst dla modelu
+        const messages = [
+            {
+                role: "system",
+                content: `You are transforming prompts to match a specific style. Your ONLY task is to output the transformed prompt.
 
-Style elements to include:
-- ${style.description} characteristics
-- Unique style elements
-- Consistent style application
+CRITICAL RULES - VIOLATIONS WILL RESULT IN REJECTION:
+1. DO NOT start with ANY of these phrases (including variations):
+   - "Stable Diffusion prompt..."
+   - "A prompt..."
+   - "An image..."
+   - "Create..."
+   - "Generate..."
+   - "Make..."
+   - "Produce..."
+   - "Design..."
+   - "In the style of..."
+   - "Using the style of..."
+   - "With the style of..."
+   - "This is a..."
+   - "This will be..."
+   - "Prompt:"
+   - "Output:"
+   - "Result:"
+2. Output ONLY the transformed prompt
+3. NO explanations, descriptions, or metadata
+4. NO quotes or special characters at start/end
+5. NO phrases like "in this image" or "this prompt"
 
-${systemInstructions}
+Style to match: "${style.description}"
+${systemInstructions}`
+            },
+            {
+                role: "user",
+                content: `Transform: "${prompt}". Remember - output ONLY the transformed prompt, starting directly with the content.`
+            }
+        ];
 
-Transform this prompt: "${prompt}"`;
+        // Dla custom styli dodaj przykłady
+        if (style.custom) {
+            messages.splice(1, 0, {
+                role: "system",
+                content: `Examples of CORRECT and INCORRECT outputs:
 
-        const completion = await ollama.generate({
-            model: "mistral",
-            prompt: generationPrompt,
-            stream: false
-        });
+❌ WRONG: "Stable Diffusion prompt for a landscape"
+❌ WRONG: "An image of a landscape"
+❌ WRONG: "Create a landscape"
+❌ WRONG: "This prompt shows a landscape"
+❌ WRONG: "In the style of ${style.description}, a landscape"
+✅ CORRECT: "majestic mountain landscape, ${style.description}, dramatic lighting"
 
-        const generatedPrompt = completion.response.trim();
+❌ WRONG: "A prompt for a portrait"
+❌ WRONG: "Generate a portrait"
+❌ WRONG: "This image depicts a portrait"
+✅ CORRECT: "elegant portrait, ${style.description}, detailed features"
 
-        // Sprawdź czy prompt wymaga czyszczenia
-        const needsCleaning = /^(stable diffusion prompt|a prompt|an image|create|generate|picture|illustration|visualization|in the style of|this image|this prompt)/i.test(generatedPrompt);
-
-        if (needsCleaning) {
-            console.log('Prompt needs cleaning:', generatedPrompt);
-            const cleanedPrompt = await cleanPrompt(generatedPrompt);
-            console.log('Cleaned prompt:', cleanedPrompt);
-            return {
-                prompt: cleanedPrompt,
-                needsCleaning: true
-            };
+Your output must follow the CORRECT format. Start directly with the content.`
+            });
         }
 
-        return {
-            prompt: generatedPrompt,
-            needsCleaning: false
-        };
+        const completion = await openai.chat.completions.create({
+            model: "gpt-3.5-turbo",
+            messages: messages,
+            max_tokens: 500,
+            temperature: 0.7,
+            presence_penalty: 0.1,
+            frequency_penalty: 0.1
+        });
+
+        let generatedPrompt = completion.choices[0].message.content;
+
+        // Lista zabronionych fraz - rozszerzona
+        const phrasesToRemove = [
+            "stable diffusion prompt for",
+            "stable diffusion prompt of",
+            "a prompt for",
+            "a prompt of",
+            "an image of",
+            "generate an image of",
+            "create an image of",
+            "a picture of",
+            "an illustration of",
+            "a rendering of",
+            "a visualization of",
+            "this image shows",
+            "this prompt creates",
+            "this prompt generates",
+            "this image depicts",
+            "this picture shows",
+            "in this image",
+            "in this prompt",
+            "the image shows",
+            "the prompt creates",
+            "generate a",
+            "create a",
+            "make a",
+            "produce a",
+            "design a",
+            "in the style of",
+            "using the style of",
+            "with the style of",
+            "this is a",
+            "this will be",
+            "prompt:",
+            "output:",
+            "result:"
+        ];
+
+        // Usuń wszystkie zabronione frazy z początku (case insensitive)
+        phrasesToRemove.forEach(phrase => {
+            const regex = new RegExp(`^${phrase}\\s*`, 'i');
+            while (regex.test(generatedPrompt)) {
+                generatedPrompt = generatedPrompt.replace(regex, '');
+            }
+        });
+
+        // Usuń cudzysłowy i inne znaki specjalne z początku i końca
+        generatedPrompt = generatedPrompt.replace(/^["'`]|["'`]$/g, '');
+        
+        // Usuń wielokrotne spacje
+        generatedPrompt = generatedPrompt.replace(/\s+/g, ' ');
+
+        // Jeśli prompt nadal zaczyna się od zabronionej frazy, spróbuj jeszcze raz
+        const hasUnwantedStart = phrasesToRemove.some(phrase => 
+            generatedPrompt.toLowerCase().startsWith(phrase)
+        );
+
+        if (hasUnwantedStart) {
+            // Rekurencyjne wywołanie z dodatkowym ostrzeżeniem
+            messages.unshift({
+                role: "system",
+                content: "WARNING: Previous output was incorrect. Remember to start DIRECTLY with the content, without any introductory phrases."
+            });
+            return generatePrompt(prompt, style);
+        }
+
+        return generatedPrompt.trim();
     } catch (error) {
         console.error('Error generating prompt:', error);
         throw error;
     }
 }
 
-// Rejestracja handlera IPC
-ipcMain.handle('generate-prompt', async (event, { prompt, style }) => {
+// Add post-processing handler
+ipcMain.handle('post-process-prompt', async (event, { prompt, negativeWords }) => {
     try {
-        return await generatePrompt(prompt, style);
+        const systemMessage = `You are a prompt refiner. Your task is to modify the given prompt by removing or rephrasing parts that contain any of the specified negative words/phrases, while maintaining the overall meaning and style of the prompt. The output should be a coherent, flowing prompt without the negative elements.
+
+Rules:
+1. Remove or rephrase parts containing the negative words/phrases
+2. Maintain the overall meaning and style
+3. Keep the output concise and natural
+4. Return ONLY the modified prompt, without any explanations
+
+Example:
+Input prompt: "beautiful landscape with mountains and ugly rocks in the foreground"
+Negative words: ["ugly"]
+Output: "beautiful landscape with mountains and weathered rocks in the foreground"`;
+
+        const messages = [
+            { role: "system", content: systemMessage },
+            { role: "user", content: `Prompt: "${prompt}"
+Negative words/phrases: ${JSON.stringify(negativeWords)}` }
+        ];
+
+        const response = await fetch('http://127.0.0.1:11434/api/chat', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                model: currentModel,
+                messages: messages,
+                stream: false
+            })
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to post-process prompt');
+        }
+
+        const data = await response.json();
+        return data.message.content.trim();
     } catch (error) {
-        console.error('Error in generate-prompt handler:', error);
+        console.error('Error in post-processing:', error);
         throw error;
     }
 });

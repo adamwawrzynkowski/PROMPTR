@@ -19,7 +19,7 @@ let markedWords = {
     negative: new Set()
 };
 
-// Flaga do śledzenia stanu generowania
+// Flaga do blokowania równoległych generacji sekwencyjnych
 let isSequentialGenerationInProgress = false;
 
 // Funkcja do zarządzania historią promptów
@@ -679,7 +679,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
         await loadStyles();
         initializeWindowControls();
-        initializeButtons(); // Dodanie inicjalizacji przycisków
+        initializeButtons();
         initializePromptInput(); // Dodaj inicjalizację pola promptu
         initializeTheme();
         
@@ -861,7 +861,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
         await loadStyles();
         initializeWindowControls();
-        initializeButtons(); // Dodanie inicjalizacji przycisków
+        initializeButtons();
         initializePromptInput(); // Dodaj inicjalizację pola promptu
         initializeTheme();
         
@@ -1043,7 +1043,189 @@ document.addEventListener('DOMContentLoaded', async () => {
     try {
         await loadStyles();
         initializeWindowControls();
-        initializeButtons(); // Dodanie inicjalizacji przycisków
+        initializeButtons();
+        initializePromptInput(); // Dodaj inicjalizację pola promptu
+        initializeTheme();
+        
+        // Initialize switch functionality
+        const switchBtns = document.querySelectorAll('.switch-btn');
+        switchBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const view = btn.dataset.view;
+                toggleStylesView(view);
+            });
+        });
+
+        // Initialize with active view
+        toggleStylesView('active');
+        updateStyleCounts();
+        updateGeneratePromptsButton();
+        
+    } catch (error) {
+        console.error('Error during initialization:', error);
+        showToast('Error initializing application');
+    }
+});
+
+// Funkcja do ładowania stylów
+async function loadStyles() {
+    try {
+        const styles = await ipcRenderer.invoke('get-styles');
+        console.log('Loaded styles:', styles);
+        
+        const stylesList = document.querySelector('.styles-list');
+        if (!stylesList) {
+            console.error('Styles list container not found');
+            return;
+        }
+
+        stylesList.innerHTML = '';
+
+        styles.forEach(style => {
+            const card = createStyleCard(style);
+            stylesList.appendChild(card);
+        });
+        
+        // Get current view
+        const currentView = document.querySelector('.switch-btn.active')?.dataset?.view || 'active';
+        
+        // Apply initial filtering
+        toggleStylesView(currentView);
+        
+        updateStyleCounts();
+        updateGeneratePromptsButton();
+    } catch (error) {
+        console.error('Error loading styles:', error);
+        showToast('Error loading styles');
+    }
+}
+
+// Funkcja do aktualizacji promptu w karcie stylu
+function updateStylePrompt(styleId, prompt) {
+    const card = document.querySelector(`.style-card[data-style-id="${styleId}"]`);
+    if (!card) return;
+
+    const promptText = card.querySelector('.prompt-text');
+    const drawBtn = card.querySelector('.draw-btn');
+    
+    if (promptText) {
+        promptText.textContent = prompt || 'Click Generate to create a prompt...';
+        
+        // Update button states
+        const hasPrompt = prompt && prompt.trim() !== '' && prompt !== 'Click Generate to create a prompt...';
+        
+        if (drawBtn) {
+            drawBtn.disabled = !hasPrompt;
+            drawBtn.classList.toggle('disabled', !hasPrompt);
+        }
+    }
+}
+
+// Funkcja do kopiowania promptu
+function copyStylePrompt(styleId) {
+    const card = document.querySelector(`[data-style-id="${styleId}"]`);
+    if (!card) return;
+    
+    const promptText = card.querySelector('.prompt-text');
+    if (promptText && promptText.textContent && promptText.textContent !== 'Click Generate to create a prompt...') {
+        navigator.clipboard.writeText(promptText.textContent);
+        showToast('Prompt copied to clipboard');
+    } else {
+        showToast('No prompt to copy');
+    }
+}
+
+// Funkcja do wysyłania do Draw Things
+async function sendToDrawThings(styleId) {
+    try {
+        const card = document.querySelector(`.style-card[data-style-id="${styleId}"]`);
+        if (!card) return;
+
+        const promptText = card.querySelector('.prompt-text');
+        const drawBtn = card.querySelector('.draw-btn');
+        
+        if (!promptText || !drawBtn) return;
+        
+        const prompt = promptText.textContent.trim();
+        if (!prompt || prompt === 'Click Generate to create a prompt...') {
+            showToast('No prompt to send to Draw Things');
+            return;
+        }
+
+        // Disable button and show loading state
+        drawBtn.disabled = true;
+        drawBtn.classList.add('disabled');
+        const originalContent = drawBtn.innerHTML;
+        drawBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Sending...';
+
+        try {
+            // Check Draw Things connection first
+            const isConnected = await ipcRenderer.invoke('check-draw-things-connection');
+            if (!isConnected) {
+                throw new Error('Draw Things is not connected. Please check if the app is running and API Server is enabled.');
+            }
+
+            // Send prompt to Draw Things
+            await ipcRenderer.invoke('send-to-draw-things', prompt);
+            showToast('Successfully sent to Draw Things! ');
+        } catch (error) {
+            console.error('Error sending to Draw Things:', error);
+            showToast(`Error: ${error.message}`);
+        } finally {
+            // Restore button state
+            drawBtn.disabled = false;
+            drawBtn.classList.remove('disabled');
+            drawBtn.innerHTML = originalContent;
+        }
+    } catch (error) {
+        console.error('Error in sendToDrawThings:', error);
+        showToast('An unexpected error occurred');
+    }
+}
+
+// Funkcja do sprawdzania połączenia z Draw Things
+async function checkDrawThingsConnection() {
+    try {
+        return await ipcRenderer.invoke('check-draw-things');
+    } catch (error) {
+        console.error('Error checking Draw Things connection:', error);
+        return false;
+    }
+}
+
+// Funkcja do zapisywania stanu stylu
+async function saveStyleState(styleId, active) {
+    try {
+        await ipcRenderer.invoke('save-style-state', { styleId, active });
+    } catch (error) {
+        console.error('Error saving style state:', error);
+    }
+}
+
+// Funkcja do wyświetlania powiadomień
+function showToast(message) {
+    const toast = document.createElement('div');
+    toast.className = 'toast';
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    
+    setTimeout(() => {
+        toast.classList.add('show');
+        setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => toast.remove(), 300);
+        }, 2000);
+    }, 100);
+}
+
+// Usuń poprzednie nasłuchiwacze DOMContentLoaded i zastąp jednym głównym
+document.addEventListener('DOMContentLoaded', async () => {
+    console.log('DOM Content Loaded - Initializing application...');
+
+    try {
+        await loadStyles();
+        initializeWindowControls();
+        initializeButtons();
         initializePromptInput(); // Dodaj inicjalizację pola promptu
         initializeTheme();
         
@@ -1228,27 +1410,28 @@ document.addEventListener('DOMContentLoaded', async () => {
     const historyCloseBtn = document.querySelector('.history-close');
     const historyClearBtn = document.querySelector('.history-clear-all');
 
-    console.log('History elements:', { 
-        historyBtn: !!historyBtn, 
-        historyPanel: !!historyPanel, 
-        historyCloseBtn: !!historyCloseBtn,
-        historyClearBtn: !!historyClearBtn 
-    });
-
     if (historyBtn && historyPanel && historyCloseBtn && historyClearBtn) {
-        historyBtn.addEventListener('click', () => {
-            console.log('History button clicked');
+        // Remove any existing event listeners
+        historyBtn.replaceWith(historyBtn.cloneNode(true));
+        historyCloseBtn.replaceWith(historyCloseBtn.cloneNode(true));
+        historyClearBtn.replaceWith(historyClearBtn.cloneNode(true));
+
+        // Re-get elements after replacing
+        const newHistoryBtn = document.getElementById('history-btn');
+        const newHistoryCloseBtn = document.querySelector('.history-close');
+        const newHistoryClearBtn = document.querySelector('.history-clear-all');
+
+        // Add event listeners
+        newHistoryBtn.addEventListener('click', () => {
             historyPanel.classList.toggle('open');
             updateHistoryPanelContent();
         });
 
-        historyCloseBtn.addEventListener('click', () => {
-            console.log('History close button clicked');
+        newHistoryCloseBtn.addEventListener('click', () => {
             historyPanel.classList.remove('open');
         });
 
-        historyClearBtn.addEventListener('click', () => {
-            console.log('History clear button clicked');
+        newHistoryClearBtn.addEventListener('click', () => {
             clearAllHistory();
         });
     }
@@ -1335,17 +1518,17 @@ function initializeButtons() {
                 }
 
                 // Disable button and show loading state
-                generatePromptsBtn.disabled = true;
                 generatePromptsBtn.classList.add('loading');
                 try {
                     await generatePromptsSequentially(text, currentView);
                 } finally {
-                    generatePromptsBtn.disabled = false;
                     generatePromptsBtn.classList.remove('loading');
                 }
             } catch (error) {
                 console.error('Error generating prompts:', error);
                 showToast('Error generating prompts: ' + error.message);
+            } finally {
+                updateGeneratePromptsButton();
             }
         });
 
@@ -1600,6 +1783,12 @@ async function generatePromptsSequentially(basePrompt, view = 'active') {
     }
 
     isSequentialGenerationInProgress = true;
+    const generateBtn = document.getElementById('generatePrompts');
+    if (generateBtn) {
+        generateBtn.disabled = true;
+        generateBtn.classList.add('loading');
+        generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
+    }
 
     try {
         // Get current view from active switch button
@@ -1669,12 +1858,6 @@ async function generatePromptsSequentially(basePrompt, view = 'active') {
                 });
 
                 if (result && result.prompt) {
-                    if (result.needsCleaning) {
-                        console.log('Cleaning prompt...');
-                        loadingContainer.innerHTML = '<div class="loading-animation"><i class="fas fa-spinner fa-spin"></i> Finishing...</div>';
-                        await new Promise(resolve => setTimeout(resolve, 1000));
-                    }
-
                     loadingContainer.style.display = 'none';
                     promptContainer.style.display = 'block';
                     promptDisplay.style.display = 'block';
@@ -1697,6 +1880,12 @@ async function generatePromptsSequentially(basePrompt, view = 'active') {
         }
     } finally {
         isSequentialGenerationInProgress = false;
+        const generateBtn = document.getElementById('generatePrompts');
+        if (generateBtn) {
+            generateBtn.disabled = false;
+            generateBtn.classList.remove('loading');
+            generateBtn.innerHTML = 'Generate All';
+        }
     }
 }
 
@@ -1762,7 +1951,7 @@ function updateGeneratePromptsButton() {
         // Count only visible cards based on current view
         const visibleCards = Array.from(document.querySelectorAll('.style-card')).filter(card => {
             const isActive = localStorage.getItem(`style_${card.dataset.styleId}_active`) === 'true';
-            const isFavorite = localStorage.getItem(`style_${card.dataset.styleId}_favorite`) === 'true';
+            const isFavorite = card.dataset.favorite === 'true' || localStorage.getItem(`style_${card.dataset.styleId}_favorite`) === 'true';
             
             if (currentView === 'active') return isActive;
             if (currentView === 'inactive') return !isActive;
@@ -1867,6 +2056,93 @@ ipcRenderer.on('ollama-status', (event, isConnected) => {
     }
 });
 
+// Funkcja do generowania promptu (współdzielona)
+async function generateStyledPrompt(prompt, style) {
+    try {
+        const generatedPrompt = await ipcRenderer.invoke('generate-prompt', {
+            prompt: prompt,
+            style: style
+        });
+
+        // Aktualizuj wyświetlany prompt w karcie stylu
+        const styleCard = document.querySelector(`[data-style-id="${style.id}"]`);
+        if (styleCard) {
+            const promptDisplay = styleCard.querySelector('.style-prompt');
+            if (promptDisplay) {
+                promptDisplay.textContent = generatedPrompt;
+                
+                // Dodaj klasę dla animacji
+                promptDisplay.classList.add('prompt-updated');
+                setTimeout(() => {
+                    promptDisplay.classList.remove('prompt-updated');
+                }, 1000);
+
+                // Jeśli są słowa oznaczone jako negatywne, rozpocznij post-processing
+                if (markedWords.negative.size > 0) {
+                    // Pokaż animację "Finishing..."
+                    showLoadingAnimation(promptDisplay, 'Finishing...');
+
+                    // Wyślij prompt do post-processingu przez model LLM
+                    try {
+                        const processedPrompt = await ipcRenderer.invoke('post-process-prompt', {
+                            prompt: generatedPrompt,
+                            negativeWords: Array.from(markedWords.negative)
+                        });
+
+                        // Aktualizuj wyświetlany prompt
+                        promptDisplay.textContent = processedPrompt;
+                        
+                        // Usuń animację ładowania
+                        removeLoadingAnimation(promptDisplay);
+                        
+                        // Dodaj animację ukończenia
+                        promptDisplay.classList.add('prompt-updated');
+                        setTimeout(() => {
+                            promptDisplay.classList.remove('prompt-updated');
+                        }, 1000);
+
+                        return processedPrompt;
+                    } catch (error) {
+                        console.error('Error during post-processing:', error);
+                        removeLoadingAnimation(promptDisplay);
+                        throw error;
+                    }
+                }
+            }
+        }
+
+        return generatedPrompt;
+    } catch (error) {
+        console.error('Error generating prompt:', error);
+        throw error;
+    }
+}
+
+// Initialize history panel functionality
+document.addEventListener('DOMContentLoaded', () => {
+    const historyBtn = document.getElementById('history-btn');
+    const historyPanel = document.querySelector('.history-panel');
+    const historyCloseBtn = document.querySelector('.history-close');
+    const historyClearBtn = document.querySelector('.history-clear-all');
+
+    if (historyBtn && historyPanel) {
+        historyBtn.addEventListener('click', () => {
+            historyPanel.classList.toggle('open');
+            updateHistoryPanelContent();
+        });
+
+        historyCloseBtn.addEventListener('click', () => {
+            historyPanel.classList.remove('open');
+        });
+
+        historyClearBtn.addEventListener('click', () => {
+            localStorage.setItem('promptHistory', '[]');
+            updateHistoryPanelContent();
+            showToast('History cleared');
+        });
+    }
+});
+
 // Funkcja do aktualizacji zawartości panelu historii
 function updateHistoryPanelContent() {
     const historyContent = document.querySelector('.history-content');
@@ -1931,7 +2207,7 @@ async function copyToClipboard(text) {
         showToast('Copied to clipboard!');
     } catch (err) {
         console.error('Failed to copy text: ', err);
-        showToast('Failed to copy to clipboard');
+        showToast('Failed to copy text');
     }
 }
 
@@ -2351,19 +2627,36 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // Funkcja do wyświetlania animacji ładowania
 function showLoadingAnimation(container, text) {
-    container.innerHTML = `
-        <div class="loading-animation">
-            <i class="fas fa-spinner fa-spin"></i>
-            <span>${text}</span>
-        </div>
+    // Preserve the original content
+    const originalContent = container.textContent;
+    container.setAttribute('data-original-content', originalContent);
+    
+    // Clear the container
+    container.textContent = '';
+
+    // Create new loading animation
+    const loadingAnimation = document.createElement('div');
+    loadingAnimation.className = 'loading-animation';
+    loadingAnimation.innerHTML = `
+        <i class="fas fa-spinner fa-spin"></i>
+        <span class="loading-text">${text}</span>
     `;
+    container.appendChild(loadingAnimation);
+    container.classList.add('loading');
 }
 
 // Funkcja do usuwania animacji ładowania
 function removeLoadingAnimation(container) {
     const loadingAnimation = container.querySelector('.loading-animation');
     if (loadingAnimation) {
+        // Restore the original content
+        const originalContent = container.getAttribute('data-original-content');
+        container.classList.remove('loading');
         loadingAnimation.remove();
+        if (originalContent) {
+            container.textContent = originalContent;
+            container.removeAttribute('data-original-content');
+        }
     }
 }
 
@@ -2470,7 +2763,7 @@ function initializeWordMarking() {
     });
 
     // Close context menu when clicking outside
-    document.addEventListener('click', () => {
+    document.addEventListener('click', (e) => {
         if (!e.target.closest('.word-context-menu')) {
             contextMenu.style.display = 'none';
         }
@@ -2481,62 +2774,18 @@ function initializeWordMarking() {
         markedWordsPanel.classList.remove('visible');
     });
 
-    // Initialize copy and clear prompt buttons
-    const copyPromptBtn = document.getElementById('copyPromptBtn');
-    if (copyPromptBtn) {
-        copyPromptBtn.addEventListener('click', () => {
-            const promptInput = document.getElementById('promptInput');
-            if (promptInput && promptInput.value.trim()) {
-                navigator.clipboard.writeText(promptInput.value);
-                showToast('Prompt copied to clipboard');
-            } else {
-                showToast('Nothing to copy');
-            }
-        });
-    }
+    // Show marked words panel button
+    const showMarkedWordsBtn = document.createElement('button');
+    showMarkedWordsBtn.className = 'tool-button';
+    showMarkedWordsBtn.title = 'Show Marked Words';
+    showMarkedWordsBtn.innerHTML = '<i class="fas fa-tags"></i><span>Marked Words</span>';
+    showMarkedWordsBtn.onclick = () => {
+        markedWordsPanel.classList.toggle('visible');
+        updateMarkedWordsList();
+    };
 
-    const clearPromptBtn = document.getElementById('clearPromptBtn');
-    if (clearPromptBtn) {
-        clearPromptBtn.addEventListener('click', () => {
-            const promptInput = document.getElementById('promptInput');
-            promptInput.value = '';
-            // Trigger the input event to update tags
-            promptInput.dispatchEvent(new Event('input'));
-            showToast('Prompt cleared');
-        });
-    }
-
-    // Initialize coffee button
-    const coffeeButton = document.querySelector('.coffee-button');
-    if (coffeeButton) {
-        coffeeButton.addEventListener('click', () => {
-            ipcRenderer.invoke('open-external', 'https://buymeacoffee.com/a_wawrzynkowski');
-        });
-    }
-
-    // Initialize info button
-    const infoButton = document.querySelector('.info-button');
-    if (infoButton) {
-        infoButton.addEventListener('click', () => {
-            ipcRenderer.send('open-credits');
-        });
-    }
-
-    // Initialize history button
-    const historyBtn = document.getElementById('history-btn');
-    const historyPanel = document.querySelector('.history-panel');
-    const historyCloseBtn = document.querySelector('.history-close');
-
-    if (historyBtn && historyPanel && historyCloseBtn) {
-        historyBtn.addEventListener('click', () => {
-            historyPanel.classList.toggle('open');
-            updateHistoryPanelContent();
-        });
-
-        historyCloseBtn.addEventListener('click', () => {
-            historyPanel.classList.remove('open');
-        });
-    }
+    // Add button to tools
+    document.querySelector('.input-buttons').appendChild(showMarkedWordsBtn);
 }
 
 // Function to mark/unmark a word
@@ -2738,132 +2987,62 @@ function updateStylesList(styles) {
 // Funkcja do generowania promptu (współdzielona)
 async function generateStyledPrompt(prompt, style) {
     try {
-        const styleCard = document.querySelector(`[data-style-id="${style.id}"]`);
-        if (!styleCard) {
-            throw new Error('Style card not found');
-        }
-
-        const promptDisplay = styleCard.querySelector('.style-prompt');
-        const loadingContainer = styleCard.querySelector('.generating-container');
-        
-        if (!promptDisplay || !loadingContainer) {
-            throw new Error('Required elements not found');
-        }
-
-        // Pierwszy etap - generowanie
-        promptDisplay.style.display = 'none';
-        loadingContainer.style.display = 'flex';
-        loadingContainer.innerHTML = '<div class="loading-animation"><i class="fas fa-spinner fa-spin"></i> Generating...</div>';
-
-        const result = await ipcRenderer.invoke('generate-prompt', {
+        const generatedPrompt = await ipcRenderer.invoke('generate-prompt', {
             prompt: prompt,
             style: style
         });
 
-        // Drugi etap - czyszczenie
-        if (result.needsCleaning) {
-            console.log('Cleaning prompt...');
-            loadingContainer.innerHTML = '<div class="loading-animation"><i class="fas fa-spinner fa-spin"></i> Finishing...</div>';
-            await new Promise(resolve => setTimeout(resolve, 1000));
+        // Aktualizuj wyświetlany prompt w karcie stylu
+        const styleCard = document.querySelector(`[data-style-id="${style.id}"]`);
+        if (styleCard) {
+            const promptDisplay = styleCard.querySelector('.style-prompt');
+            if (promptDisplay) {
+                promptDisplay.textContent = generatedPrompt;
+                
+                // Dodaj klasę dla animacji
+                promptDisplay.classList.add('prompt-updated');
+                setTimeout(() => {
+                    promptDisplay.classList.remove('prompt-updated');
+                }, 1000);
+
+                // Jeśli są słowa oznaczone jako negatywne, rozpocznij post-processing
+                if (markedWords.negative.size > 0) {
+                    // Pokaż animację "Finishing..."
+                    showLoadingAnimation(promptDisplay, 'Finishing...');
+
+                    // Wyślij prompt do post-processingu przez model LLM
+                    try {
+                        const processedPrompt = await ipcRenderer.invoke('post-process-prompt', {
+                            prompt: generatedPrompt,
+                            negativeWords: Array.from(markedWords.negative)
+                        });
+
+                        // Aktualizuj wyświetlany prompt
+                        promptDisplay.textContent = processedPrompt;
+                        
+                        // Usuń animację ładowania
+                        removeLoadingAnimation(promptDisplay);
+                        
+                        // Dodaj animację ukończenia
+                        promptDisplay.classList.add('prompt-updated');
+                        setTimeout(() => {
+                            promptDisplay.classList.remove('prompt-updated');
+                        }, 1000);
+
+                        return processedPrompt;
+                    } catch (error) {
+                        console.error('Error during post-processing:', error);
+                        removeLoadingAnimation(promptDisplay);
+                        throw error;
+                    }
+                }
+            }
         }
 
-        // Pokazanie wyniku
-        loadingContainer.style.display = 'none';
-        promptDisplay.style.display = 'block';
-        promptDisplay.textContent = result.prompt;
-        
-        // Dodaj klasę dla animacji
-        promptDisplay.classList.add('prompt-updated');
-        setTimeout(() => {
-            promptDisplay.classList.remove('prompt-updated');
-        }, 1000);
-
-        return result.prompt;
+        return generatedPrompt;
     } catch (error) {
         console.error('Error generating prompt:', error);
         throw error;
-    }
-}
-
-// Sequential Generate
-async function sequentialGenerate() {
-    const promptInput = document.getElementById('prompt-input');
-    const prompt = promptInput.value.trim();
-    
-    if (!prompt) {
-        showNotification('Please enter a prompt first', 'warning');
-        return;
-    }
-
-    const styles = await ipcRenderer.invoke('get-styles');
-    const results = document.getElementById('results');
-    results.innerHTML = ''; // Clear previous results
-
-    const generateButton = document.getElementById('generate-prompts-btn');
-    if (!generateButton) return;
-
-    const originalButtonText = generateButton.innerHTML;
-    generateButton.disabled = true;
-    generateButton.classList.add('loading');
-    generateButton.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
-
-    try {
-        for (const style of styles) {
-            const resultDiv = document.createElement('div');
-            resultDiv.className = 'result-item';
-            
-            const header = document.createElement('div');
-            header.className = 'result-header';
-            
-            const icon = document.createElement('i');
-            icon.className = `fas fa-${style.icon || 'magic'}`;
-            
-            const title = document.createElement('span');
-            title.textContent = style.name;
-            
-            header.appendChild(icon);
-            header.appendChild(title);
-            
-            const content = document.createElement('div');
-            content.className = 'result-content';
-            content.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
-            
-            resultDiv.appendChild(header);
-            resultDiv.appendChild(content);
-            results.appendChild(resultDiv);
-
-            try {
-                // Pierwszy etap - generowanie
-                const result = await ipcRenderer.invoke('generate-prompt', {
-                    prompt: prompt,
-                    style: style
-                });
-
-                // Drugi etap - czyszczenie
-                if (result.needsCleaning) {
-                    content.innerHTML = '<div class="loading-animation"><i class="fas fa-spinner fa-spin"></i> Finishing...</div>';
-                    await new Promise(resolve => setTimeout(resolve, 1000));
-                }
-
-                content.textContent = result.prompt;
-                
-                // Dodaj animację ukończenia
-                content.classList.add('generation-complete');
-                setTimeout(() => {
-                    content.classList.remove('generation-complete');
-                }, 1000);
-            } catch (error) {
-                console.error(`Error generating prompt for style ${style.name}:`, error);
-                content.innerHTML = '<span class="error">Failed to generate prompt</span>';
-            }
-        }
-    } catch (error) {
-        console.error('Error during sequential generation:', error);
-        showNotification('Error generating prompts', 'error');
-    } finally {
-        generateButton.disabled = false;
-        generateButton.classList.remove('loading');
-        generateButton.innerHTML = originalButtonText;
     }
 }
 

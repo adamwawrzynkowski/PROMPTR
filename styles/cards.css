@@ -362,135 +362,78 @@
     padding: 0 10px;
     margin-top: auto;
     position: relative;
-    z-index: 100000;
+    z-index: 3;
     isolation: isolate;
 }
 
 .style-card .action-btn {
     position: relative;
-    z-index: 100000;
+    z-index: 3;
 }
 
 /* Ensure proper layering in style cards */
 .style-card {
     isolation: isolate;
-}
-
-.style-card .prompt-text,
-.style-card .prompt-output {
-    pointer-events: none;
     position: relative;
     z-index: 1;
 }
 
-.style-card .dropdown-container {
+.style-card .button-group,
+.style-card .action-btn,
+.style-card .style-header {
     position: relative;
-    z-index: 100000;
+    z-index: 3;
 }
 
-.style-card .prompt-options-dropdown {
-    position: absolute;
-    top: 100%;
-    left: 0;
-    z-index: 100000;
+.style-card .prompt-container {
+    position: relative;
+    z-index: 2;
+    isolation: isolate;
 }
 
-.style-card .prompt-options-dropdown,
-.style-card .dropdown-toggle,
-.style-card .dropdown-item {
-    pointer-events: auto !important;
+.style-card .prompt-text {
+    position: relative;
+    z-index: 1;
+    pointer-events: auto;
 }
 
-.style-card .action-btn {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    padding: 8px 16px;
-    background: transparent;
-    border: none;
-    border-radius: 8px;
-    color: var(--text-secondary);
-    cursor: pointer;
-    transition: all 0.2s ease;
-    font-size: 14px;
+.style-card .prompt-output {
+    position: relative;
+    z-index: 1;
 }
 
-.draw-things-btn {
-    background: rgba(147, 51, 234, 0.2) !important;
-    color: rgb(216, 180, 254) !important;
-}
-
-.draw-things-btn:hover {
-    background: rgba(147, 51, 234, 0.3) !important;
-}
-
-.draw-things-btn span {
-    background: linear-gradient(90deg, #f0abfc, #c084fc);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-}
-
-.style-card.generating::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: linear-gradient(90deg,
-        transparent,
-        rgba(255, 255, 255, 0.1),
-        transparent
-    );
-    transform: translateX(-100%);
-    animation: shimmer 2s infinite;
-}
-
-.style-card-title-container {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-}
-
-.favorite-btn {
-    background: none;
-    border: none;
-    color: var(--text-secondary);
-    cursor: pointer;
-    padding: 4px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: all 0.2s ease;
-    border-radius: 4px;
-}
-
-.favorite-btn:hover {
-    background: rgba(255, 255, 255, 0.1);
-}
-
-.favorite-btn.active {
-    color: #ffd700;
-}
-
-.favorite-btn.active:hover {
-    color: #ffc800;
-}
-
-/* Prompt container styles */
-.prompt-container {
+.style-card .prompt-container {
     position: relative;
     flex: 1;
     min-height: 100px;
     max-height: 400px;
-    overflow: hidden;
+    overflow: visible;
     margin: 10px 0;
+    pointer-events: auto;
+}
+
+.style-card .prompt-container > * {
+    pointer-events: auto;
+}
+
+.style-card .prompt-text {
+    position: relative;
+    z-index: 1;
+    pointer-events: auto;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+    user-select: text;
 }
 
 .prompt-text {
     font-family: var(--font-mono);
     font-size: 14px;
-    line-height: 1;
+    line-height: 1.6;
     color: var(--text);
     background: var(--card-background-secondary);
     border-radius: 8px;
+    padding: 15px;
     overflow-y: auto;
     height: 100%;
     min-height: 100px;
@@ -498,11 +441,11 @@
     white-space: normal;
     word-break: break-word;
     mask-image: linear-gradient(to bottom, 
-        black calc(100% - 40px),
+        black calc(100% - 32px),
         transparent 100%
     );
     -webkit-mask-image: linear-gradient(to bottom, 
-        black calc(100% - 40px),
+        black calc(100% - 32px),
         transparent 100%
     );
 }
@@ -522,6 +465,16 @@
 
 .prompt-text::-webkit-scrollbar-thumb:hover {
     background: rgba(255, 255, 255, 0.2);
+}
+
+.style-card .prompt-text {
+    position: relative;
+    z-index: 1;
+    pointer-events: auto !important;
+    overflow-y: auto !important;
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+    user-select: text;
 }
 
 .prompt-text.error {

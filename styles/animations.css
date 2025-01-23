@@ -224,6 +224,9 @@
 
 .prompt-container {
     height: 140px;
+    overflow-y: auto;
+    position: relative;
+    padding-right: 6px;
 }
 
 .prompt-container::-webkit-scrollbar {

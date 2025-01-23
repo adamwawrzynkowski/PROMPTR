@@ -55,6 +55,7 @@
     z-index: 1;
     will-change: transform;
     transform: translateZ(0);
+    isolation: isolate;
 }
 
 .styles-container::-webkit-scrollbar {
@@ -343,12 +344,16 @@
     position: relative;
     flex: 1;
     min-height: 100px;
+    height: 100%;
     display: flex;
     flex-direction: column;
     padding: 20px;
     border-radius: 8px;
     background: var(--card-background);
     border: 1px solid var(--border-color);
+    overflow-y: auto;
+    isolation: isolate;
+    z-index: 2;
 }
 
 .prompt-text {
@@ -360,6 +365,8 @@
     overflow-wrap: break-word;
     overflow-y: auto;
     padding: 0;
+    position: relative;
+    z-index: 1;
 }
 
 .generating-container {
@@ -884,10 +891,15 @@
 
 .scroll-container {
     position: relative;
+    height: 100%;
+    max-height: calc(100vh - 100px);
     overflow-y: auto;
     overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
     scroll-behavior: smooth;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
 }
 
 .action-buttons-container {
