@@ -2263,38 +2263,54 @@ ipcMain.on('refresh-styles-list', () => {
 });
 
 // Generate prompt
-async function generatePrompt(prompt, style) {
+async function generatePrompt(prompt, style, detailLevel = 'standard') {
     try {
         const systemInstructions = style.systemInstructions || defaultSystemInstructions;
         
+        // Detail level specific instructions
+        let detailInstructions = '';
+        if (detailLevel === 'simple') {
+            detailInstructions = 'Create a concise and focused description using essential elements only. Keep it brief but impactful.';
+        } else if (detailLevel === 'detailed') {
+            detailInstructions = `Create an extensive and rich description with:
+- Comprehensive technical specifications
+- Detailed artistic elements and techniques
+- Rich visual and sensory details
+- Specific materials and textures
+- Precise compositional elements
+- Elaborate environmental context
+- Nuanced lighting and atmosphere details
+- Complex emotional and thematic layers
+Ensure the description is thorough and sophisticated while maintaining coherence.`;
+        } else {
+            detailInstructions = 'Create a balanced description with key details and artistic elements while maintaining clarity and focus.';
+        }
+
         // Przygotuj kontekst dla modelu
         const messages = [
             {
                 role: "system",
-                content: `You are transforming prompts to match a specific style. Your ONLY task is to output the transformed prompt.
+                content: `You are an artistic style expert. Your ONLY task is to transform the given text into artistic descriptions.
 
 CRITICAL RULES - VIOLATIONS WILL RESULT IN REJECTION:
-1. DO NOT start with ANY of these phrases (including variations):
-   - "Stable Diffusion prompt..."
-   - "A prompt..."
-   - "An image..."
-   - "Create..."
-   - "Generate..."
-   - "Make..."
-   - "Produce..."
-   - "Design..."
+1. Start DIRECTLY with descriptive words - NO introductory phrases
+2. NO phrases like:
+   - "An image of..."
+   - "A picture of..."
+   - "A scene with..."
+   - "A photo of..."
+   - "A rendering of..."
+   - "A visualization of..."
    - "In the style of..."
    - "Using the style of..."
    - "With the style of..."
-   - "This is a..."
-   - "This will be..."
-   - "Prompt:"
-   - "Output:"
-   - "Result:"
-2. Output ONLY the transformed prompt
-3. NO explanations, descriptions, or metadata
-4. NO quotes or special characters at start/end
-5. NO phrases like "in this image" or "this prompt"
+3. Output ONLY the artistic description
+4. NO explanations or metadata
+5. NO quotes or special characters at start/end
+6. Focus on describing the subject and artistic elements
+
+Detail Level Instructions:
+${detailInstructions}
 
 Style to match: "${style.description}"
 ${systemInstructions}`

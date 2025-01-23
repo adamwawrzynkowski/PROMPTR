@@ -8,8 +8,8 @@ const DEFAULT_STYLES = [
         name: 'Realistic',
         description: 'Ultra-realistic photography with meticulous attention to detail',
         icon: 'camera',
-        prefix: 'Generate a Stable Diffusion prompt for a photorealistic image of: ',
-        suffix: '. Include: ultra detailed, 8k uhd, high resolution, photorealistic, masterpiece, highly detailed skin texture, detailed eyes, detailed facial features, detailed clothing fabric, cinematic lighting, depth of field, sharp focus.',
+        prefix: 'Create a photo-realistic scene depicting: ',
+        suffix: '. Ensure: ultra detailed, 8k uhd, high resolution, masterpiece, highly detailed skin texture, detailed eyes, detailed facial features, detailed clothing fabric, cinematic lighting, depth of field, sharp focus.',
         fixedTags: ['realistic', 'natural', 'detailed', 'photorealistic'],
         custom: false,
         active: true,
@@ -27,11 +27,13 @@ const DEFAULT_STYLES = [
         name: 'Cinematic',
         description: 'Epic movie scene aesthetics with dramatic cinematography',
         icon: 'film',
-        prefix: 'Generate a Stable Diffusion prompt for a cinematic scene of: ',
-        suffix: '. Include: cinematic lighting, dramatic atmosphere, movie quality, depth of field, bokeh, anamorphic, professional photography, epic composition, golden hour, volumetric lighting.',
+        prefix: 'Envision a dramatic scene with cinematic quality: ',
+        suffix: '. Incorporate: cinematic lighting, dramatic atmosphere, movie quality, depth of field, bokeh, anamorphic, professional photography, epic composition, golden hour, volumetric lighting.',
         fixedTags: ['cinematic', 'dramatic', 'movie'],
         custom: false,
         active: true,
+        positiveWords: ['cinematic', 'dramatic', 'epic', 'professional', 'dynamic', 'atmospheric'],
+        negativeWords: ['flat', 'amateur', 'static', 'dull', 'poorly-lit'],
         modelParameters: {
             temperature: 0.8,
             top_k: 60,
@@ -44,11 +46,13 @@ const DEFAULT_STYLES = [
         name: 'Vintage',
         description: 'Nostalgic retro photography with authentic period characteristics',
         icon: 'clock-rotate-left',
-        prefix: 'Generate a Stable Diffusion prompt for a vintage-style image of: ',
-        suffix: '. Include: vintage photography, old film, grainy texture, sepia tones, faded colors, retro aesthetic, analog film, 35mm film, nostalgic atmosphere, period-accurate details.',
+        prefix: 'Capture a nostalgic scene reminiscent of the past: ',
+        suffix: '. Include: aged film qualities, grainy texture, sepia tones, faded colors, timeless aesthetic, analog film, 35mm film, nostalgic atmosphere, period-accurate details.',
         fixedTags: ['vintage', 'retro', 'classic'],
         custom: false,
         active: true,
+        positiveWords: ['nostalgic', 'timeless', 'classic', 'authentic', 'retro', 'aged'],
+        negativeWords: ['modern', 'digital', 'sharp', 'contemporary', 'clean'],
         modelParameters: {
             temperature: 0.7,
             top_k: 50,
@@ -61,11 +65,13 @@ const DEFAULT_STYLES = [
         name: 'Artistic',
         description: 'Expressive fine art with bold artistic interpretation',
         icon: 'palette',
-        prefix: 'Generate a Stable Diffusion prompt for an artistic interpretation of: ',
-        suffix: '. Include: expressive brushstrokes, vibrant colors, abstract shapes, emotive atmosphere, creative composition, artistic freedom, bold textures, intricate details.',
+        prefix: 'Create an expressive artistic interpretation of: ',
+        suffix: '. Emphasize: bold brushstrokes, vibrant colors, abstract elements, emotive atmosphere, creative composition, artistic expression, rich textures, intricate details.',
         fixedTags: ['artistic', 'expressive', 'creative'],
         custom: false,
         active: true,
+        positiveWords: ['expressive', 'creative', 'artistic', 'bold', 'vibrant', 'emotive'],
+        negativeWords: ['literal', 'plain', 'conventional', 'dull', 'uninspired'],
         modelParameters: {
             temperature: 0.9,
             top_k: 70,
@@ -78,11 +84,13 @@ const DEFAULT_STYLES = [
         name: 'Abstract',
         description: 'Non-representational art focusing on form and emotion',
         icon: 'shapes',
-        prefix: 'Generate a Stable Diffusion prompt for an abstract representation of: ',
-        suffix: '. Include: abstract shapes, vibrant colors, emotive atmosphere, creative composition, artistic freedom, bold textures, intricate details.',
+        prefix: 'Transform into a non-representational composition: ',
+        suffix: '. Feature: dynamic shapes, bold colors, emotional resonance, innovative composition, artistic freedom, striking textures, intricate patterns.',
         fixedTags: ['abstract', 'conceptual', 'artistic'],
         custom: false,
         active: false,
+        positiveWords: ['abstract', 'innovative', 'dynamic', 'conceptual', 'experimental', 'bold'],
+        negativeWords: ['literal', 'representational', 'conventional', 'realistic', 'traditional'],
         modelParameters: {
             temperature: 0.9,
             top_k: 80,
@@ -95,11 +103,13 @@ const DEFAULT_STYLES = [
         name: 'Poetic',
         description: 'Dreamy, ethereal atmosphere with soft, romantic qualities',
         icon: 'feather',
-        prefix: 'Generate a Stable Diffusion prompt for a poetic visualization of: ',
-        suffix: '. Include: dreamy atmosphere, soft focus, romantic lighting, ethereal textures, delicate colors, whimsical details, poetic composition.',
+        prefix: 'Visualize a dreamy, ethereal scene of: ',
+        suffix: '. Capture: soft focus, romantic lighting, delicate textures, gentle colors, whimsical details, ethereal atmosphere, enchanting composition.',
         fixedTags: ['poetic', 'dreamy', 'romantic'],
         custom: false,
         active: false,
+        positiveWords: ['dreamy', 'ethereal', 'romantic', 'soft', 'delicate', 'enchanting'],
+        negativeWords: ['harsh', 'rigid', 'stark', 'aggressive', 'heavy'],
         modelParameters: {
             temperature: 0.85,
             top_k: 65,
@@ -112,11 +122,13 @@ const DEFAULT_STYLES = [
         name: 'Anime',
         description: 'Stylized Japanese anime art with characteristic features',
         icon: 'star',
-        prefix: 'Generate a Stable Diffusion prompt for an anime-style portrayal of: ',
+        prefix: 'Create an anime-style portrayal of: ',
         suffix: '. Include: anime aesthetic, vibrant colors, dynamic poses, exaggerated expressions, detailed backgrounds, stylized textures, Japanese-inspired details.',
         fixedTags: ['anime', 'manga', 'japanese'],
         custom: false,
         active: false,
+        positiveWords: ['anime', 'stylized', 'vibrant', 'dynamic', 'expressive', 'japanese'],
+        negativeWords: ['realistic', 'photographic', 'western', 'mundane', 'plain'],
         modelParameters: {
             temperature: 0.85,
             top_k: 65,
@@ -129,11 +141,13 @@ const DEFAULT_STYLES = [
         name: 'Cartoon',
         description: 'Bold, stylized cartoon with exaggerated features',
         icon: 'pen-nib',
-        prefix: 'Generate a Stable Diffusion prompt for a cartoon depiction of: ',
+        prefix: 'Create a cartoon depiction of: ',
         suffix: '. Include: cartoon aesthetic, bold lines, vibrant colors, exaggerated features, comedic expressions, playful textures, whimsical details.',
         fixedTags: ['cartoon', 'playful', 'fun'],
         custom: false,
         active: true,
+        positiveWords: ['cartoon', 'playful', 'whimsical', 'bold', 'vibrant', 'fun'],
+        negativeWords: ['serious', 'realistic', 'gritty', 'photographic', 'somber'],
         modelParameters: {
             temperature: 0.8,
             top_k: 55,
@@ -146,11 +160,13 @@ const DEFAULT_STYLES = [
         name: 'Cute',
         description: 'Adorable kawaii style with charming, playful elements',
         icon: 'heart',
-        prefix: 'Generate a Stable Diffusion prompt for a cute version of: ',
+        prefix: 'Create a cute version of: ',
         suffix: '. Include: kawaii aesthetic, pastel colors, soft textures, adorable expressions, playful details, charming atmosphere, sweet composition.',
         fixedTags: ['cute', 'kawaii', 'adorable'],
         custom: false,
         active: false,
+        positiveWords: ['cute', 'kawaii', 'adorable', 'sweet', 'charming', 'playful'],
+        negativeWords: ['scary', 'dark', 'gritty', 'serious', 'intense'],
         modelParameters: {
             temperature: 0.8,
             top_k: 55,
@@ -163,11 +179,13 @@ const DEFAULT_STYLES = [
         name: 'Sci-Fi',
         description: 'Futuristic science fiction with advanced technology',
         icon: 'rocket',
-        prefix: 'Generate a Stable Diffusion prompt for a sci-fi vision of: ',
+        prefix: 'Create a sci-fi vision of: ',
         suffix: '. Include: futuristic aesthetic, advanced technology, space-inspired details, neon lights, metallic textures, high-tech atmosphere, otherworldly composition.',
         fixedTags: ['sci-fi', 'futuristic', 'tech'],
         custom: false,
         active: true,
+        positiveWords: ['futuristic', 'technological', 'advanced', 'sci-fi', 'innovative', 'sleek'],
+        negativeWords: ['primitive', 'ancient', 'rustic', 'natural', 'outdated'],
         modelParameters: {
             temperature: 0.8,
             top_k: 60,
@@ -201,7 +219,23 @@ class StylesManager {
     async loadStyles() {
         try {
             const data = await fs.readFile(this.stylesPath, 'utf8');
-            this.styles = JSON.parse(data);
+            const savedStyles = JSON.parse(data);
+            
+            // Merge saved styles with default styles
+            const defaultStylesMap = new Map(DEFAULT_STYLES.map(style => [style.id, style]));
+            const customStyles = savedStyles.filter(style => style.custom);
+            
+            // Update default styles and add custom styles
+            this.styles = [
+                ...DEFAULT_STYLES.map(defaultStyle => ({
+                    ...defaultStyle,
+                    active: savedStyles.find(s => s.id === defaultStyle.id)?.active ?? defaultStyle.active
+                })),
+                ...customStyles
+            ];
+            
+            // Save the merged styles back to file
+            await this.saveStyles();
         } catch (error) {
             if (error.code === 'ENOENT') {
                 this.styles = [...DEFAULT_STYLES];

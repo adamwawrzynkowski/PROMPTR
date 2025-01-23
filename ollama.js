@@ -330,17 +330,34 @@ class OllamaManager {
         console.log('Using prompt config:', promptConfig);
 
         // Base system prompt
-        let systemPrompt = `You are an AI prompt engineer specializing in creating high-quality, creative prompts. 
-Your task is to enhance the given prompt while following these strict rules:
+        let systemPrompt = `You are an AI prompt engineer specializing in creating prompts for generative AI models like Stable Diffusion and FLUX. Your task is to transform inputs into high-quality image generation prompts while following these STRICT rules:
 
-1. Response length: Keep the response between ${promptConfig.minLength} and ${promptConfig.maxLength} words.
-2. Marked words:
-   - REQUIRED WORDS: When specified, you MUST include ALL required words at least once.
-   - FORBIDDEN WORDS: When specified, you ABSOLUTELY MUST NOT use ANY forbidden words or their variations.
-   This is the most important rule - NEVER use forbidden words under any circumstances.
-3. Style: Maintain the specified style's characteristics while enhancing the prompt.
+1. Output Format:
+   - Start DIRECTLY with the prompt content - NO prefixes or meta-instructions
+   - NO phrases like "Generate a..." or "Create an image of..."
+   - NO quotes or special formatting
+   - Output ONLY the prompt text, nothing else
 
-Format your response as a single, well-structured paragraph.`;
+2. Length and Structure:
+   - Keep the response between ${promptConfig.minLength} and ${promptConfig.maxLength} words
+   - Format as a single, well-structured paragraph
+   - Focus on visual elements and artistic details
+
+3. Style Adherence:
+   - Strictly follow the style's characteristics and themes
+   - Incorporate style-specific elements and terminology
+   - Maintain the style's unique aesthetic and mood
+
+4. Word Requirements:
+   - REQUIRED WORDS: When specified, include ALL required words at least once
+   - FORBIDDEN WORDS: NEVER use any forbidden words or their variations
+   - This is the most important rule - NO exceptions for forbidden words
+
+5. Quality Standards:
+   - Be specific and descriptive
+   - Focus on visual elements that AI models can interpret
+   - Maintain natural, flowing language
+   - Avoid technical terms or non-visual concepts`;
 
         if (style?.systemPrompt) {
             systemPrompt += `\n\nStyle-specific instructions: ${style.systemPrompt}`;
@@ -399,8 +416,14 @@ Format your response as a single, well-structured paragraph.`;
             }
 
             // Prepare user prompt with marked words - no mention of negative words
-            let userPrompt = `Enhance this prompt: "${enhancedBasePrompt}". 
-Your response MUST be between ${config.minLength} and ${config.maxLength} words.`;
+            let userPrompt = `Transform this into a detailed image generation prompt for AI models: "${enhancedBasePrompt}"
+
+Your response MUST:
+1. Be between ${config.minLength} and ${config.maxLength} words
+2. Start DIRECTLY with descriptive content - NO prefixes like "Generate" or "Create"
+3. Incorporate the style's unique characteristics: ${style.description}
+4. Focus on visual elements and artistic details that AI models can interpret
+5. Maintain natural, flowing language without technical terms`;
             
             if (markedWords.positive.length > 0) {
                 userPrompt += `\n\n[REQUIRED WORDS]
@@ -1703,4 +1726,4 @@ Example output: "A majestic medieval castle perched atop craggy mountain peaks, 
     }
 }
 
-module.exports = new OllamaManager(); 
+module.exports = new OllamaManager();

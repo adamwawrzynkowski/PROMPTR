@@ -165,38 +165,91 @@ Focus on {prompt} while applying the style's specific characteristics.`;
             generateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Generating...';
 
             // Przygotowanie promptu do generowania instrukcji
-            const prompt = `Based on this style description: "${description}"
+            const prompt = `Create comprehensive system instructions for an AI that will transform prompts according to this style description: "${description}"
 
-Create detailed system instructions for an AI that will transform user prompts according to this specific style.
-The instructions should be highly specific to this style and include:
+The instructions should be highly specialized and structured as follows:
 
-1. Role Definition:
-   - Clear definition of the AI's role based on the style description
-   - Specific characteristics and tone that define this style
+1. Style Identity & Role:
+   - Define the AI's precise role in implementing this style
+   - List key characteristics that make this style unique
+   - Specify the tone, voice, and perspective to maintain
+   - Detail the depth and complexity level expected in outputs
+   - Define the optimal length and structure for detailed responses
 
-2. Transformation Guidelines:
-   - Detailed steps for converting any input to match this style
-   - Specific elements that must be maintained or added
-   - Tone and language preferences unique to this style
-   - Any special formatting or structure requirements
+2. Transformation Process:
+   - Provide step-by-step guidelines for converting {prompt} into this style
+   - Detail specific elements and patterns to incorporate
+   - Explain how to preserve the original meaning while applying the style
+   - Include style-specific vocabulary and phrasing preferences
+   - Specify how to expand and elaborate on key concepts
+   - Guide on incorporating rich descriptive elements
 
-3. Style-Specific Rules:
-   - List of do's and don'ts specific to this style
-   - Examples of typical phrases or patterns if applicable
-   - Any special considerations unique to this style
+3. Style Requirements:
+   - Outline mandatory elements that must be present
+   - Specify formatting and structural requirements
+   - List style-specific techniques and approaches
+   - Provide examples of ideal transformations
+   - Define minimum content requirements for detailed outputs
+   - Specify required depth of analysis and description
 
-4. Quality Checks:
-   - How to verify the output matches the style
-   - Balance between style adherence and maintaining original intent
-   - Consistency checks specific to this style
+4. Style Boundaries:
+   - Define what should NOT be included or changed
+   - Identify elements that would break the style
+   - Specify how to handle edge cases
+   - Set guidelines for maintaining appropriate length
+   - Define limits for detail and complexity
 
-Remember to:
-- Use {prompt} as a placeholder for the user's input
-- Make instructions highly specific to this style, not generic
-- Include concrete examples where helpful
-- Ensure instructions are clear and actionable
+5. Quality Assurance:
+   - List specific criteria for evaluating style adherence
+   - Provide checkpoints for maintaining consistency
+   - Include verification steps for style authenticity
+   - Ensure comprehensive coverage of all aspects
+   - Verify sufficient detail and elaboration
+   - Check for proper depth and richness of content
 
-Format the response as clear, numbered instructions with relevant subsections.`;
+Essential Guidelines:
+- Always use {prompt} as the placeholder for user input
+- Be highly specific to this style's unique attributes
+- Include practical examples and patterns
+- Ensure instructions are detailed yet actionable
+- Focus on maintaining both style integrity and original intent
+- For detailed outputs, aim for comprehensive coverage
+- Include rich descriptive elements and thorough analysis
+- Maintain proper balance between detail and clarity
+
+Format the response with clear numbering, bullet points, and distinct sections.
+For detailed outputs, ensure extensive coverage of each point with rich descriptions and thorough analysis.`;
+
+            // Fallback template for when API generation fails
+            const fallbackInstructions = `You are an AI assistant specializing in the following style: "${description}"
+
+Your primary role is to transform user prompts to perfectly match this style while maintaining their core intent.
+
+When processing the user's input {prompt}, follow these guidelines:
+
+1. Style Application:
+   - Analyze the core elements of {prompt}
+   - Apply the style's unique characteristics
+   - Maintain the original message's integrity
+   - Ensure consistent tone and approach
+
+2. Transformation Steps:
+   - Identify key components to modify
+   - Adapt language and structure to match style
+   - Add style-specific enhancements
+   - Remove elements that don't fit
+
+3. Quality Standards:
+   - Verify style consistency throughout
+   - Check for proper style integration
+   - Ensure clarity and effectiveness
+   - Maintain balance between style and meaning
+
+4. Final Refinement:
+   - Polish the output for maximum impact
+   - Verify all style elements are present
+   - Ensure natural flow and readability
+   - Confirm style authenticity`;
 
             const instructions = await ipcRenderer.invoke('generate-system-instructions', {
                 description,
@@ -315,13 +368,19 @@ When processing the user's input {prompt}, follow these guidelines:
             return;
         }
 
+        // Get the description and system instructions
+        const description = styleDescriptionInput.value.trim();
+        const systemInstructions = systemInstructionsInput.value.trim();
+
         const styleData = {
             ...(currentStyle || {}),
             name: styleNameInput.value,
-            description: styleDescriptionInput.value,
-            systemInstructions: systemInstructionsInput.value,
+            description: description,
+            systemInstructions: systemInstructions || defaultSystemInstructions,
             icon: selectedIcon,
-            custom: true
+            custom: true,
+            prefix: `Create ${description.toLowerCase()}: `,
+            suffix: `. Ensure the output matches the style characteristics and maintains high quality.`
         };
 
         try {
