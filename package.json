@@ -67,7 +67,7 @@
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
       "signIgnore": [
-        "node_modules/sharp/vendor/**/*"
+        "node_modules/sharp/vendor/*"
       ]
     },
     "dmg": {
