@@ -1,0 +1,108 @@
+/* Context Menu Styles */
+.context-menu {
+    position: fixed;
+    background: var(--theme-color-back);
+    border: 1px solid var(--theme-color-border);
+    border-radius: 8px;
+    padding: 8px 0;
+    min-width: 150px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    z-index: 1000;
+    display: none;
+    pointer-events: auto;
+    opacity: 0;
+    transform: scale(0.95);
+    transition: opacity 0.15s ease, transform 0.15s ease;
+}
+
+.context-menu.show {
+    display: block;
+    opacity: 1;
+    transform: scale(1);
+}
+
+.context-menu-item {
+    padding: 8px 16px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: var(--text);
+    transition: background-color 0.2s;
+}
+
+.context-menu-item:hover {
+    background-color: var(--theme-color-hover);
+}
+
+.context-menu-item.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+/* Improvement Window Styles */
+.improvement-window {
+    position: absolute;
+    background: var(--theme-color-back);
+    border: 1px solid var(--theme-color-border);
+    border-radius: 8px;
+    padding: 16px;
+    width: 300px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    z-index: 999;
+    display: none;
+    opacity: 0;
+    transform: translateY(-10px);
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.improvement-window.show {
+    display: block;
+    opacity: 1;
+    transform: translateY(0);
+}
+
+.improvement-window textarea {
+    width: 100%;
+    min-height: 100px;
+    margin-bottom: 12px;
+    padding: 8px;
+    border: 1px solid var(--theme-color-border);
+    border-radius: 4px;
+    background: var(--theme-color-input);
+    color: var(--text);
+    resize: vertical;
+}
+
+.improvement-window .button-group {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+}
+
+.improvement-window button {
+    padding: 6px 12px;
+    border-radius: 4px;
+    border: none;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+
+.improvement-window .improve-btn {
+    background: var(--theme-color-accent);
+    color: white;
+}
+
+.improvement-window .improve-btn:hover {
+    background: var(--theme-color-accent-hover);
+}
+
+.improvement-window .cancel-btn {
+    background: var(--theme-color-back);
+    border: 1px solid var(--theme-color-border);
+    color: var(--text);
+}
+
+.improvement-window .cancel-btn:hover {
+    background: var(--theme-color-hover);
+}

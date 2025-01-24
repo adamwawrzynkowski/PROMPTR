@@ -81,6 +81,107 @@ function createStyleCard(style) {
     card.dataset.styleId = style.id;
     card.dataset.favorite = localStorage.getItem(`style_${style.id}_favorite`) === 'true' ? 'true' : 'false';
 
+    // Add context menu event listener
+    card.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        
+        // Remove any existing context menus first
+        document.querySelectorAll('.context-menu').forEach(menu => menu.remove());
+        document.querySelectorAll('.improvement-window').forEach(window => window.remove());
+        
+        const promptText = card.querySelector('.prompt-text');
+        const hasPrompt = promptText && promptText.textContent && 
+                         promptText.textContent !== 'Click Generate to create a prompt...';
+
+        // Create context menu
+        const contextMenu = document.createElement('div');
+        contextMenu.className = 'context-menu';
+        contextMenu.innerHTML = `
+            <div class="context-menu-item improve-option ${!hasPrompt ? 'disabled' : ''}">
+                <i class="fas fa-magic"></i>
+                Improve
+            </div>
+        `;
+
+        // Position context menu at cursor
+        contextMenu.style.left = `${e.pageX}px`;
+        contextMenu.style.top = `${e.pageY}px`;
+        document.body.appendChild(contextMenu);
+
+        // Handle clicking outside menu
+        const closeMenu = (event) => {
+            if (!contextMenu.contains(event.target)) {
+                contextMenu.remove();
+                document.removeEventListener('click', closeMenu);
+            }
+        };
+
+        // Handle improve option click
+        const improveOption = contextMenu.querySelector('.improve-option');
+        if (!improveOption.classList.contains('disabled')) {
+            improveOption.addEventListener('click', () => {
+                // Create improvement window
+                const improvementWindow = document.createElement('div');
+                improvementWindow.className = 'improvement-window';
+                improvementWindow.innerHTML = `
+                    <textarea placeholder="Describe how you want to improve the prompt..."></textarea>
+                    <div class="button-group">
+                        <button class="cancel-btn">Cancel</button>
+                        <button class="improve-btn">Improve</button>
+                    </div>
+                `;
+
+                // Position window relative to the card
+                const cardRect = card.getBoundingClientRect();
+                improvementWindow.style.left = `${cardRect.right + 10}px`;
+                improvementWindow.style.top = `${cardRect.top}px`;
+                document.body.appendChild(improvementWindow);
+                
+                // Show the improvement window with animation
+                setTimeout(() => improvementWindow.classList.add('show'), 0);
+
+                // Handle improvement window buttons
+                const textarea = improvementWindow.querySelector('textarea');
+                const improveBtn = improvementWindow.querySelector('.improve-btn');
+                const cancelBtn = improvementWindow.querySelector('.cancel-btn');
+
+                improveBtn.addEventListener('click', async () => {
+                    const improvementText = textarea.value.trim();
+                    if (!improvementText) return;
+
+                    try {
+                        const result = await ipcRenderer.invoke('improve-prompt', {
+                            styleId: style.id,
+                            currentPrompt: promptText.textContent,
+                            improvementText: improvementText
+                        });
+
+                        if (result && result.prompt) {
+                            await revealPrompt(result.prompt, promptText);
+                            addToStyleHistory(style.id, result.prompt);
+                            updateHistoryButtons(style.id);
+                        }
+                    } catch (error) {
+                        console.error('Error improving prompt:', error);
+                    }
+
+                    improvementWindow.remove();
+                });
+
+                cancelBtn.addEventListener('click', () => {
+                    improvementWindow.remove();
+                });
+
+                contextMenu.remove();
+            });
+        }
+
+        setTimeout(() => {
+            document.addEventListener('click', closeMenu);
+        }, 0);
+    });
+
+
     // Create header
     const header = document.createElement('div');
     header.className = 'style-header';
@@ -486,6 +587,111 @@ function setupStyleCardEventListeners(card, style) {
         return;
     }
 
+    // Remove any existing menus and windows
+    document.querySelectorAll('.context-menu, .improvement-window').forEach(el => el.remove());
+
+    // Add context menu event listener
+    card.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        
+        // Remove any existing menus and windows
+        document.querySelectorAll('.context-menu, .improvement-window').forEach(el => el.remove());
+        
+        const promptText = card.querySelector('.prompt-text');
+        const hasPrompt = promptText && promptText.textContent && 
+                         promptText.textContent !== 'Click Generate to create a prompt...';
+
+        // Create and position context menu
+        const contextMenu = document.createElement('div');
+        contextMenu.className = 'context-menu';
+        contextMenu.innerHTML = `
+            <div class="context-menu-item improve-option ${!hasPrompt ? 'disabled' : ''}">
+                <i class="fas fa-magic"></i>
+                Improve
+            </div>
+        `;
+        
+        // Position context menu at cursor
+        contextMenu.style.left = `${e.pageX}px`;
+        contextMenu.style.top = `${e.pageY}px`;
+        document.body.appendChild(contextMenu);
+
+        // Handle improve option click
+        const improveOption = contextMenu.querySelector('.improve-option');
+        if (!improveOption.classList.contains('disabled')) {
+            improveOption.addEventListener('click', () => {
+                // Create improvement window
+                const improvementWindow = document.createElement('div');
+                improvementWindow.className = 'improvement-window';
+                improvementWindow.innerHTML = `
+                    <textarea placeholder="Describe how you want to improve the prompt..."></textarea>
+                    <div class="button-group">
+                        <button class="cancel-btn">Cancel</button>
+                        <button class="improve-btn">Improve</button>
+                    </div>
+                `;
+
+                // Position window relative to the card
+                const cardRect = card.getBoundingClientRect();
+                improvementWindow.style.left = `${cardRect.right + 10}px`;
+                improvementWindow.style.top = `${cardRect.top}px`;
+                document.body.appendChild(improvementWindow);
+                
+                // Show the improvement window with animation
+                setTimeout(() => improvementWindow.classList.add('show'), 0);
+
+                // Handle improvement window buttons
+                const textarea = improvementWindow.querySelector('textarea');
+                const improveBtn = improvementWindow.querySelector('.improve-btn');
+                const cancelBtn = improvementWindow.querySelector('.cancel-btn');
+
+                improveBtn.addEventListener('click', async () => {
+                    const improvementText = textarea.value.trim();
+                    if (!improvementText) return;
+
+                    try {
+                        const result = await ipcRenderer.invoke('improve-prompt', {
+                            styleId: style.id,
+                            currentPrompt: promptText.textContent,
+                            improvementText: improvementText
+                        });
+
+                        if (result && result.prompt) {
+                            await revealPrompt(result.prompt, promptText);
+                            addToStyleHistory(style.id, result.prompt);
+                            updateHistoryButtons(style.id);
+                        }
+                    } catch (error) {
+                        console.error('Error improving prompt:', error);
+                    }
+
+                    improvementWindow.remove();
+                });
+
+                cancelBtn.addEventListener('click', () => {
+                    improvementWindow.remove();
+                });
+
+                contextMenu.remove();
+            });
+        }
+
+        // Handle clicking outside menu
+        const closeMenu = (event) => {
+            if (!contextMenu.contains(event.target)) {
+                contextMenu.remove();
+                document.removeEventListener('click', closeMenu);
+            }
+        };
+
+        setTimeout(() => {
+            document.addEventListener('click', closeMenu);
+        }, 0);
+    });
+
+    // The rest of the event listeners are handled within the contextmenu event listener
+
+    // Existing event listeners
     const copyBtn = card.querySelector('.copy-btn');
     const drawThingsBtn = card.querySelector('.draw-things-btn');
     const toggleInput = card.querySelector('input[type="checkbox"]');
@@ -2764,8 +2970,10 @@ function initializeWordMarking() {
 
     // Close context menu when clicking outside
     document.addEventListener('click', (e) => {
-        if (!e.target.closest('.word-context-menu')) {
+        if (!e.target.closest('.word-context-menu') && !e.target.closest('.context-menu')) {
             contextMenu.style.display = 'none';
+            const allContextMenus = document.querySelectorAll('.context-menu');
+            allContextMenus.forEach(menu => menu.style.display = 'none');
         }
     });
 
@@ -3052,6 +3260,107 @@ function createStyleCard(style) {
     card.className = 'style-card';
     card.dataset.styleId = style.id;
     card.dataset.favorite = localStorage.getItem(`style_${style.id}_favorite`) === 'true' ? 'true' : 'false';
+
+    // Add context menu event listener
+    card.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        
+        // Remove any existing context menus first
+        document.querySelectorAll('.context-menu').forEach(menu => menu.remove());
+        document.querySelectorAll('.improvement-window').forEach(window => window.remove());
+        
+        const promptText = card.querySelector('.prompt-text');
+        const hasPrompt = promptText && promptText.textContent && 
+                         promptText.textContent !== 'Click Generate to create a prompt...';
+
+        // Create context menu
+        const contextMenu = document.createElement('div');
+        contextMenu.className = 'context-menu';
+        contextMenu.innerHTML = `
+            <div class="context-menu-item improve-option ${!hasPrompt ? 'disabled' : ''}">
+                <i class="fas fa-magic"></i>
+                Improve
+            </div>
+        `;
+
+        // Position context menu at cursor
+        contextMenu.style.left = `${e.pageX}px`;
+        contextMenu.style.top = `${e.pageY}px`;
+        document.body.appendChild(contextMenu);
+
+        // Handle clicking outside menu
+        const closeMenu = (event) => {
+            if (!contextMenu.contains(event.target)) {
+                contextMenu.remove();
+                document.removeEventListener('click', closeMenu);
+            }
+        };
+
+        // Handle improve option click
+        const improveOption = contextMenu.querySelector('.improve-option');
+        if (!improveOption.classList.contains('disabled')) {
+            improveOption.addEventListener('click', () => {
+                // Create improvement window
+                const improvementWindow = document.createElement('div');
+                improvementWindow.className = 'improvement-window';
+                improvementWindow.innerHTML = `
+                    <textarea placeholder="Describe how you want to improve the prompt..."></textarea>
+                    <div class="button-group">
+                        <button class="cancel-btn">Cancel</button>
+                        <button class="improve-btn">Improve</button>
+                    </div>
+                `;
+
+                // Position window relative to the card
+                const cardRect = card.getBoundingClientRect();
+                improvementWindow.style.left = `${cardRect.right + 10}px`;
+                improvementWindow.style.top = `${cardRect.top}px`;
+                document.body.appendChild(improvementWindow);
+                
+                // Show the improvement window with animation
+                setTimeout(() => improvementWindow.classList.add('show'), 0);
+
+                // Handle improvement window buttons
+                const textarea = improvementWindow.querySelector('textarea');
+                const improveBtn = improvementWindow.querySelector('.improve-btn');
+                const cancelBtn = improvementWindow.querySelector('.cancel-btn');
+
+                improveBtn.addEventListener('click', async () => {
+                    const improvementText = textarea.value.trim();
+                    if (!improvementText) return;
+
+                    try {
+                        const result = await ipcRenderer.invoke('improve-prompt', {
+                            styleId: style.id,
+                            currentPrompt: promptText.textContent,
+                            improvementText: improvementText
+                        });
+
+                        if (result && result.prompt) {
+                            await revealPrompt(result.prompt, promptText);
+                            addToStyleHistory(style.id, result.prompt);
+                            updateHistoryButtons(style.id);
+                        }
+                    } catch (error) {
+                        console.error('Error improving prompt:', error);
+                    }
+
+                    improvementWindow.remove();
+                });
+
+                cancelBtn.addEventListener('click', () => {
+                    improvementWindow.remove();
+                });
+
+                contextMenu.remove();
+            });
+        }
+
+        setTimeout(() => {
+            document.addEventListener('click', closeMenu);
+        }, 0);
+    });
+
 
     // Create header
     const header = document.createElement('div');

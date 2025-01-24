@@ -24,6 +24,50 @@ function createStyleTile(style) {
         <div class="style-description">${style.description || ''}</div>
     `;
     
+    // Add context menu functionality
+    tile.addEventListener('contextmenu', (e) => {
+        e.preventDefault();
+        
+        // Remove any existing context menus
+        document.querySelectorAll('.context-menu').forEach(menu => menu.remove());
+        
+        // Create context menu
+        const contextMenu = document.createElement('div');
+        contextMenu.className = 'context-menu';
+        contextMenu.innerHTML = `
+            <div class="context-menu-item improve-option">
+                <i class="fas fa-magic"></i>
+                Improve
+            </div>
+        `;
+        
+        // Position the menu at cursor
+        contextMenu.style.left = `${e.pageX}px`;
+        contextMenu.style.top = `${e.pageY}px`;
+        
+        document.body.appendChild(contextMenu);
+        setTimeout(() => contextMenu.classList.add('show'), 0);
+        
+        // Handle clicking outside menu
+        const closeMenu = (event) => {
+            if (!contextMenu.contains(event.target)) {
+                contextMenu.remove();
+                document.removeEventListener('click', closeMenu);
+            }
+        };
+        
+        // Handle improve option click
+        contextMenu.querySelector('.improve-option').addEventListener('click', () => {
+            // TODO: Implement improve functionality
+            console.log('Improve clicked for style:', style);
+            contextMenu.remove();
+        });
+        
+        setTimeout(() => {
+            document.addEventListener('click', closeMenu);
+        }, 0);
+    });
+    
     tile.addEventListener('click', () => {
         console.log('Style selected:', style);
         // Send the selected style back to the vision window
