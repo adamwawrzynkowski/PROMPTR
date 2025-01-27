@@ -2020,52 +2020,53 @@ ipcMain.handle('send-to-draw-things', async (event, prompt) => {
             console.log('Error fetching root endpoint:', error.message);
         }
 
-        // Try different endpoint patterns
-        const endpoints = [
-            'http://127.0.0.1:3333/api/generate',
-            'http://127.0.0.1:3333/generate',
-            'http://127.0.0.1:3333/txt2img',
-            'http://127.0.0.1:3333/api/txt2img',
-            'http://127.0.0.1:3333/sdapi/v1/txt2img',
-            'http://127.0.0.1:3333/run'
-        ];
+        // Use the stable endpoint for Draw Things API
+        const endpoint = 'http://127.0.0.1:3333/sdapi/v1/txt2img';
 
+        // Prepare request body with required parameters
         const requestBody = {
-            prompt: prompt,
-            steps: 20,
-            width: 512,
-            height: 512
+            prompt: prompt
         };
 
         console.log('Trying request body:', JSON.stringify(requestBody, null, 2));
 
-        for (const endpoint of endpoints) {
-            try {
-                console.log('Trying endpoint:', endpoint);
-                
-                const response = await fetch(endpoint, {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json'
-                    },
-                    body: JSON.stringify(requestBody)
-                });
+        try {
+            console.log('Sending request to Draw Things API:', endpoint);
+            
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Accept': 'application/json'
+                },
+                body: JSON.stringify(requestBody)
+            });
 
-                console.log(`Response status for ${endpoint}:`, response.status);
-                const responseText = await response.text();
-                console.log(`Response text for ${endpoint}:`, responseText);
+            const responseData = await response.text();
+            console.log('Draw Things API response:', responseData);
 
-                if (response.ok) {
-                    console.log('Successfully sent prompt to Draw Things');
-                    return { success: true };
+            if (!response.ok) {
+                if (response.status === 422) {
+                    throw new Error('Invalid model configuration. Please check your Draw Things settings.');
                 }
-            } catch (error) {
-                console.log(`Error with endpoint ${endpoint}:`, error.message);
+                throw new Error(`Draw Things API error: ${response.status} ${responseData}`);
             }
-        }
 
-        throw new Error('Failed to process the prompt in Draw Things. Please try again.');
+                try {
+                    const jsonResponse = JSON.parse(responseData);
+                    if (jsonResponse.images && jsonResponse.images.length > 0) {
+                        console.log('Successfully generated image with Draw Things');
+                        return { success: true, images: jsonResponse.images };
+                    }
+                } catch (parseError) {
+                    console.error('Error parsing Draw Things response:', parseError);
+                }
+                
+                throw new Error('Invalid response format from Draw Things API');
+            } catch (error) {
+                console.error('Draw Things API error:', error.message);
+                throw error;
+            }
     } catch (error) {
         console.error('Error in send-to-draw-things:', error);
         throw error;
